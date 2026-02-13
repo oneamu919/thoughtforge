@@ -107,6 +107,19 @@
 
 Minimum qualification: pass 6 of 8 with no red flags on Age, Last Updated, or License.
 
+**`spec.md` structure:**
+
+| Section | Description |
+|---|---|
+| Deliverable Overview | What is being built/planned, restated from `intent.md` Objective |
+| Deliverable Structure | Proposed structure of the deliverable (plan sections or code architecture) |
+| Key Decisions | Each decision the AI made or the human confirmed, with rationale |
+| Resolved Unknowns | Every Unknown and Open Question from `intent.md`, with resolution and source (AI-reasoned or human-provided) |
+| Dependencies | External tools, services, data, or prerequisites required |
+| Scope Boundaries | What is explicitly included and excluded |
+
+Plan mode: Deliverable Structure contains proposed plan sections following OPA Framework. Code mode: Deliverable Structure contains proposed architecture, language, framework, and tools (including OSS qualification results where applicable).
+
 **`constraints.md` structure:**
 
 | Section | Description |
@@ -149,6 +162,19 @@ Minimum qualification: pass 6 of 8 with no red flags on Age, Last Updated, or Li
 | Plan | AI response explicitly states it cannot proceed without human input (parsed from response) | Notify and wait |
 | Code | Build agent returns non-zero exit after 2 consecutive retries on the same task, OR test suite fails on the same tests for 3 consecutive fix attempts | Notify and wait |
 
+**Phase 3 Stuck Recovery:**
+
+When Phase 3 stuck detection triggers, the human is notified with context (deliverable type, what the AI is stuck on, current build state). The human has two options, presented as buttons in the ThoughtForge chat interface:
+
+| Option | What Happens |
+|---|---|
+| Provide Input | Human provides the needed decision or clarification via chat. The builder resumes from where it stopped using the human's input. `status.json` remains in `building` state. |
+| Terminate | Human stops the project. Status set to `halted` permanently. |
+
+Phase 3 does not offer an Override option — unlike Phase 4, there is no partially complete deliverable worth accepting. The builder either needs the input to continue or the project is abandoned.
+
+Recovery follows the same confirmation model as Phase 4: explicit button presses, not chat-parsed commands. Terminate requires a single confirmation step.
+
 **Phase 3 Error Handling:**
 
 | Condition | Action |
@@ -156,6 +182,8 @@ Minimum qualification: pass 6 of 8 with no red flags on Age, Last Updated, or Li
 | Agent failure (timeout, crash, empty response) during build | Same retry behavior as agent communication layer: retry once, halt and notify on second failure. |
 | Template rendering failure (Plan mode) | Halt and notify human with error details. No retry — template errors indicate a structural problem, not a transient failure. |
 | File system error (cannot write to project directory) | Halt and notify human immediately. No retry. |
+
+**Phase 3 → Phase 4 Transition:** Automatic. When the Phase 3 builder completes successfully (plan document drafted or codebase built and tests passing), the orchestrator writes a git commit, updates `status.json` to `polishing`, sends a milestone notification ("Phase 3 complete. Deliverable built. Polish loop starting."), and immediately begins Phase 4. No human confirmation is required — this is within the autonomous window between Touchpoints 3 and 4.
 
 **Code Mode Testing Requirements:**
 
@@ -305,7 +333,7 @@ Every phase transition pings the human with a status update. Every notification 
 | Field | Description |
 |---|---|
 | project_id | Unique project identifier |
-| project_name | Human-readable name from `intent.md` |
+| project_name | Human-readable project name. Derived during Phase 1 distillation: the AI extracts or generates a short name from the brain dump and includes it as the title of `intent.md`. Stored in `status.json` as `project_name` after `intent.md` is locked. |
 | phase | Current phase |
 | event_type | `convergence_success`, `guard_triggered`, `human_needed`, `milestone_complete`, `error` |
 | summary | One-line description with actionable context |
@@ -325,7 +353,7 @@ Every phase transition pings the human with a status update. Every notification 
 
 | File | Written When | Schema |
 |---|---|---|
-| `status.json` | Every phase transition and state change | Tracks current phase, deliverable type, assigned agent, timestamps, and halt reason. Full schema in build spec. |
+| `status.json` | Every phase transition and state change | Tracks project name, current phase, deliverable type, assigned agent, timestamps, and halt reason. Full schema in build spec. |
 | `polish_state.json` | After each Phase 4 iteration | Iteration number, error counts, convergence trajectory, timestamp |
 | `polish_log.md` | Appended after each Phase 4 iteration | Human-readable iteration log |
 | `chat_history.json` | Appended after each chat message (Phases 1–2) | Array of timestamped messages (role, content, phase). On crash, chat resumes from last message. Cleared after each phase advancement confirmation (Phase 1 → Phase 2 and Phase 2 → Phase 3), so each phase starts with a fresh chat history. |

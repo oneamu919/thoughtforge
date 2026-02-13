@@ -256,6 +256,7 @@ Agent-specific adapters handle output format differences and normalize to Though
 
 ```typescript
 interface ProjectStatus {
+  project_name: string;       // Human-readable name, derived during Phase 1
   phase: "brain_dump" | "distilling" | "human_review" | "spec_building" | "building" | "polishing" | "done" | "halted";
   deliverable_type: "plan" | "code";
   agent: string;

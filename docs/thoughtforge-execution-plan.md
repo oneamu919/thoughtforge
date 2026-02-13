@@ -27,6 +27,7 @@
 | 4 | Implement notification abstraction layer + ntfy.sh channel | — | Task 1 | — | Not Started |
 | 5 | Implement phase transition notifications (ping human on every milestone) | — | Task 4 | — | Not Started |
 | 6 | Set up plugin loader (reads `/plugins/{type}/`, validates interface contract) | — | Task 1 | — | Not Started |
+| 6a | Implement main pipeline orchestrator: phase sequencing based on `status.json`, plugin selection by `deliverable_type`, Phase 2→3 entry (including Plan Completeness Gate trigger for Code mode), automatic Phase 3→4 transition, and Phase 3 stuck recovery interaction | — | Task 2, Task 3, Task 6 | — | Not Started |
 
 > **Cross-stage dependency:** Agent Layer (Build Stage 7, Tasks 41–44) provides the core agent invocation mechanism used by Stages 2–6. Tasks 41–42 (agent invocation and adapters) must be completed before any task that invokes an AI agent. Specifically, Tasks 8, 12, 15, 21, and 30 depend on Tasks 41–42. Build Stage 7 (Agent Layer) must begin in parallel with Build Stage 1. Tasks 41–42 must be complete before any agent-invoking task begins (Tasks 8, 12, 15, 19, 21, and 30).
 
@@ -37,11 +38,11 @@
 | 7 | Build ThoughtForge chat interface (terminal or lightweight web) | — | Task 1 | — | Not Started |
 | 7a | Externalize all pipeline prompts to `/prompts/` directory as `.md` files (brain-dump-intake, plan-review, code-review, plan-fix, code-fix, spec-building, completeness-gate) | — | Task 1 | — | Not Started |
 | 7b | Implement Settings button in chat interface — prompt editor that lists, views, and saves all prompt files from `/prompts/` directory | — | Task 7, Task 7a | — | Not Started |
-| 8 | Implement Phase 1: brain dump intake, resource reading, distillation prompt (loaded from `/prompts/brain-dump-intake.md`) | — | Task 7, Task 7a, Task 41 | — | Not Started |
+| 8 | Implement Phase 1: brain dump intake, resource reading, distillation prompt (loaded from `/prompts/brain-dump-intake.md`) | — | Task 6a, Task 7, Task 7a, Tasks 41–42 | — | Not Started |
 | 9 | Implement correction loop (chat-based revisions, "realign from here") | — | Task 8 | — | Not Started |
 | 10 | Implement Confirm button (phase advancement mechanism) | — | Task 7 | — | Not Started |
 | 11 | Implement `intent.md` generation and locking | — | Task 9 | — | Not Started |
-| 12 | Implement Phase 2: spec building, constraint discovery, acceptance criteria extraction, human review/override of proposed decisions, human review of acceptance criteria, Confirm to advance | — | Task 10, Task 11, Task 7a, Task 41 | — | Not Started |
+| 12 | Implement Phase 2: spec building, constraint discovery, acceptance criteria extraction, human review/override of proposed decisions, human review of acceptance criteria, Confirm to advance | — | Task 6a, Task 10, Task 11, Task 7a, Tasks 41–42 | — | Not Started |
 | 13 | Implement `spec.md` and `constraints.md` generation | — | Task 12 | — | Not Started |
 
 ### Build Stage 3: Plan Mode Plugin
@@ -49,11 +50,11 @@
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
 | 14 | Create `/plugins/plan/` folder structure | — | Task 6 | — | Not Started |
-| 15 | Implement `builder.js` — Handlebars template-driven document drafting | — | Task 14, Task 41 | — | Not Started |
+| 15 | Implement `builder.js` — Handlebars template-driven document drafting | — | Task 6a, Task 14, Tasks 41–42 | — | Not Started |
 | 16 | Create OPA skeleton Handlebars templates (generic, wedding, strategy, engineering) | — | Task 15 | — | Not Started |
 | 17 | Implement `reviewer.js` — Plan review Zod schema + severity definitions | — | Task 14 | — | Not Started |
 | 18 | Implement `safety-rules.js` — hard-block all code execution in plan mode | — | Task 14 | — | Not Started |
-| 19 | Implement Plan Completeness Gate (assessment prompt for Code mode entry, auto-redirect to Plan mode on fail) | — | Task 14, Task 7a, Task 41 | — | Not Started |
+| 19 | Implement Plan Completeness Gate (assessment prompt for Code mode entry, auto-redirect to Plan mode on fail) | — | Task 14, Task 7a, Tasks 41–42 | — | Not Started |
 
 ### Build Stage 4: Code Mode Plugin
 
@@ -62,7 +63,7 @@
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
 | 20 | Create `/plugins/code/` folder structure | — | Task 6 | — | Not Started |
-| 21 | Implement `builder.js` — agent-driven coding via Vibe Kanban | — | Task 20, Task 27, Task 41 | — | Not Started |
+| 21 | Implement `builder.js` — agent-driven coding via Vibe Kanban | — | Task 6a, Task 20, Task 27, Tasks 41–42 | — | Not Started |
 | 22 | Implement `reviewer.js` — Code review Zod schema + severity definitions | — | Task 20 | — | Not Started |
 | 23 | Implement `safety-rules.js` — Code mode permissions | — | Task 20 | — | Not Started |
 | 24 | Implement `test-runner.js` — test execution, result logging | — | Task 20 | — | Not Started |
@@ -81,7 +82,7 @@
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
-| 30 | Implement orchestrator loop: review call → parse → validate → fix call → commit | — | Task 3, Task 17, Task 22, Task 41 | — | Not Started |
+| 30 | Implement orchestrator loop: review call → parse → validate → fix call → commit | — | Task 3, Task 6a, Task 17, Task 22, Tasks 41–42 | — | Not Started |
 | 31 | Implement Zod validation flow (safeParse, retry on failure, halt after max retries) | — | Task 30 | — | Not Started |
 | 32 | Implement count derivation from issues array (ignore top-level counts) | — | Task 30 | — | Not Started |
 | 33 | Implement convergence guard: termination (success) | — | Task 30 | — | Not Started |
