@@ -17,10 +17,10 @@
 | Input | Source | Format | Required |
 |-------|--------|--------|----------|
 | Brain dump | Human via chat | Freeform text | Yes |
-| Resources | Human drops into `/resources/` | Text, PDF, images, code files | No |
+| Resources | Human drops into `/projects/{id}/resources/` | Text, PDF, images, code files | No |
 | Corrections | Human via chat | Natural language | Yes (Phase 1-2) |
 | Confirmation | Human via Confirm button | Button press | Yes (phase advancement) |
-| Plan document (chained) | Previous pipeline output in `/resources/` | `.md` file | Code mode only (optional) |
+| Plan document (chained) | Previous pipeline output in `/projects/{id}/resources/` | `.md` file | Code mode only (optional) |
 
 ### Outputs
 
@@ -41,7 +41,8 @@
 
 **Primary Flow:**
 
-1. Human creates a new project card and brain dumps into chat
+0. **Project Initialization:** Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project" command or button). ThoughtForge generates a unique project ID, creates the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories), initializes a git repo, writes an initial `status.json` with phase `brain_dump`, and opens a new chat thread. If Vibe Kanban integration is enabled, a corresponding card is created at this point.
+1. Human brain dumps into chat
 2. Human drops files/resources into `/resources/` directory
 3. AI reads all resources (text, PDF, images via vision, code files) and the brain dump
 4. AI distills into structured document: Deliverable Type, Objective, Assumptions, Constraints, Unknowns, Open Questions (max 5)
@@ -138,6 +139,14 @@ Minimum qualification: pass 6 of 8 with no red flags on Age, Last Updated, or Li
 | Plan | AI response explicitly states it cannot proceed without human input (parsed from response) | Notify and wait |
 | Code | Build agent returns non-zero exit after 2 consecutive retries on the same task, OR test suite fails on the same tests for 3 consecutive fix attempts | Notify and wait |
 
+**Phase 3 Error Handling:**
+
+| Condition | Action |
+|---|---|
+| Agent failure (timeout, crash, empty response) during build | Same retry behavior as agent communication layer: retry once, halt and notify on second failure. |
+| Template rendering failure (Plan mode) | Halt and notify human with error details. No retry — template errors indicate a structural problem, not a transient failure. |
+| File system error (cannot write to project directory) | Halt and notify human immediately. No retry. |
+
 **Code Mode Testing Requirements:**
 
 | Test Type | What It Covers | When It Runs |
@@ -160,7 +169,7 @@ Minimum qualification: pass 6 of 8 with no red flags on Age, Last Updated, or Li
 |---|---|---|
 | Termination (success) | `critical == 0` AND `medium < 3` AND `minor < 5` (+ all tests pass for code) | Done. Notify human. |
 | Hallucination | Error count spikes >20% after 2+ iteration downward trend | Halt. Notify human: "Fix-regress cycle detected. Errors trending down then spiked. Iteration [N]: [X] total (was [Y]). Review needed." |
-| Stagnation | Same total count for 3+ consecutive iterations AND issue rotation detected: fewer than 70% of issues in the current iteration match an issue from the prior iteration (two issues "match" when Levenshtein similarity ≥ 0.8) | Done (success). Notify human: "Polish sufficient. Ready for final review." |
+| Stagnation | Same total count for 3+ consecutive iterations AND issue rotation detected: fewer than 70% of issues in the current iteration match an issue from the prior iteration (two issues "match" when Levenshtein similarity ≥ 0.8). This combination means the reviewer is finding new issues at the same rate old ones are fixed — a plateau, not degradation. | Done (success). Notify human: "Polish sufficient. Ready for final review." |
 | Fabrication | Two conditions must both be true: **(1)** Any single category count exceeds its trailing 3-iteration average by more than 50%, with a minimum absolute increase of 2. **(2)** In at least one prior iteration, the system reached within 2× of the termination thresholds (≤0 critical, ≤6 medium, ≤10 minor). Condition 2 prevents false positives early in the loop when counts are still volatile. | Halt. Notify human. |
 | Max iterations | Hard ceiling reached (default 50) | Halt. Notify human: "Max [N] iterations reached. Avg flaws/iter: [X]. Lowest: [Y] at iter [Z]. Review needed." |
 
@@ -177,6 +186,8 @@ When a convergence guard halts the loop, the human is notified with context (gua
 | Terminate | Human stops the project. Status set to `halted` permanently. |
 
 Recovery is initiated through the ThoughtForge chat interface. The halted card remains in the Polishing column with a visual halted indicator until the human acts.
+
+**Halt Recovery Interaction:** When the chat interface presents a halted state, it displays three action buttons: Resume, Override, and Terminate. These follow the same confirmation model as phase advancement — explicit button presses, not chat-parsed commands. Before Override or Terminate, the interface prompts the human to confirm the action (single confirmation step).
 
 **Count Derivation:** Orchestrator ignores top-level count fields. Derives counts from the `issues` array by counting per severity. Top-level counts remain for human readability in logs only.
 
@@ -307,7 +318,7 @@ Every phase transition pings the human with a status update. Every notification 
 
 ### UI
 
-**ThoughtForge Chat (Built):** Lightweight terminal or web chat for Phases 1-2. Per-project chat thread, file/resource dropping, AI messages labeled by phase, corrections via chat, advancement via Confirm button.
+**ThoughtForge Chat (Built):** Lightweight terminal or web chat. Primary use: Phases 1-2 (brain dump intake, spec building). Also used for Phase 4 halt recovery (resume, override, terminate actions). Per-project chat thread, file/resource dropping, AI messages labeled by phase, corrections via chat, advancement via Confirm button. During halt recovery, the chat presents the halted state context and the three recovery options — no free-form AI conversation.
 
 **Prompt Management:** The chat interface includes a Settings button that opens a prompt editor. All pipeline prompts — brain dump intake, review, fix, and any future prompts — are listed, viewable, and editable by the human. Edits apply globally (all future projects use the updated prompts). Per-project prompt overrides are a future option, not a v1 build dependency. Prompts are stored as external files in a `/prompts/` directory, not embedded in code. The prompt editor reads from and writes to these files.
 
@@ -315,7 +326,7 @@ Every phase transition pings the human with a status update. Every notification 
 
 **Per-Card Stats:** Created timestamp, time per phase, total duration, status, and agent used are provided by Vibe Kanban's built-in dashboard. Polish loop metrics (iteration count, convergence trajectory, final error counts) are read from `polish_state.json` in each project directory. ThoughtForge does not push stats to Vibe Kanban — Vibe Kanban reads the project files directly.
 
-**Plan vs. Code Column Display:** Plan mode cards pass through the same Kanban columns. The "Coding" column represents Phase 3 (autonomous build) for both deliverable types — document drafting for Plans, coding for Code. Column labels are not mode-specific. The card's `deliverable_type` field in `status.json` distinguishes the two in the dashboard.
+**Plan vs. Code Column Display:** Plan mode cards pass through the same Kanban columns. The "Building" column represents Phase 3 (autonomous build) for both deliverable types — document drafting for Plans, coding for Code. Column labels are not mode-specific. The card's `deliverable_type` field in `status.json` distinguishes the two in the dashboard.
 
 **Agent Performance Comparison:** Vibe Kanban's dashboard surfaces timing and agent data natively. ThoughtForge enables comparison by writing iteration count, convergence speed, and final error counts to `polish_state.json`, which Vibe Kanban reads per-card.
 

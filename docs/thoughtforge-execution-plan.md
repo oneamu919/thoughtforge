@@ -21,7 +21,7 @@
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
 | 1 | Initialize Node.js project, folder structure, `config.yaml` loader | — | — | — | Not Started |
-| 2 | Set up git repo structure (per-project repo creation logic) | — | Task 1 | — | Not Started |
+| 2 | Implement project initialization: unique ID generation, `/projects/{id}/` directory scaffolding (including `/docs/` and `/resources/`), git repo init, initial `status.json` write, Vibe Kanban card creation (if enabled), and new chat thread creation | — | Task 1 | — | Not Started |
 | 3 | Implement project state module (`status.json`, `polish_state.json` read/write) | — | Task 1 | — | Not Started |
 | 3a | Implement operational logging module (per-project `thoughtforge.log`, structured entries for agent calls, phase transitions, errors) | — | Task 1 | — | Not Started |
 | 4 | Implement notification abstraction layer + ntfy.sh channel | — | Task 1 | — | Not Started |
