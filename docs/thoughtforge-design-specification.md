@@ -60,7 +60,7 @@
 **Primary Flow:**
 
 1. AI proposes deliverable structure and key decisions based on `intent.md`
-2. AI challenges weak or risky decisions from the intent — missing dependencies, unrealistic constraints, scope gaps, contradictions — with specific reasoning. Does not rubber-stamp.
+2. AI challenges weak or risky decisions present in `intent.md` — missing dependencies, unrealistic constraints, scope gaps, contradictions — with specific reasoning. Does not rubber-stamp.
 3. AI resolves Unknowns and Open Questions from `intent.md` — either by making a reasoned decision (stated in `spec.md`) or by asking the human during the Phase 2 chat. No unresolved unknowns may carry into `spec.md`.
 4. AI extracts 5-10 acceptance criteria from `intent.md`
 5. Human confirms or overrides specific decisions
@@ -150,10 +150,22 @@ Minimum qualification: pass 6 of 8 with no red flags on Age, Last Updated, or Li
 | Termination (success) | `critical == 0` AND `medium < 3` AND `minor < 5` (+ all tests pass for code) | Done. Notify human. |
 | Hallucination | Error count spikes >20% after 2+ iteration downward trend | Halt. Notify human: "Fix-regress cycle detected. Errors trending down then spiked. Iteration [N]: [X] total (was [Y]). Review needed." |
 | Stagnation | Same total count for 3+ consecutive iterations AND issue rotation detected: fewer than 70% of issues in the current iteration match an issue from the prior iteration (two issues "match" when Levenshtein similarity ≥ 0.8) | Done (success). Notify human: "Polish sufficient. Ready for final review." |
-| Fabrication | Any category count exceeds its trailing 3-iteration average by >50% (minimum absolute increase of 2), AND the system has previously reached within 2× of the termination thresholds (≤0 critical, ≤6 medium, ≤10 minor) in at least one prior iteration | Halt. Notify human. |
+| Fabrication | Two conditions must both be true: **(1)** Any single category count exceeds its trailing 3-iteration average by more than 50%, with a minimum absolute increase of 2. **(2)** In at least one prior iteration, the system reached within 2× of the termination thresholds (≤0 critical, ≤6 medium, ≤10 minor). Condition 2 prevents false positives early in the loop when counts are still volatile. | Halt. Notify human. |
 | Max iterations | Hard ceiling reached (default 50) | Halt. Notify human: "Max [N] iterations reached. Avg flaws/iter: [X]. Lowest: [Y] at iter [Z]. Review needed." |
 
 **Loop State Persistence:** `polish_state.json` written after each iteration (iteration number, error counts, convergence trajectory, timestamp). On crash, resumes from last completed iteration.
+
+**Halt Recovery:**
+
+When a convergence guard halts the loop, the human is notified with context (guard type, iteration number, error state). The human has three options:
+
+| Option | What Happens |
+|---|---|
+| Resume | Human reviews the state, optionally makes manual edits to the deliverable, then resumes the polish loop from the next iteration. `polish_state.json` is preserved. |
+| Override | Human marks the current state as acceptable. Loop terminates as successful. Equivalent to manual convergence. |
+| Terminate | Human stops the project. Status set to `halted` permanently. |
+
+Recovery is initiated through the ThoughtForge chat interface. The halted card remains in the Polishing column with a visual halted indicator until the human acts.
 
 **Count Derivation:** Orchestrator ignores top-level count fields. Derives counts from the `issues` array by counting per severity. Top-level counts remain for human readability in logs only.
 
@@ -203,9 +215,11 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 | Version Control | Git — each project gets its own repo | Rollback built in. Separate repos for clean parallel isolation |
 | Notifications | ntfy.sh (Apache 2.0) with abstraction layer | One HTTP POST, no tokens needed. Abstraction supports adding channels via config |
 | Config | `config.yaml` at project root | Thresholds, max iterations, concurrency, agent prefs, notification channels |
+| Prompts | External `.md` files in `/prompts/` | Human-editable pipeline prompts. Not embedded in code. Settings UI reads/writes directly. |
 | Schema Validation | Zod (MIT, TypeScript-first) | Single-source review JSON schema. Auto-validation with clear errors |
 | Template Engine | Handlebars (MIT) | OPA skeleton as fixed structure. AI fills slots, can't break structure |
 | Plugin Architecture | Convention-based: `/plugins/{type}/` | Self-contained per deliverable type. Orchestrator delegates, no if/else branching |
+| Operational Logging | Node.js built-in (`console` or structured logger) | ThoughtForge logs its own operations — agent invocations, phase transitions, convergence guard evaluations, errors, and halt events — to a per-project `thoughtforge.log` file. Separate from `polish_log.md` (which is the human-readable iteration log). Used for debugging, not human review. |
 | MCP (Future) | Model Context Protocol | Core actions as clean standalone functions for future MCP wrapping. Not v1. |
 
 ### Vibe Kanban (Execution Layer — Integrated, Not Built)
@@ -221,16 +235,7 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 
 ### Vibe Kanban Integration Interface
 
-ThoughtForge communicates with Vibe Kanban via its CLI. Core operations:
-
-| ThoughtForge Action | Vibe Kanban CLI Command | When |
-|---|---|---|
-| Create task | `vibekanban task create --name "{project_name}" --agent {agent}` | Phase 3 start |
-| Update task status | `vibekanban task update {task_id} --status {status}` | Every phase transition |
-| Execute agent work | `vibekanban task run {task_id} --prompt-file {path}` | Phase 3 build, Phase 4 fix steps |
-| Read task result | `vibekanban task result {task_id}` | After each agent execution |
-
-All integration commands centralized in `vibekanban-adapter.js`. ThoughtForge never calls Vibe Kanban directly from orchestrator logic.
+ThoughtForge communicates with Vibe Kanban via its CLI through four operations: task creation (Phase 3 start), status updates (every phase transition), agent work execution (Phase 3 build, Phase 4 fix steps), and result reading (after each agent execution). All integration calls centralized in `vibekanban-adapter.js`. ThoughtForge never calls Vibe Kanban directly from orchestrator logic. Exact CLI commands and flags in build spec.
 
 ### Plugin Folder Structure
 
@@ -285,18 +290,21 @@ Every phase transition pings the human with a status update. Every notification 
 | `status.json` | Every phase transition and state change | Tracks current phase, deliverable type, assigned agent, timestamps, and halt reason. Full schema in build spec. |
 | `polish_state.json` | After each Phase 4 iteration | Iteration number, error counts, convergence trajectory, timestamp |
 | `polish_log.md` | Appended after each Phase 4 iteration | Human-readable iteration log |
+| `chat_history.json` | Appended after each chat message (Phases 1–2) | Array of timestamped messages (role, content, phase). On crash, chat resumes from last message. Cleared after phase advancement confirmation. |
 
 ### UI
 
 **ThoughtForge Chat (Built):** Lightweight terminal or web chat for Phases 1-2. Per-project chat thread, file/resource dropping, AI messages labeled by phase, corrections via chat, advancement via Confirm button.
 
+**Prompt Management:** The chat interface includes a Settings button that opens a prompt editor. All pipeline prompts — brain dump intake, review, fix, and any future prompts — are listed, viewable, and editable by the human. Edits apply globally (all future projects use the updated prompts). Per-project prompt overrides are a future option, not a v1 build dependency. Prompts are stored as external files in a `/prompts/` directory, not embedded in code. The prompt editor reads from and writes to these files.
+
 **Vibe Kanban Dashboard (Integrated, Not Built):** Columns map to `status.json` phases: Brain Dump → Distilling → Human Review → Spec Building → Building → Polishing → Done. "Confirmed" is not a separate column — confirmation advances the card from Human Review to the next phase. Cards with `halted` status remain in their current column with a visual halted indicator; "Halted" is a card state, not a column. Each card = one project. Shows agent, status, parallel execution.
 
-**Per-Card Stats:** Created timestamp, time per phase, total duration, polish loop metrics (from `polish_log.md`), status, agent used.
+**Per-Card Stats:** Created timestamp, time per phase, total duration, status, and agent used are provided by Vibe Kanban's built-in dashboard. Polish loop metrics (iteration count, convergence trajectory, final error counts) are read from `polish_state.json` in each project directory. ThoughtForge does not push stats to Vibe Kanban — Vibe Kanban reads the project files directly.
 
 **Plan vs. Code Column Display:** Plan mode cards pass through the same Kanban columns. The "Coding" column represents Phase 3 (autonomous build) for both deliverable types — document drafting for Plans, coding for Code. Column labels are not mode-specific. The card's `deliverable_type` field in `status.json` distinguishes the two in the dashboard.
 
-**Agent Performance Comparison:** Same task run with different agents shows iteration count, time, and convergence speed differences.
+**Agent Performance Comparison:** Vibe Kanban's dashboard surfaces timing and agent data natively. ThoughtForge enables comparison by writing iteration count, convergence speed, and final error counts to `polish_state.json`, which Vibe Kanban reads per-card.
 
 ### Future Extensibility: MCP
 
@@ -354,6 +362,7 @@ Orchestrator core actions (create project, check status, read polish log, trigge
 | Agents | Default agent, call timeout, per-agent command and flags | claude, 300s |
 | Templates | Template directory path | `./templates` |
 | Plugins | Plugin directory path | `./plugins` |
+| Prompts | Prompt directory path, individual prompt files | `/prompts/`, one `.md` file per prompt |
 | Vibe Kanban | Enabled toggle | true |
 
 Full `config.yaml` with all keys and structure in build spec.

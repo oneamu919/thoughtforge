@@ -6,8 +6,30 @@
 
 ---
 
+## Prompt File Directory
+
+**Used by:** Task 7b (prompt management UI), all tasks that invoke AI agents
+
+All pipeline prompts are stored as external `.md` files in `/prompts/`. The orchestrator reads prompts from this directory at invocation time — never from embedded strings. The Settings UI in the chat interface reads from and writes to these files.
+
+```
+/prompts/
+  brain-dump-intake.md      # Phase 1: distillation prompt
+  plan-review.md            # Phase 4: plan mode review prompt
+  code-review.md            # Phase 4: code mode review prompt
+  plan-fix.md               # Phase 4: plan mode fix prompt
+  code-fix.md               # Phase 4: code mode fix prompt
+  spec-building.md          # Phase 2: spec and constraint discovery prompt
+  completeness-gate.md      # Plan completeness assessment for Code mode entry
+```
+
+New prompts added to this directory are automatically picked up by the Settings UI.
+
+---
+
 ## Phase 1 System Prompt — Brain Dump Intake
 
+**File:** `/prompts/brain-dump-intake.md`
 **Used by:** Task 8 (Phase 1 brain dump intake)
 **Called via:** Agent invocation layer (Tasks 41–42)
 
@@ -216,6 +238,47 @@ interface PolishState {
 
 ---
 
+## `chat_history.json` Schema
+
+**Used by:** Tasks 7–9 (chat interface, correction loop)
+**Written:** After each chat message during Phases 1–2
+
+```typescript
+interface ChatMessage {
+  role: "human" | "ai";
+  content: string;
+  phase: "brain_dump" | "distilling" | "human_review" | "spec_building";
+  timestamp: string;  // ISO8601
+}
+
+type ChatHistory = ChatMessage[];
+```
+
+On crash, chat resumes from last recorded message. Cleared after phase advancement confirmation.
+
+---
+
+## Operational Log Format (`thoughtforge.log`)
+
+**Used by:** Task 3a (operational logging module)
+**Written:** Continuously during pipeline execution
+
+Each log line is a JSON object:
+
+```json
+{
+  "timestamp": "2026-02-13T10:30:00.000Z",
+  "level": "info",
+  "event": "agent_call",
+  "phase": "polishing",
+  "detail": "Review call to claude, iteration 7"
+}
+```
+
+Log levels: `info`, `warn`, `error`. Events include: `phase_transition`, `agent_call`, `agent_response`, `guard_evaluation`, `halt`, `error`, `config_loaded`, `plugin_loaded`.
+
+---
+
 ## `config.yaml` Template
 
 **Used by:** Task 1 (config loader)
@@ -270,10 +333,29 @@ templates:
 plugins:
   directory: "./plugins"
 
+# Prompts
+prompts:
+  directory: "./prompts"
+
 # Vibe Kanban integration
 vibekanban:
   enabled: true
 ```
+
+---
+
+## Vibe Kanban CLI Interface
+
+**Used by:** Tasks 26–28 (Vibe Kanban integration)
+
+| ThoughtForge Action | Vibe Kanban CLI Command | When |
+|---|---|---|
+| Create task | `vibekanban task create --name "{project_name}" --agent {agent}` | Phase 3 start |
+| Update task status | `vibekanban task update {task_id} --status {status}` | Every phase transition |
+| Execute agent work | `vibekanban task run {task_id} --prompt-file {path}` | Phase 3 build, Phase 4 fix steps |
+| Read task result | `vibekanban task result {task_id}` | After each agent execution |
+
+**Note:** These commands are assumed from Vibe Kanban documentation. Verify actual CLI matches before build (see Risk Register in Execution Plan).
 
 ---
 
