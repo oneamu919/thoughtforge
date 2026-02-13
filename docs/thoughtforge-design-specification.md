@@ -94,7 +94,7 @@ Vibe Kanban columns mirror these `status.json` values directly.
 1. AI proposes deliverable structure and key decisions based on `intent.md`
 2. AI challenges weak or risky decisions present in `intent.md` — missing dependencies, unrealistic constraints, scope gaps, contradictions — with specific reasoning. Does not rubber-stamp.
 3. AI resolves Unknowns and Open Questions from `intent.md` — either by making a reasoned decision (stated in `spec.md`) or by asking the human during the Phase 2 chat. No unresolved unknowns may carry into `spec.md`.
-4. AI extracts 5-10 acceptance criteria from `intent.md`
+4. AI derives 5-10 acceptance criteria from the objective, assumptions, and constraints in `intent.md`
 5. Human confirms or overrides specific decisions
 6. Human reviews acceptance criteria — adds/removes as needed
 7. Before advancement: AI validates that all Unknowns and Open Questions from `intent.md` have been resolved (either by AI decision in `spec.md` or by human input during Phase 2 chat). If unresolved items remain, the Confirm button is blocked and the AI presents the remaining items to the human.
@@ -207,6 +207,8 @@ Recovery follows the same confirmation model as Phase 4: explicit button presses
 
 **Step 2 — Fix (apply recommendations):** Orchestrator passes JSON issue list to fixer agent, which applies fixes. Git commit snapshot after each step.
 
+**Code Mode Iteration Cycle:** Code mode adds a test execution step to each iteration. The full cycle is: (1) Orchestrator runs tests via the code plugin's `test-runner.js` and captures results. (2) Review — orchestrator passes the test results as additional context to the reviewer AI alongside the codebase and `constraints.md`. Reviewer outputs JSON error report including test results. (3) Fix — orchestrator passes issue list to fixer agent. Git commit after fix. This three-step cycle repeats until a convergence guard triggers. Plan mode iterations use the two-step cycle (Review → Fix) with no test execution.
+
 **Convergence Guards:**
 
 | Guard | Condition | Action |
@@ -318,7 +320,7 @@ ThoughtForge communicates with Vibe Kanban via its CLI through four operations: 
 | Condition | Behavior |
 |---|---|
 | VK enabled, Plan mode | Plan builder invokes agents directly via agent layer. Kanban card created and updated for visualization only. |
-| VK disabled, Plan mode | Identical — plan builder always invokes agents directly. No Kanban card. |
+| VK disabled, Plan mode | Plan builder invokes agents directly via agent layer (same as VK enabled). No Kanban card created. |
 | VK enabled, Code mode | Code builder executes agent work through Vibe Kanban (`vibekanban task run`). Kanban card tracks progress. |
 | VK disabled, Code mode | Code builder invokes agents directly via agent layer. No Kanban card. |
 
