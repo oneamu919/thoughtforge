@@ -47,20 +47,21 @@
 
 **Agent Assignment:** The agent specified in `config.yaml` `agents.default` is assigned to the project at initialization and stored in `status.json` as the `agent` field. This determines which AI agent is used for all pipeline phases. Per-project agent override is deferred — not a current build dependency.
 
-1. Human brain dumps into chat
-2. Human drops files/resources into `/resources/` directory
-3. If external resource connectors are configured (Notion, Google Drive), the human provides page URLs or document links via chat. ThoughtForge pulls the content and saves it to `/resources/` as local files before proceeding to distillation. Connectors are optional — if none are configured, this step is skipped.
-4. AI reads all resources (text, PDF, images via vision, code files) and the brain dump
-5. AI distills into structured document: Deliverable Type, Objective, Assumptions, Constraints, Unknowns, Open Questions (max 5)
-6. AI presents distillation to human in chat
-7. Human corrects via chat → AI revises and re-presents
-8. Human can say "realign from here" at any message in the correction thread — AI discards all revisions after that message and re-distills from that point forward. Does not restart from the original brain dump.
-9. Human clicks **Confirm** button → advances to Phase 2
-10. Output: `intent.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline.
+1. Human brain dumps into chat — one or more messages of freeform text
+2. Human drops files/resources into `/resources/` directory (optional, can happen before or after the brain dump messages)
+3. If external resource connectors are configured (Notion, Google Drive), the human provides page URLs or document links via chat. ThoughtForge pulls the content and saves it to `/resources/` as local files. Connectors are optional — if none are configured, this step is skipped.
+4. Human clicks **Distill** button — signals that all inputs (brain dump text, files, connector URLs) have been provided and the AI should begin processing. This follows the same confirmation model as phase advancement: explicit button press, not chat-parsed.
+5. AI reads all resources (text, PDF, images via vision, code files) and the brain dump
+6. AI distills into structured document: Deliverable Type, Objective, Assumptions, Constraints, Unknowns, Open Questions (max 5)
+7. AI presents distillation to human in chat
+8. Human corrects via chat → AI revises and re-presents
+9. Human can say "realign from here" at any message in the correction thread — AI discards all revisions after that message and re-distills from that point forward. Does not restart from the original brain dump.
+10. Human clicks **Confirm** button → advances to Phase 2
+11. Output: `intent.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline.
 
 **Brain Dump Intake Prompt Behavior:** The prompt enforces: organize only (no AI suggestions or improvements), structured output (6 sections as listed above), maximum 5 open questions (prioritized by blocking impact), ambiguities routed to Unknowns. Full prompt text in build spec.
 
-**Confirmation model:** Chat-based corrections, button-based confirmation. Corrections are natural language in chat. Phase advancement uses an explicit Confirm button to eliminate misclassification. This applies to all human confirmation points.
+**Confirmation model:** Chat-based corrections, button-based actions. Corrections are natural language in chat. The **Distill** button signals that all brain dump inputs are provided and the AI should begin processing. The **Confirm** button advances the pipeline to the next phase. Both use explicit button presses to eliminate misclassification. This model applies to all human action points in the pipeline.
 
 **Phase 1 Error Handling:**
 
@@ -72,7 +73,7 @@
 | Connector authentication failure (expired token, missing credentials) | Log the failure, notify the human in chat specifying which connector failed and why, and proceed with distillation using available inputs. Do not halt the pipeline. |
 | Connector target not found (deleted page, revoked access, invalid URL) | Log the failure, notify the human in chat specifying which resource could not be retrieved, and proceed with distillation using available inputs. |
 
-**Phase-to-State Mapping:** Pipeline phases map to `status.json` phase values as follows: Phase 1 = `brain_dump` (initial intake) → `distilling` (AI processing brain dump) → `human_review` (human correcting distillation). Phase 2 = `spec_building`. Phase 3 = `building`. Phase 4 = `polishing`. Terminal states: `done` and `halted`. Vibe Kanban columns mirror these values directly.
+**Phase-to-State Mapping:** Pipeline phases map to `status.json` phase values as follows: Phase 1 = `brain_dump` (initial intake — human providing inputs) → `distilling` (triggered by Distill button — AI processing brain dump and resources) → `human_review` (human correcting distillation). Phase 2 = `spec_building`. Phase 3 = `building`. Phase 4 = `polishing`. Terminal states: `done` and `halted`. Vibe Kanban columns mirror these values directly.
 
 **Project Lifecycle After Completion:** Once a project reaches `done` or `halted`, no further pipeline actions are taken. The project directory, git repo, and all state files remain in place for human reference. Project archival, deletion, and re-opening are deferred. Not a current build dependency.
 
@@ -154,7 +155,7 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 
 | Mode | Stuck Condition | Action |
 |---|---|---|
-| Plan | AI response explicitly states it cannot proceed without human input (parsed from response) | Notify and wait |
+| Plan | AI response includes a structured `"stuck": true` flag with a `"reason"` field in its JSON output. The Phase 3 plan builder prompt requires this structured signal — freeform text is not parsed for stuck detection. | Notify and wait |
 | Code | Build agent returns non-zero exit after 2 consecutive retries on the same task, OR test suite fails on the same tests for 3 consecutive fix attempts | Notify and wait |
 
 **Phase 3 Stuck Recovery:**
@@ -360,7 +361,7 @@ Every phase transition pings the human with a status update. Every notification 
 
 ### UI
 
-**ThoughtForge Chat (Built):** Lightweight terminal or web chat. Primary use: Phases 1-2 (brain dump intake, spec building). Also used for Phase 4 halt recovery (resume, override, terminate actions). Per-project chat thread, file/resource dropping, AI messages labeled by phase, corrections via chat, advancement via Confirm button. During halt recovery, the chat presents the halted state context and the three recovery options — no free-form AI conversation.
+**ThoughtForge Chat (Built):** Lightweight web chat interface (terminal-based alternative deferred). Primary use: Phases 1–2 (brain dump intake, spec building). Also used for Phase 3 stuck recovery (provide input, terminate) and Phase 4 halt recovery (resume, override, terminate). Per-project chat thread, file/resource dropping, AI messages labeled by phase, corrections via chat, advancement via Confirm button. During stuck and halt recovery, the chat presents the current state context and the available recovery options — no free-form AI conversation.
 
 **Prompt Management:** The chat interface includes a Settings button that opens a prompt editor. All pipeline prompts — brain dump intake, review, fix, and any future prompts — are listed, viewable, and editable by the human. Edits apply globally (all future projects use the updated prompts). Per-project prompt overrides are deferred. Not a current build dependency. Prompts are stored as external files in a `/prompts/` directory, not embedded in code. The prompt editor reads from and writes to these files.
 
@@ -431,6 +432,8 @@ Orchestrator core actions (create project, check status, read polish log, trigge
 | Plugins | Plugin directory path | `./plugins` |
 | Prompts | Prompt directory path, individual prompt files | `/prompts/`, one `.md` file per prompt |
 | Vibe Kanban | Enabled toggle | true |
+
+**Credential Handling:** API tokens and credential paths in `config.yaml` are stored in plaintext. This is acceptable for v1 as a single-operator local tool. The operator is responsible for file system permissions on `config.yaml`. Credential encryption, secret vaults, and environment variable injection are deferred — not a current build dependency.
 
 Full `config.yaml` with all keys and structure in build spec.
 
