@@ -43,8 +43,6 @@ The tool does NOT automatically chain these. The human decides when a plan is re
 
 When a Code mode pipeline starts and receives a plan document as input (from `/resources/`), the AI must first assess whether the plan is actually complete — or if it's a brain dump, a rough outline, or a half-fleshed idea pretending to be a plan. If the plan isn't ready, building from it will produce garbage and waste the human's time.
 
-**Plan document detection:** The orchestrator scans `/resources/` for `.md` files. Any `.md` file whose first 500 characters contain an OPA Framework table (the string `Outcome` AND `Purpose` AND `Action Scope` within a markdown table) OR whose filename contains `plan` (case-insensitive) is treated as a candidate plan document and passed to the assessment prompt. Non-markdown files and markdown files that don't match either condition are treated as supplementary resources and skipped. If multiple plan documents are detected, all are assessed individually — each must pass or the entire set is flagged.
-
 **Assessment Prompt (runs automatically at the start of Phase 1 in Code mode when a plan document is detected in `/resources/`):**
 
 ```
@@ -126,7 +124,7 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 | Component | Technology | Why |
 |---|---|---|
 | Runtime | Node.js | Already installed (via OpenClaw), single runtime for everything. This is the primary reason for choosing Node.js over Python. |
-| ThoughtForge Core | Node.js CLI + orchestration logic | The intelligence layer: Phase 1-2 chat, polish loop logic, convergence guards, plan mode enforcement. ~200-400 lines of orchestration code. |
+| ThoughtForge Core | Node.js CLI + orchestration logic | The intelligence layer: Phase 1-2 chat, polish loop logic, convergence guards, plan mode enforcement. |
 | AI Agents | Claude Code CLI, Gemini CLI, Codex CLI | Multi-agent support. Use different agents for different tasks or compare performance on the same task. Flat-rate subscriptions where available. |
 | Project State | File-based: `/projects/{id}/` with `/docs/` subdirectory for all plans, specs, and constraints (`intent.md`, `spec.md`, `constraints.md`, plan documents). Project state files (`polish_log.md`, `polish_state.json`, `status.json`) live in the project root. | Simple, human-readable, git-trackable. State access wrapped in a single module so a DB can be swapped in later if shipped as product. |
 | Version Control | Git — each project gets its own repo. Auto-commit after every polish iteration. | Rollback is built in. History is free. Separate repos per project for clean parallel isolation. |
@@ -148,27 +146,30 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 | VS Code extension | See task status inside the IDE. |
 | Dashboard / stats | Task timing, agent performance, progress tracking — the race stats view. |
 
-### ThoughtForge / Vibe Kanban Integration Interface
-
-ThoughtForge communicates with Vibe Kanban via its CLI. The integration has two modes:
-
-| Operation | How | When |
-|---|---|---|
-| **Create task** | `vibekanban task create --name "{name}" --agent {agent} --worktree {path}` | Phase 3 start: ThoughtForge creates a Vibe Kanban task for the build. |
-| **Check task status** | `vibekanban task status --id {id}` | Phase 3: ThoughtForge polls until the build task completes. |
-| **Read task output** | `vibekanban task output --id {id}` | Phase 3: ThoughtForge reads build results when task completes. |
-| **Direct agent invocation** | ThoughtForge invokes the coding agent CLI directly (not via Vibe Kanban) using the `agents` config. | Phase 4: Review and fix calls are ThoughtForge-managed. Vibe Kanban is not in the Phase 4 loop. |
-
-**Boundary rule:** Phase 3 build execution goes through Vibe Kanban (for worktree isolation, agent management, and dashboard visibility). Phase 4 polish loop runs agents directly — ThoughtForge owns the review/fix cycle and cannot depend on Vibe Kanban's task queue for tight iteration control.
-
-If Vibe Kanban's CLI interface changes or if Vibe Kanban is not installed, ThoughtForge falls back to direct agent invocation for Phase 3 as well, losing dashboard visibility but not functionality. This is detected at startup and logged.
-
 **What's NOT in the stack and why:**
 
 - **No custom kanban UI, no Next.js, no dnd-kit, no Socket.io** — Vibe Kanban provides all of this. Building it from scratch would duplicate existing open-source tooling for no gain.
 - **No Python** — Node.js is already installed (via OpenClaw) and handles everything needed. One runtime is cleaner than two.
 - **No SQLite or any database** — Node.js handles file I/O and JSON parsing natively. State is `.md` and `.json` files, git is the history layer. A database adds a dependency for no gain. State access is wrapped in a single module so a DB can be swapped in later.
 - **No LangGraph, AutoGen, CrewAI, or any agent framework** — the orchestration logic is straightforward. Vibe Kanban handles agent spawning. ThoughtForge handles the loop logic. No framework needed in between.
+
+### Notification Content
+
+When multiple projects run in parallel, a notification that says "ThoughtForge needs you" is useless. Every notification includes structured context:
+
+| Field | Description |
+|---|---|
+| **project_id** | Unique project identifier |
+| **project_name** | Human-readable project name from `intent.md` |
+| **phase** | Current phase (Brain Dump, Distilling, Spec Building, Building, Polishing, Done) |
+| **event_type** | One of: `convergence_success`, `guard_triggered`, `human_needed`, `error` |
+| **summary** | One-line description with actionable context |
+
+**Examples:**
+- `"Project 'Wedding Plan' — polish loop converged. 0 critical, 1 medium, 3 minor. Ready for final review."`
+- `"Project 'API Backend' — stagnation detected at iteration 12. Error counts unchanged for 3 iterations. Human review needed."`
+- `"Project 'CLI Tool' — Phase 2 spec building. AI stuck on ambiguity: should auth use JWT or session cookies? Decision needed."`
+- `"Project 'Dashboard' — fabrication detected at iteration 8. Issue count spiked after near-convergence. Loop halted."`
 
 ### Plugin Folder Structure
 
@@ -190,59 +191,39 @@ Each deliverable type is a self-contained plugin. The orchestrator loads the plu
 
 **Adding a new deliverable type** (e.g., Research, Data Pipeline, Content) means creating a new folder in `/plugins/` with the same interface files. The orchestrator doesn't change — it reads the plugin config and delegates.
 
-### Plugin Interface Contracts
+### Plugin Interface Contract
 
-Every plugin must export the following from each file. The orchestrator loads the plugin folder matching the deliverable type in `intent.md` and calls these exports.
+Every plugin must export the following from its entry files:
 
-**`builder.js`**
-```javascript
-module.exports = {
-  /**
-   * Run Phase 3 build for this deliverable type.
-   * @param {object} context - { projectDir, intent, spec, constraints, agent, config }
-   * @returns {Promise<{ success: boolean, outputPath: string, error?: string }>}
-   */
-  build: async (context) => { /* ... */ },
-};
-```
+**builder.js:**
+- `build(projectPath, intent, spec, constraints, agent)` → `Promise<void>` — Executes Phase 3 for this deliverable type. Receives the project path, parsed intent/spec/constraints documents, and the agent config to use.
 
-**`reviewer.js`**
-```javascript
-module.exports = {
-  /** Zod schema for validating review JSON */
-  schema: z.object({ /* ... as defined in Structured Output Validation section ... */ }),
+**reviewer.js:**
+- `schema` → Zod schema object for validating review JSON
+- `severityDefinitions` → object defining what counts as critical/medium/minor for this deliverable type
+- `review(projectPath, constraints, agent)` → `Promise<ReviewResult>` — Executes one review pass. Returns parsed, Zod-validated JSON matching the plugin's schema.
 
-  /**
-   * Build the review prompt for this deliverable type.
-   * @param {object} context - { projectDir, constraints, deliverablePath }
-   * @returns {string} The full review prompt to send to the agent.
-   */
-  buildReviewPrompt: (context) => { /* ... */ },
-};
-```
+**safety-rules.js:**
+- `blockedOperations` → `string[]` of operation types this mode prohibits (e.g., `["shell_exec", "file_create_source", "package_install"]` for Plan mode)
+- `validate(operation)` → `{ allowed: boolean, reason?: string }` — Called by the orchestrator before every Phase 3 and Phase 4 action. If not allowed, the orchestrator blocks the action and logs the reason.
 
-**`safety-rules.js`**
-```javascript
-module.exports = {
-  /**
-   * List of blocked operation patterns for this deliverable type.
-   * The orchestrator checks every agent command and file write against these
-   * before execution. If a match is found, the operation is blocked and logged.
-   */
-  blocked: {
-    fileExtensions: ['.js', '.py', '.ts', '.sh', /* ... */],  // Plan mode blocks these
-    commands: ['npm', 'pip', 'node', 'python', /* ... */],     // Plan mode blocks these
-    operations: ['shell_exec', 'file_create', 'package_install', /* ... */],
-  },
+The orchestrator loads the plugin matching the deliverable type in `intent.md` and calls these interfaces. It never contains deliverable-type-specific logic itself.
 
-  /**
-   * Returns true if the given operation is allowed for this deliverable type.
-   * @param {object} operation - { type: string, target: string, command?: string }
-   * @returns {boolean}
-   */
-  isAllowed: (operation) => { /* ... */ },
-};
-```
+### Agent Communication
+
+ThoughtForge invokes AI agents via CLI subprocess calls using the command and flags from `config.yaml`. All agent interactions follow the same pattern:
+
+1. ThoughtForge writes a prompt to a temporary file or passes via stdin
+2. Agent is invoked: `{command} {flags} < prompt`
+3. ThoughtForge captures stdout as the response
+4. Response is parsed/validated (Zod for review JSON, file diff detection for fix steps)
+
+**Agent-specific adapters** handle output format differences (e.g., Claude Code returns markdown-wrapped JSON, Gemini returns raw JSON). Each adapter normalizes to ThoughtForge's internal format. Adapters live alongside agent config — adding a new agent means adding its command, flags, and adapter.
+
+**Failure handling:**
+- Non-zero exit code, timeout, or empty output → retry once
+- On second failure → halt and notify human
+- Timeout is configurable per `config.yaml` (`agents.call_timeout_seconds`, default 300). If an agent call exceeds this, the subprocess is killed and treated as a failure. Without this, a single hung API call blocks the entire loop indefinitely.
 
 ### Future Extensibility: MCP
 
@@ -311,14 +292,14 @@ Rules:
 ### Human Behavior
 
 - Reads the distilled version
-- Responds in chat: "approved" / "move forward" / "looks good" → advances to Phase 2
-- Or: "item 3 is wrong, it should be XYZ" → AI revises and presents again
+- Responds in chat with corrections: "item 3 is wrong, it should be XYZ" → AI revises and presents again
 - If intent is fundamentally off: says "realign from here" — AI resets to that point, not to zero
 - If incorrect assumptions keep reappearing: asks AI why, discovers unclear writing or wrong assumptions, adjusts
+- When satisfied: clicks the **Confirm** button → advances to Phase 2
 
 ### Confirmation
 
-Chat-based. The tool classifies the human's message as either a **correction** (loop back, revise) or a **confirmation** (advance to Phase 2). If the human says "approved," "move forward," "looks good, let's build," or equivalent — it advances. If they say "item X is wrong" or give corrections — it revises and presents again.
+Chat-based corrections, button-based confirmation. The human gives corrections in chat — the AI revises and presents again. When ready to advance, the human clicks a **Confirm** button (not parsed from chat). The Confirm button advances to the next phase. This applies to all human confirmation points: Phase 1 → Phase 2, Phase 2 → Phase 3, and final review approval.
 
 ### Output
 
@@ -416,7 +397,7 @@ Human confirms build spec.
 |---|---|
 | **Outcome** | **Plan mode:** A complete first draft of the plan document — all sections filled, rough but comprehensive. **Code mode:** Working code that runs end-to-end — rough, unpolished, but functional. |
 | **Purpose** | You can't polish what doesn't exist. This phase gets the deliverable to a state where automated review is meaningful — not perfect, just complete enough to review. |
-| **Action Scope** | **Plan mode:** Draft the full plan document using `spec.md` and `intent.md`. Fill every section. **Code mode:** Code the project using the configured coding agent (Claude Code, Gemini CLI, Codex, etc.) via Vibe Kanban. Run and test. Fix errors. Iterate until functional. Ping human only when stuck on ambiguity not covered by spec. |
+| **Action Scope** | **Plan mode:** Draft the full plan document using `spec.md` and `intent.md`. Fill every section. **Code mode:** Code the project using the configured coding agent (Claude Code, Gemini CLI, Codex, etc.) via Vibe Kanban. Run and test. Fix errors. Iterate until functional. Notify human only when stuck on ambiguity not covered by spec. |
 
 ### Trigger
 
@@ -477,12 +458,11 @@ Build spec confirmed (Phase 2 complete).
 |---|---|
 | **Outcome** | Polished deliverable with 0 critical errors, <3 medium errors, <5 minor errors. Convergence log showing the full error trajectory. |
 | **Purpose** | This is the 12-hour manual grind being automated. The intent is locked, the spec is locked, the constraints are defined, the deliverable exists. Now it's purely mechanical: find flaws, fix flaws, check counts, repeat until clean. No human judgment needed. |
-| **Action Scope** | Run review call (output JSON error report only). Run fix call (apply all fixes). Check termination thresholds. Detect hallucination, scope drift, and stagnation. Enforce max iteration ceiling. Log every iteration. Ping human when done or when guards trigger. |
+| **Action Scope** | Run review call (output JSON error report only). Run fix call (apply all fixes). Check termination thresholds. Detect hallucination, scope drift, and stagnation. Enforce max iteration ceiling. Log every iteration. Notify human when done or when guards trigger. |
 
 ### Trigger
 
-**Plan mode:** Plan document is fully drafted (Phase 3 complete).
-**Code mode:** Code is working, all tests pass (Phase 3 complete).
+Code is working (Phase 3 complete).
 
 ### Each Iteration — Two Steps
 
@@ -568,11 +548,11 @@ The orchestrator passes the JSON issue list and recommendations to the fixer age
 | Guard | Condition | Action |
 |---|---|---|
 | **Termination (success)** | `critical == 0` AND `medium < 3` AND `minor < 5` | Done. Notify human. |
-| **Hallucination** | Total error count (`critical + medium + minor`) increased by more than 20% relative to the previous iteration after decreasing for at least 2 consecutive iterations, OR `critical` count increases after being 0 for 2+ iterations. Spike threshold configurable as `polish.hallucination_spike_pct` (default: `0.2`). | Stop. Flag it. Ping human. |
-| **Scope drift** | Issues reference code outside target files/scope in `constraints.md` | Stop. Flag it. Ping human. |
-| **Stagnation** | Same `critical`, `medium`, AND `minor` counts (all three individually unchanged) for 3+ consecutive iterations. | Stop. Flag it. Ping human. |
-| **Fabrication** | After each review, the orchestrator validates each issue's `location` field against the actual deliverable. Code mode: verify file paths and line numbers exist. Plan mode: verify section references exist. If fabrication candidates (issues with non-existent locations) exceed 30% of total issues in a single review, the guard triggers. Threshold configurable as `polish.fabrication_threshold` (default: `0.3`). | Stop. Flag it. Ping human. |
-| **Max iterations** | Hard ceiling reached (configurable, default 50) | Stop. Ping human with current state. |
+| **Hallucination** | Error count spikes after a downward trend | Stop. Flag it. Notify human. |
+| **Scope drift** | Issues reference code outside target files/scope in `constraints.md` | Stop. Flag it. Notify human. |
+| **Stagnation** | Same error count for 3+ consecutive iterations with no meaningful change, OR error count stays constant but issue descriptions rotate (fixer resolves N issues and introduces N new ones). Detected by comparing issue descriptions across iterations using string similarity, not just counts. | Stop. Flag it. Notify human. |
+| **Fabrication** | Issue count spikes after 3+ consecutive iterations at or near convergence thresholds (critical 0, medium <3, minor <5). Pattern: the loop is nearly converged, then the reviewer manufactures issues because nothing real remains. Detected by comparing current counts against the trailing 3-iteration trend. | Stop. Flag it. Notify human. |
+| **Max iterations** | Hard ceiling reached (configurable, default 50) | Stop. Notify human with current state. |
 
 ### Loop State Persistence
 
@@ -671,33 +651,6 @@ const PlanReviewSchema = z.object({
 - On repeated failure: halts and notifies human
 - When the review schema evolves (new fields, stricter types), only the Zod schema definition in the plugin's `reviewer.js` is updated — one place, one change
 
-**Count integrity check:** After Zod validation passes, the orchestrator derives `critical`, `medium`, and `minor` counts by filtering the `issues` array by severity. The derived counts are used for all convergence logic — the AI's self-reported top-level counts are logged but never trusted for termination decisions.
-
-```javascript
-const derived = {
-  critical: parsed.issues.filter(i => i.severity === 'critical').length,
-  medium: parsed.issues.filter(i => i.severity === 'medium').length,
-  minor: parsed.issues.filter(i => i.severity === 'minor').length,
-};
-// Use `derived` for all guard checks, not `parsed.critical` / `parsed.medium` / `parsed.minor`
-```
-
-If derived counts diverge from AI-reported counts, log the discrepancy as a warning. Repeated divergence (3+ consecutive iterations) is logged as a pattern but does not halt the loop — the derived counts are still authoritative.
-
-### Agent Invocation Pattern
-
-ThoughtForge invokes coding agents as CLI subprocesses for Phase 4 review and fix calls. The pattern:
-
-1. **Prompt assembly:** The plugin's `reviewer.js` builds the full review prompt (including `constraints.md` content and deliverable content). For fix calls, the orchestrator assembles the prompt from the review JSON issues and recommendations.
-2. **Invocation:** The orchestrator spawns the agent as a child process using the `command` and `flags` from `config.yaml`. The prompt is passed via stdin pipe.
-   ```
-   echo "{prompt}" | {agent.command} {agent.flags}
-   ```
-3. **Response capture:** Agent stdout is captured as a string. For review calls, the orchestrator extracts the JSON block from the response (scanning for the first `{` to last `}` at the top level), then validates against the plugin's Zod schema. For fix calls, the agent writes files directly to the project directory (agents like Claude Code and Codex do this natively).
-4. **Timeout:** Each agent call has a configurable timeout (default: 5 minutes for review, 10 minutes for fix). On timeout, the orchestrator retries once, then halts and notifies the human.
-
-Agent-specific invocation quirks (e.g., Claude Code's `--print` flag for non-interactive mode, Codex's `--quiet` flag) are handled by the `flags` field in `config.yaml`, not by orchestrator branching.
-
 ### Output
 
 - **Plan mode:** Polished plan document in `.md` format, stored in `/docs/` subdirectory of the project git repo. Ready for human final review. If the human approves, this plan can be fed into a new Code mode pipeline as input.
@@ -716,7 +669,7 @@ ThoughtForge provides the chat interface for Phases 1 and 2 — where the human 
 - Used for brain dump, corrections, confirmations, and AI pings
 - Supports file/resource dropping (or references a project resource directory)
 - AI messages labeled by phase (distilling, reviewing, building, polishing)
-- Chat-based confirmation: human says "approved" to advance, or gives corrections to loop
+- Corrections via chat, advancement via Confirm button. Human gives corrections in natural language; clicks Confirm to advance phases.
 
 ### Vibe Kanban Dashboard (Integrated, Not Built)
 
@@ -757,8 +710,6 @@ polish:
   max_iterations: 50
   stagnation_limit: 3
   retry_malformed_output: 2
-  hallucination_spike_pct: 0.2  # Halt if total errors increase by >20% after a downward trend
-  fabrication_threshold: 0.3    # Halt if >30% of reported issues reference non-existent locations
 
 # Parallel execution (managed by Vibe Kanban)
 concurrency:
@@ -784,6 +735,7 @@ notifications:
 # AI Agents — configure which agents are available
 agents:
   default: "claude"
+  call_timeout_seconds: 300    # kill and retry if agent doesn't respond
   available:
     claude:
       command: "claude"
@@ -795,8 +747,9 @@ agents:
       command: "codex"
       flags: ""
 
-# Templates are located inside each plugin: /plugins/{type}/templates/
-# No separate top-level templates directory. See Plugin Folder Structure.
+# Templates — plan mode document skeletons
+templates:
+  directory: "./templates"             # /templates/plan/, /templates/code/, etc.
 
 # Plugins — deliverable type definitions
 plugins:
@@ -829,7 +782,7 @@ These decisions were made across three design conversations and one audit review
 1. **Dual deliverable types: Plan and Code** — the tool handles both. Plans are documents (wedding, engineering design, strategy). Code is software. Each project card declares its type in Phase 1.
 2. **Pipeline chaining: Plan must be complete before Code** — a plan and its code implementation are two separate pipeline runs. The plan must be fully polished and human-approved before it becomes input for a code pipeline. The tool does NOT auto-chain them. The human decides when a plan is ready and manually creates the code pipeline with the finished plan as input.
 3. **Each parallel project gets its own git repo** — clean isolation, no shared mutable state.
-4. **Chat-based confirmation over button UI** — "approved" or "item 3 is wrong" parsed by AI. Natural, no extra UI components.
+4. **Chat-based corrections, button-based confirmation** — corrections are natural language in chat. Phase advancement uses an explicit Confirm button to eliminate misclassification. Corrections stay conversational; advancement is unambiguous.
 5. **Acceptance criteria added to `constraints.md`** — prevents polish loop from producing a clean deliverable that's missing what was asked for. Reviewer checks both quality AND "does this meet the acceptance criteria."
 6. **Structured output validation with Zod** — JSON from review call is validated against the plugin's Zod schema and retried on failure, not blindly trusted. Clear error messages identify exactly which fields are wrong.
 7. **Polish state persistence** — `polish_state.json` written after each iteration so the loop can resume after a crash.
