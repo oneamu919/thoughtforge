@@ -146,6 +146,19 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 | VS Code extension | See task status inside the IDE. |
 | Dashboard / stats | Task timing, agent performance, progress tracking — the race stats view. |
 
+### Vibe Kanban Integration Interface
+
+ThoughtForge communicates with Vibe Kanban via its CLI. Core operations:
+
+| ThoughtForge Action | Vibe Kanban CLI Command | When |
+|---|---|---|
+| Create task | `vibekanban task create --name "{project_name}" --agent {agent}` | Phase 3 start |
+| Update task status | `vibekanban task update {task_id} --status {status}` | Every phase transition |
+| Execute agent work | `vibekanban task run {task_id} --prompt-file {path}` | Phase 3 build, Phase 4 fix steps |
+| Read task result | `vibekanban task result {task_id}` | After each agent execution |
+
+If Vibe Kanban's actual CLI differs from these examples, the integration commands are centralized in a single `vibekanban-adapter.js` module so the mapping is updated in one place. ThoughtForge never calls Vibe Kanban directly from orchestrator logic — always through the adapter.
+
 **What's NOT in the stack and why:**
 
 - **No custom kanban UI, no Next.js, no dnd-kit, no Socket.io** — Vibe Kanban provides all of this. Building it from scratch would duplicate existing open-source tooling for no gain.
@@ -201,7 +214,7 @@ Every plugin must export the following from its entry files:
 **reviewer.js:**
 - `schema` → Zod schema object for validating review JSON
 - `severityDefinitions` → object defining what counts as critical/medium/minor for this deliverable type
-- `review(projectPath, constraints, agent)` → `Promise<ReviewResult>` — Executes one review pass. Returns parsed, Zod-validated JSON matching the plugin's schema.
+- `review(projectPath, constraints, agent)` → `Promise<object>` — Executes one review pass. Returns the raw parsed JSON from the AI response. The **orchestrator** is responsible for validating this against the plugin's exported `schema` via `schema.safeParse()`, retrying on validation failure, and halting after max retries.
 
 **safety-rules.js:**
 - `blockedOperations` → `string[]` of operation types this mode prohibits (e.g., `["shell_exec", "file_create_source", "package_install"]` for Plan mode)
@@ -301,9 +314,19 @@ Rules:
 
 Chat-based corrections, button-based confirmation. The human gives corrections in chat — the AI revises and presents again. When ready to advance, the human clicks a **Confirm** button (not parsed from chat). The Confirm button advances to the next phase. This applies to all human confirmation points: Phase 1 → Phase 2, Phase 2 → Phase 3, and final review approval.
 
+### Project State Files
+
+Each project directory contains these state files in its root:
+
+| File | Written When | Schema |
+|---|---|---|
+| `status.json` | Updated on every phase transition and state change | `{ "phase": "brain_dump" | "distilling" | "human_review" | "spec_building" | "building" | "polishing" | "done" | "halted", "deliverable_type": "plan" | "code", "agent": string, "created_at": ISO8601, "updated_at": ISO8601, "halted_reason": string | null }` |
+| `polish_state.json` | After each Phase 4 iteration | Defined in Loop State Persistence section |
+| `polish_log.md` | Appended after each Phase 4 iteration | Human-readable iteration log |
+
 ### Output
 
-`intent.md` — locked intent document stored in `/docs/`, following OPA Framework structure, carried through all later phases. Includes the **deliverable type** (Plan or Code) determined from the brain dump.
+`intent.md` — locked intent document stored in `/docs/`. Contains the confirmed 6-section distillation (Deliverable Type, Objective, Assumptions, Constraints, Unknowns, Open Questions) as the canonical structure, carried through all later phases. The OPA Framework structure applies to **plan deliverables** generated in Phase 3, not to `intent.md` itself.
 
 ---
 
@@ -462,7 +485,7 @@ Build spec confirmed (Phase 2 complete).
 
 ### Trigger
 
-Code is working (Phase 3 complete).
+Phase 3 deliverable is complete (plan document drafted or code working and tests passing).
 
 ### Each Iteration — Two Steps
 
@@ -553,6 +576,17 @@ The orchestrator passes the JSON issue list and recommendations to the fixer age
 | **Stagnation** | Same error count for 3+ consecutive iterations with no meaningful change, OR error count stays constant but issue descriptions rotate (fixer resolves N issues and introduces N new ones). Detected by comparing issue descriptions across iterations using string similarity, not just counts. | Stop. Flag it. Notify human. |
 | **Fabrication** | Issue count spikes after 3+ consecutive iterations at or near convergence thresholds (critical 0, medium <3, minor <5). Pattern: the loop is nearly converged, then the reviewer manufactures issues because nothing real remains. Detected by comparing current counts against the trailing 3-iteration trend. | Stop. Flag it. Notify human. |
 | **Max iterations** | Hard ceiling reached (configurable, default 50) | Stop. Notify human with current state. |
+
+### Convergence Guard Thresholds
+
+**Hallucination — "spike after downward trend":**
+A downward trend is established when total error count (critical + medium + minor) has decreased for 2 or more consecutive iterations. A spike is any iteration where total error count increases by more than 20% over the previous iteration's total during an established downward trend.
+
+**Stagnation — "same error count" and "issue rotation":**
+Same error count: total error count (critical + medium + minor) is identical across 3 consecutive iterations (configurable via `stagnation_limit` in `config.yaml`). Issue rotation: total count is unchanged but fewer than 70% of issue descriptions from iteration N match descriptions in iteration N+1, measured by normalized Levenshtein distance with a similarity threshold of 0.8 (descriptions scoring ≥0.8 are considered the same issue).
+
+**Fabrication — "spike after near-convergence":**
+Near-convergence is defined as: the trailing 3-iteration average has critical ≤ 1, medium ≤ 3, and minor ≤ 5. Fabrication triggers when any category's count in the current iteration exceeds the trailing 3-iteration average for that category by more than 50% (minimum increase of 2 to avoid false positives on small numbers).
 
 ### Loop State Persistence
 
@@ -650,6 +684,8 @@ const PlanReviewSchema = z.object({
 - On malformed output: retries the review call (max 2 retries)
 - On repeated failure: halts and notifies human
 - When the review schema evolves (new fields, stricter types), only the Zod schema definition in the plugin's `reviewer.js` is updated — one place, one change
+
+**Count derivation:** The orchestrator ignores the top-level `critical`, `medium`, and `minor` fields for convergence checks. Instead, it derives counts from the `issues` array by counting entries per severity. This eliminates inconsistency between summary counts and actual issues. The top-level count fields remain in the schema for quick human readability in logs but are not authoritative.
 
 ### Output
 
