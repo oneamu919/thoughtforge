@@ -48,15 +48,25 @@
 4. AI distills into structured document: Deliverable Type, Objective, Assumptions, Constraints, Unknowns, Open Questions (max 5)
 5. AI presents distillation to human in chat
 6. Human corrects via chat → AI revises and re-presents
-7. "Realign from here" resets to that point, not to zero
+7. Human can say "realign from here" at any message in the correction thread — AI discards all revisions after that message and re-distills from that point forward. Does not restart from the original brain dump.
 8. Human clicks **Confirm** button → advances to Phase 2
-9. Output: locked `intent.md` in `/docs/`
+9. Output: `intent.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline.
 
 **Brain Dump Intake Prompt Behavior:** The prompt enforces: organize only (no AI suggestions or improvements), structured output (6 sections as listed above), maximum 5 open questions (prioritized by blocking impact), ambiguities routed to Unknowns. Full prompt text in build spec.
 
 **Confirmation model:** Chat-based corrections, button-based confirmation. Corrections are natural language in chat. Phase advancement uses an explicit Confirm button to eliminate misclassification. This applies to all human confirmation points.
 
+**Phase 1 Error Handling:**
+
+| Condition | Action |
+|---|---|
+| Agent failure during distillation (timeout, crash, empty response) | Same retry behavior as agent communication layer: retry once, halt and notify on second failure. Chat resumes from last recorded message. |
+| Brain dump is empty or trivially short (fewer than ~10 words) | AI responds in chat asking the human to provide more detail. Does not advance to distillation. |
+| Resource file unreadable (corrupted, unsupported format) | AI logs the unreadable file, notifies the human in chat specifying which file(s) could not be read, and proceeds with distillation using available inputs. |
+
 **Phase-to-State Mapping:** Pipeline phases map to `status.json` phase values as follows: Phase 1 = `brain_dump` (initial intake) → `distilling` (AI processing brain dump) → `human_review` (human correcting distillation). Phase 2 = `spec_building`. Phase 3 = `building`. Phase 4 = `polishing`. Terminal states: `done` and `halted`. Vibe Kanban columns mirror these values directly.
+
+**Project Lifecycle After Completion:** Once a project reaches `done` or `halted`, no further pipeline actions are taken. The project directory, git repo, and all state files remain in place for human reference. Project archival, deletion, and re-opening are not v1 features.
 
 #### Phase 2 — Spec Building & Constraint Discovery
 
@@ -70,7 +80,7 @@
 6. Human reviews acceptance criteria — adds/removes as needed
 7. Before advancement: AI validates that all Unknowns and Open Questions from `intent.md` have been resolved (either by AI decision in `spec.md` or by human input during Phase 2 chat). If unresolved items remain, the Confirm button is blocked and the AI presents the remaining items to the human.
 8. Human clicks **Confirm** → advances to Phase 3
-9. Outputs: locked `spec.md` and `constraints.md` in `/docs/`
+9. Outputs: `spec.md` and `constraints.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline.
 
 **Phase 2 Error Handling:**
 
@@ -199,6 +209,8 @@ When a Code mode pipeline starts and a plan document is detected in `/resources/
 
 If the AI recommends fail: the tool automatically creates a Plan mode card, moves the document there, and notifies the human. Human can override, but default is redirect.
 
+**Plan → Code Chaining Workflow:** To chain a completed plan into a code pipeline, the human creates a new project and places the finished plan document into the new project's `/resources/` directory. The new project proceeds through Phase 1 as normal — the plan document is one of the resources the AI reads during brain dump intake. At Phase 3 entry, the Plan Completeness Gate evaluates the plan and either proceeds or redirects as described above. The two projects are independent — separate project IDs, directories, git repos, and pipeline states.
+
 #### Plan Mode Safety Guardrails
 
 **Plan mode NEVER builds, executes, compiles, installs, or runs code. Ever.**
@@ -244,6 +256,8 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 | Operational Logging | Node.js built-in (`console` or structured logger) | ThoughtForge logs its own operations — agent invocations, phase transitions, convergence guard evaluations, errors, and halt events — to a per-project `thoughtforge.log` file. Separate from `polish_log.md` (which is the human-readable iteration log). Used for debugging, not human review. |
 | MCP (Future) | Model Context Protocol | Core actions as clean standalone functions for future MCP wrapping. Not v1. |
 
+**Git Commit Strategy:** Each project's git repo is initialized at project creation. Commits occur at: `intent.md` lock (end of Phase 1), `spec.md` and `constraints.md` lock (end of Phase 2), Phase 3 build completion, and after every Phase 4 review and fix step. This ensures rollback capability at every major pipeline milestone.
+
 ### Vibe Kanban (Execution Layer — Integrated, Not Built)
 
 | What It Provides | How ThoughtForge Uses It |
@@ -258,6 +272,8 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 ### Vibe Kanban Integration Interface
 
 ThoughtForge communicates with Vibe Kanban via its CLI through four operations: task creation (Phase 3 start), status updates (every phase transition), agent work execution (Phase 3 build, Phase 4 fix steps), and result reading (after each agent execution). All integration calls centralized in `vibekanban-adapter.js`. ThoughtForge never calls Vibe Kanban directly from orchestrator logic. Exact CLI commands and flags in build spec.
+
+**Vibe Kanban toggle behavior:** The `vibekanban.enabled` config controls Kanban card creation, status updates, and dashboard visualization. When disabled, ThoughtForge invokes agents directly via the agent layer for all phases — no Kanban cards are created or updated. Parallel execution management without Vibe Kanban is the human's responsibility. Code mode and Plan mode both function fully with the toggle off; the only loss is the Kanban board view and automated parallel execution.
 
 ### Plugin Folder Structure
 
@@ -312,7 +328,7 @@ Every phase transition pings the human with a status update. Every notification 
 | `status.json` | Every phase transition and state change | Tracks current phase, deliverable type, assigned agent, timestamps, and halt reason. Full schema in build spec. |
 | `polish_state.json` | After each Phase 4 iteration | Iteration number, error counts, convergence trajectory, timestamp |
 | `polish_log.md` | Appended after each Phase 4 iteration | Human-readable iteration log |
-| `chat_history.json` | Appended after each chat message (Phases 1–2) | Array of timestamped messages (role, content, phase). On crash, chat resumes from last message. Cleared after phase advancement confirmation. |
+| `chat_history.json` | Appended after each chat message (Phases 1–2) | Array of timestamped messages (role, content, phase). On crash, chat resumes from last message. Cleared after each phase advancement confirmation (Phase 1 → Phase 2 and Phase 2 → Phase 3), so each phase starts with a fresh chat history. |
 
 **`polish_log.md` entry format:** Each entry includes: iteration number, timestamp, error counts (critical/medium/minor/total), which convergence guard was evaluated and its result, summary of issues found, summary of fixes applied, and test results (code mode only). Entries are appended in Markdown with a heading per iteration (e.g., `## Iteration 7`).
 
