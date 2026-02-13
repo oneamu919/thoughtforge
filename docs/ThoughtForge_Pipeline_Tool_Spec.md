@@ -7,9 +7,9 @@
 
 | | |
 |---|---|
-| **Outcome** | A personal web-based tool that takes a human brain dump and autonomously produces a polished deliverable — either a **plan** (wedding, event, engineering design, business strategy, etc.) or **working code**. Reduces human touchpoints to 3-4 per project. Multiple projects run in parallel across a visual kanban board with race stats. The polish loop that currently takes ~12 hours of manual work runs unattended to convergence: 0 critical errors, <3 medium, <5 minor. |
-| **Purpose** | Eliminates the repetitive manual labor of iterative AI review — for any type of project, not just code. The human focuses only on intent, direction, and final review. Everything between is autonomous. Designed for a solo operator using a Claude flat-rate subscription (Max plan) via Claude Code CLI. If it works well, redesign to ship as a product for others. |
-| **Action Scope** | Accept brain dump and resources, distill intent with human correction, discover constraints through AI self-negotiation, autonomously build the deliverable (plan or code), run automated polish loop with convergence detection and hallucination guards, notify human when done or stuck. Visualize all projects racing across a kanban board with timing stats. |
+| **Outcome** | A personal tool that takes a human brain dump and autonomously produces a polished deliverable — either a **plan** (wedding, event, engineering design, business strategy, etc.) or **working code**. Reduces human touchpoints to 3-4 per project. Multiple projects run in parallel via Vibe Kanban with race stats. The polish loop that currently takes ~12 hours of manual work runs unattended to convergence: 0 critical errors, <3 medium, <5 minor. |
+| **Purpose** | Eliminates the repetitive manual labor of iterative AI review — for any type of project, not just code. The human focuses only on intent, direction, and final review. Everything between is autonomous. Designed for a solo operator using flat-rate AI subscriptions via multiple coding agents (Claude Code CLI, Gemini CLI, Codex CLI). If it works well, redesign to ship as a product for others. |
+| **Action Scope** | Accept brain dump and resources, distill intent with human correction, discover constraints through AI self-negotiation, autonomously build the deliverable (plan or code), run automated polish loop with convergence detection and hallucination guards, notify human when done or stuck. Vibe Kanban handles task visualization, parallel execution, and agent orchestration. ThoughtForge handles the intelligence: brain dump intake, plan mode, constraint discovery, polish loop logic, and convergence guards. |
 
 > **OPA Framework** adapted from Tony Robbins' RPM system. Every section answers: What result? Why does it matter? What specific steps?
 
@@ -96,7 +96,7 @@ A plan is a document. It may contain code snippets, architecture diagrams descri
 
 | Rule | What It Prevents |
 |---|---|
-| **No `child_process.spawn` or CLI execution** | AI cannot invoke Claude Code CLI, run shell commands, install packages, or execute anything during Plan mode Phases 3 or 4. The only tool is document generation. |
+| **No CLI agent execution** | AI cannot invoke any coding agent (Claude Code, Gemini CLI, Codex, etc.), run shell commands, install packages, or execute anything during Plan mode Phases 3 or 4. The only tool is document generation. |
 | **No file creation outside the plan document and project state files** | AI cannot create `.js`, `.py`, `.ts`, `.sh`, or any source code files. Only `.md` files in `/docs/`, `.json` state files, and project state files are written. |
 | **No "let me build a quick prototype"** | If the AI suggests building something to validate the plan, the tool blocks it. Validation in Plan mode is review and reasoning only. |
 | **No test execution** | AI cannot write and run tests. Plan quality is assessed by the review loop checking for completeness, logic, and acceptance criteria — not by running anything. |
@@ -111,23 +111,43 @@ A plan is a document. It may contain code snippets, architecture diagrams descri
 
 ## Stack
 
+### Architecture: Two Layers
+
+**ThoughtForge** is the intelligence layer — brain dump intake, plan mode, constraint discovery, polish loop logic, convergence guards. It creates and manages the work.
+
+**Vibe Kanban** is the execution and visualization layer — kanban board, parallel task execution, agent spawning, git worktree isolation, dashboard, VS Code integration. It runs and displays the work.
+
+ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban executes via coding agents → ThoughtForge monitors results and runs convergence logic.
+
+### ThoughtForge Stack
+
 | Component | Technology | Why |
 |---|---|---|
 | Runtime | Node.js | Already installed (via OpenClaw), single runtime for everything. This is the primary reason for choosing Node.js over Python. |
-| Framework | Next.js | Frontend + API routes in one. Future-proofed for product shipping. AI writes it, complexity cost is zero. |
-| Kanban UI | React with dnd-kit | Maintained, lightweight. react-beautiful-dnd is abandoned. |
-| Real-time updates | Socket.io over Next.js API routes | Live kanban card movement, polish loop progress, phase transitions without page refresh. |
-| AI Engine | Claude Code CLI via `child_process.spawn` | Flat-rate Max subscription. No API costs. Use `spawn` not `exec` — handles long stdout streams from 50-iteration polish runs. |
+| ThoughtForge Core | Node.js CLI + orchestration logic | The intelligence layer: Phase 1-2 chat, polish loop logic, convergence guards, plan mode enforcement. ~200-400 lines of orchestration code. |
+| AI Agents | Claude Code CLI, Gemini CLI, Codex CLI | Multi-agent support. Use different agents for different tasks or compare performance on the same task. Flat-rate subscriptions where available. |
 | Project State | File-based: `/projects/{id}/` with `/docs/` subdirectory for all plans, specs, and constraints (`intent.md`, `spec.md`, `constraints.md`, plan documents). Project state files (`polish_log.md`, `polish_state.json`, `status.json`) live in the project root. | Simple, human-readable, git-trackable. State access wrapped in a single module so a DB can be swapped in later if shipped as product. |
 | Version Control | Git — each project gets its own repo. Auto-commit after every polish iteration. | Rollback is built in. History is free. Separate repos per project for clean parallel isolation. |
 | Notifications | Telegram bot (bot token, direct messages) | Push notification to phone when AI needs human or is done. |
-| Config | `config.yaml` at project root | Thresholds, max iterations, concurrency limit. Human-editable. |
+| Config | `config.yaml` at project root | Thresholds, max iterations, concurrency limit, agent preferences. Human-editable. |
+
+### Vibe Kanban (Execution Layer — Not Built, Integrated)
+
+| What It Provides | How ThoughtForge Uses It |
+|---|---|
+| Kanban board UI | Visualize ThoughtForge pipeline phases as task cards moving across columns. |
+| Parallel execution | Run multiple ThoughtForge projects simultaneously across different agents. |
+| Git worktree isolation | Each task runs in its own worktree — clean parallel isolation without ThoughtForge managing it. |
+| Multi-agent support | Claude Code, Gemini CLI, Codex, Amp, Cursor CLI, and more. Switch agents per task or compare. |
+| VS Code extension | See task status inside the IDE. |
+| Dashboard / stats | Task timing, agent performance, progress tracking — the race stats view. |
 
 **What's NOT in the stack and why:**
 
+- **No custom kanban UI, no Next.js, no dnd-kit, no Socket.io** — Vibe Kanban provides all of this. Building it from scratch would duplicate existing open-source tooling for no gain.
 - **No Python** — Node.js is already installed (via OpenClaw) and handles everything needed. One runtime is cleaner than two.
-- **No SQLite or any database** — Node.js handles file I/O and JSON parsing natively. State is `.md` and `.json` files, git is the history layer. A database adds a dependency for no gain. State access is wrapped in a single module so a DB can be added later.
-- **No LangGraph, AutoGen, CrewAI, or any agent framework** — the loop is straightforward: spawn CLI, parse JSON, check thresholds, loop or stop. ~100-200 lines of orchestration code. A framework adds abstraction for no benefit.
+- **No SQLite or any database** — Node.js handles file I/O and JSON parsing natively. State is `.md` and `.json` files, git is the history layer. A database adds a dependency for no gain. State access is wrapped in a single module so a DB can be swapped in later.
+- **No LangGraph, AutoGen, CrewAI, or any agent framework** — the orchestration logic is straightforward. Vibe Kanban handles agent spawning. ThoughtForge handles the loop logic. No framework needed in between.
 
 ---
 
@@ -269,7 +289,7 @@ Human confirms build spec.
 |---|---|
 | **Outcome** | **Plan mode:** A complete first draft of the plan document — all sections filled, rough but comprehensive. **Code mode:** Working code that runs end-to-end — rough, unpolished, but functional. |
 | **Purpose** | You can't polish what doesn't exist. This phase gets the deliverable to a state where automated review is meaningful — not perfect, just complete enough to review. |
-| **Action Scope** | **Plan mode:** Draft the full plan document using `spec.md` and `intent.md`. Fill every section. **Code mode:** Code the project using Claude Code CLI. Run and test. Fix errors. Iterate until functional. Ping human only when stuck on ambiguity not covered by spec. |
+| **Action Scope** | **Plan mode:** Draft the full plan document using `spec.md` and `intent.md`. Fill every section. **Code mode:** Code the project using the configured coding agent (Claude Code, Gemini CLI, Codex, etc.) via Vibe Kanban. Run and test. Fix errors. Iterate until functional. Ping human only when stuck on ambiguity not covered by spec. |
 
 ### Trigger
 
@@ -286,7 +306,7 @@ Build spec confirmed (Phase 2 complete).
 
 ### AI Behavior — Code Mode (Autonomous)
 
-- Codes the project using Claude Code CLI
+- Codes the project using the configured coding agent (Claude Code, Gemini CLI, Codex, etc.) via Vibe Kanban
 - **Implements logging throughout the codebase** — every significant action, error, and state change gets logged. Logging is not optional. Without logs, debugging in Phase 4 and after delivery is blind guesswork.
 - **Writes tests to validate the code works** — unit tests for core logic, integration tests for connected components, and end-to-end tests that confirm the acceptance criteria from `constraints.md` are met. Tests are part of the deliverable, not throwaway scaffolding.
 - Runs all tests, fixes failures, iterates until passing
@@ -490,9 +510,9 @@ The review call must return valid JSON. The orchestrator:
 
 ## UI
 
-### Two Panels
+### ThoughtForge Chat (Built)
 
-**Left: Chat Panel**
+ThoughtForge provides the chat interface for Phases 1 and 2 — where the human brain dumps, reviews, corrects, and confirms. This is a lightweight terminal or web chat, not a full app.
 
 - Per-project chat thread
 - Used for brain dump, corrections, confirmations, and AI pings
@@ -500,29 +520,31 @@ The review call must return valid JSON. The orchestrator:
 - AI messages labeled by phase (distilling, reviewing, building, polishing)
 - Chat-based confirmation: human says "approved" to advance, or gives corrections to loop
 
-**Right: Kanban Board**
+### Vibe Kanban Dashboard (Integrated, Not Built)
 
-- Columns: **Brain Dump → Distilling → Human Review → Confirmed → Spec Building → Coding → Polishing → Done**
-- Each card = one project or objective
-- Cards move automatically as pipeline progresses
-- Cards pause and visually indicate when human input is needed
-- Clicking a card opens its chat thread in the left panel
+Vibe Kanban provides the kanban board, dashboard, and execution visualization. ThoughtForge pushes tasks to Vibe Kanban and reads status back.
 
-### Per-Card Stats
+- Columns map to ThoughtForge phases: **Brain Dump → Distilling → Human Review → Confirmed → Spec Building → Coding → Polishing → Done**
+- Each card = one ThoughtForge project or objective
+- Cards move as Vibe Kanban tasks progress
+- Cards show which agent is executing (Claude Code, Gemini CLI, Codex, etc.)
+- VS Code extension for in-IDE visibility
+- Parallel execution with git worktree isolation — handled by Vibe Kanban, not ThoughtForge
+
+### Per-Card Stats (via Vibe Kanban + ThoughtForge Logs)
 
 - Created timestamp
 - Time spent in each phase
 - Total duration
-- Polish loop: iteration count, error counts per iteration, convergence chart (critical/medium/minor over time)
+- Polish loop: iteration count, error counts per iteration, convergence trajectory (from `polish_log.md`)
 - Status: running / waiting on human / done / stuck
-- Model used (for comparing performance across different AI models on same task)
+- Agent used (for comparing performance across different AI agents on same task)
 
-### Dashboard View
+### Model/Agent Performance Comparison
 
-- All active cards with progress indicators
-- Historical stats across completed projects
-- Model performance comparison: same task run with different models shows iteration count, time, and convergence speed differences
-- Helps decide if a project was worthwhile and which model performs best for which type of work
+- Same task run with different agents shows iteration count, time, and convergence speed differences
+- Helps decide which agent performs best for which type of work
+- Data comes from ThoughtForge's `polish_log.md` and `polish_state.json`, displayed via Vibe Kanban's dashboard or a simple ThoughtForge report
 
 ---
 
@@ -538,7 +560,7 @@ polish:
   stagnation_limit: 3
   retry_malformed_output: 2
 
-# Parallel execution
+# Parallel execution (managed by Vibe Kanban)
 concurrency:
   max_parallel_runs: 3
 
@@ -547,10 +569,23 @@ notifications:
   telegram_bot_token: ""
   telegram_chat_id: ""
 
-# Claude Code CLI
-claude:
-  command: "claude"
-  flags: "--print"
+# AI Agents — configure which agents are available
+agents:
+  default: "claude"
+  available:
+    claude:
+      command: "claude"
+      flags: "--print"
+    gemini:
+      command: "gemini"
+      flags: ""
+    codex:
+      command: "codex"
+      flags: ""
+
+# Vibe Kanban integration
+vibekanban:
+  enabled: true
 ```
 
 ---
@@ -579,12 +614,14 @@ These decisions were made across three design conversations and one audit review
 5. **Acceptance criteria added to `constraints.md`** — prevents polish loop from producing a clean deliverable that's missing what was asked for. Reviewer checks both quality AND "does this meet the acceptance criteria."
 6. **Structured output validation with retry** — JSON from review call is validated and retried on failure, not blindly trusted.
 7. **Polish state persistence** — `polish_state.json` written after each iteration so the loop can resume after a crash.
-8. **No agent frameworks** — the orchestration logic is ~100-200 lines. Frameworks add abstraction with no benefit.
+8. **No agent frameworks** — Vibe Kanban handles agent spawning and execution. ThoughtForge handles the loop logic. No LangGraph/AutoGen/CrewAI needed in between.
 9. **Phase 1 distillation prompt specified** — structured intake (objectives, assumptions, constraints, unknowns, open questions) reduces human correction rounds from 5 to 1-2.
 10. **Plan mode hard-blocks all code execution at the orchestrator level** — not just prompt instructions. If deliverable type is Plan, the orchestrator refuses to spawn CLI processes, create source files, or run anything. A Plan mode run that accidentally builds code is a total failure that wastes human time on the wrong thing at the wrong phase.
 11. **Code mode requires logging and tests as part of the deliverable** — logging is mandatory throughout the codebase. Tests (unit, integration, acceptance) are mandatory. Every acceptance criterion must have a corresponding test. The Phase 4 reviewer treats missing logging as a medium flaw and missing acceptance test coverage as a critical flaw. Tests run after every fix iteration.
 12. **Plan Completeness Gate on Code mode entry** — when a Code mode pipeline receives a plan document as input, the AI assesses whether the plan is actually complete enough to build from. If it's a brain dump, rough outline, or has open decisions, the tool redirects to Plan mode automatically. Human can override, but the default is strict: 80% complete is not complete.
 13. **All plan deliverables follow the OPA Framework** — every plan document opens with the OPA table (Outcome, Purpose, Action Scope) and every major section within the plan gets its own OPA table. This is both a structural requirement during Phase 3 drafting and a review criterion during Phase 4 polish. A plan missing OPA structure is a critical flaw. Reference: `.shareddocs/opa_framework.md`
+14. **Vibe Kanban as the execution and visualization layer** — instead of building a custom kanban UI, ThoughtForge integrates with Vibe Kanban (free, open source, YC-backed). Vibe Kanban handles the kanban board, parallel task execution, git worktree isolation, multi-agent spawning, dashboard, and VS Code extension. ThoughtForge handles the intelligence: brain dump intake, plan mode, constraint discovery, polish loop logic, and convergence guards. This cuts build scope roughly in half.
+15. **Multi-agent support: Claude Code CLI, Gemini CLI, Codex CLI** — not locked to one AI provider. Different agents can be used for different tasks or compared on the same task. Agent selection is per-project in config. Vibe Kanban natively supports all of these.
 
 ---
 
