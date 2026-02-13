@@ -73,7 +73,17 @@
 | Connector authentication failure (expired token, missing credentials) | Log the failure, notify the human in chat specifying which connector failed and why, and proceed with distillation using available inputs. Do not halt the pipeline. |
 | Connector target not found (deleted page, revoked access, invalid URL) | Log the failure, notify the human in chat specifying which resource could not be retrieved, and proceed with distillation using available inputs. |
 
-**Phase-to-State Mapping:** Pipeline phases map to `status.json` phase values as follows: Phase 1 = `brain_dump` (initial intake — human providing inputs) → `distilling` (triggered by Distill button — AI processing brain dump and resources) → `human_review` (human correcting distillation). Phase 2 = `spec_building`. Phase 3 = `building`. Phase 4 = `polishing`. Terminal states: `done` and `halted`. Vibe Kanban columns mirror these values directly.
+**Phase-to-State Mapping:** Pipeline phases map to `status.json` phase values as follows:
+
+| Phase | `status.json` Values | Transitions |
+|---|---|---|
+| Phase 1 | `brain_dump` → `distilling` → `human_review` | `brain_dump`: human providing inputs. `distilling`: triggered by Distill button, AI processing. `human_review`: human correcting distillation. |
+| Phase 2 | `spec_building` | Entered on Phase 1 Confirm. |
+| Phase 3 | `building` | Entered on Phase 2 Confirm. |
+| Phase 4 | `polishing` | Entered automatically on Phase 3 completion. |
+| Terminal | `done`, `halted` | `done`: convergence or stagnation success. `halted`: guard trigger, human terminate, or unrecoverable error. |
+
+Vibe Kanban columns mirror these `status.json` values directly.
 
 **Project Lifecycle After Completion:** Once a project reaches `done` or `halted`, no further pipeline actions are taken. The project directory, git repo, and all state files remain in place for human reference. Project archival, deletion, and re-opening are deferred. Not a current build dependency.
 
@@ -155,7 +165,7 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 
 | Mode | Stuck Condition | Action |
 |---|---|---|
-| Plan | AI response includes a structured `"stuck": true` flag with a `"reason"` field in its JSON output. The Phase 3 plan builder prompt requires this structured signal — freeform text is not parsed for stuck detection. | Notify and wait |
+| Plan | AI signals stuck status via a structured flag in its JSON output — not freeform text. The Phase 3 plan builder prompt requires this structured signal. Exact JSON schema in build spec. | Notify and wait |
 | Code | Build agent returns non-zero exit after 2 consecutive retries on the same task, OR test suite fails on the same tests for 3 consecutive fix attempts | Notify and wait |
 
 **Phase 3 Stuck Recovery:**
@@ -203,7 +213,7 @@ Recovery follows the same confirmation model as Phase 4: explicit button presses
 |---|---|---|
 | Termination (success) | Error counts within configured thresholds (+ all tests pass for code). Thresholds in `config.yaml`. | Done. Notify human. |
 | Hallucination | Error count spikes sharply after a sustained downward trend | Halt. Notify human: "Fix-regress cycle detected. Errors trending down then spiked. Iteration [N]: [X] total (was [Y]). Review needed." |
-| Stagnation | Total count plateaus across consecutive iterations AND issue rotation detected (new issues replacing old ones at the same rate — the loop is churning, not degrading) | Done (success). Notify human: "Polish sufficient. Ready for final review." |
+| Stagnation | Total count plateaus across consecutive iterations AND issue rotation detected (specific issues change between iterations even though the total stays flat — the loop has reached the best quality achievable autonomously) | Done (success). Notify human: "Polish sufficient. Ready for final review." |
 | Fabrication | A severity category spikes well above its recent average, AND the system had previously approached convergence thresholds — suggesting the reviewer is manufacturing issues because nothing real remains | Halt. Notify human. |
 | Max iterations | Hard ceiling reached (configurable, default 50) | Halt. Notify human: "Max [N] iterations reached. Avg flaws/iter: [X]. Lowest: [Y] at iter [Z]. Review needed." |
 
@@ -270,6 +280,7 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 |---|---|---|
 | Runtime | Node.js | Already installed (via OpenClaw), single runtime |
 | Core | Node.js CLI + orchestration logic | Intelligence layer: Phase 1-2 chat, polish loop, convergence guards, plan mode enforcement |
+| Chat Interface | Express.js + WebSocket (ws) | Lightweight HTTP server for chat UI, WebSocket for real-time AI response streaming. Both MIT-licensed, standard Node.js ecosystem. |
 | AI Agents | Claude Code CLI, Gemini CLI, Codex CLI | Multi-agent support, flat-rate subscriptions |
 | Project State | File-based: `/projects/{id}/` with `/docs/` subdirectory | Human-readable, git-trackable. State access wrapped in single module for future DB swap |
 | Version Control | Git — each project gets its own repo | Rollback built in. Separate repos for clean parallel isolation |
@@ -372,7 +383,7 @@ Every phase transition pings the human with a status update. Every notification 
 
 ### UI
 
-**ThoughtForge Chat (Built):** Lightweight web chat interface (terminal-based alternative deferred). Primary use: Phases 1–2 (brain dump intake, spec building). Also used for Phase 3 stuck recovery (provide input, terminate) and Phase 4 halt recovery (resume, override, terminate). Per-project chat thread, file/resource dropping, AI messages labeled by phase, corrections via chat, advancement via Confirm button. During stuck and halt recovery, the chat presents the current state context and the available recovery options — no free-form AI conversation.
+**ThoughtForge Chat (Built):** Lightweight web chat interface (terminal-based alternative deferred). Primary use: Phases 1–2 (brain dump intake, spec building). Also used for Phase 3 stuck recovery (provide input, terminate) and Phase 4 halt recovery (resume, override, terminate). Per-project chat thread, file/resource dropping, AI messages labeled by phase, corrections via chat, advancement via Confirm button. During stuck and halt recovery, the chat presents the current state context and the available recovery options — no free-form AI conversation. The chat interface includes a project list sidebar showing all active projects with their current phase. The human clicks a project to open its chat thread. New projects are created from this list via a "New Project" action. The active project's chat thread occupies the main panel.
 
 **Prompt Management:** The chat interface includes a Settings button that opens a prompt editor. All pipeline prompts — brain dump intake, review, fix, and any future prompts — are listed, viewable, and editable by the human. Edits apply globally (all future projects use the updated prompts). Per-project prompt overrides are deferred. Not a current build dependency. Prompts are stored as external files in a `/prompts/` directory, not embedded in code. The prompt editor reads from and writes to these files.
 

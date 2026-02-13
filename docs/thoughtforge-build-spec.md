@@ -309,6 +309,22 @@ Agent-specific adapters handle output format differences and normalize to Though
 
 ---
 
+## Plan Mode Stuck Signal Schema
+
+**Used by:** Task 15 (plan builder), Task 6c (stuck recovery)
+
+The Phase 3 plan builder prompt requires the AI to include a structured stuck signal in every response:
+
+```typescript
+interface PlanBuilderResponse {
+  stuck: boolean;        // true if the AI cannot proceed without human input
+  reason?: string;       // Required when stuck is true — what decision is needed
+  content?: string;      // The drafted content (when not stuck)
+}
+```
+
+---
+
 ## Resource Connector Interface
 
 **Used by:** Tasks 7c–7e (resource connectors)

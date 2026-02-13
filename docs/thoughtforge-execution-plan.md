@@ -25,12 +25,15 @@
 | 1 | Initialize Node.js project, folder structure, `config.yaml` loader | — | — | — | Not Started |
 | 1a | Implement application entry point: Node.js server startup, config initialization, local web server for chat interface | — | Task 1 | — | Not Started |
 | 2 | Implement project initialization: unique ID generation, `/projects/{id}/` directory scaffolding (including `/docs/` and `/resources/`), git repo init, initial `status.json` write, Vibe Kanban card creation (if enabled), and new chat thread creation | — | Task 1 | — | Not Started |
+| 2a | Implement git commit at pipeline milestones: `intent.md` lock (end of Phase 1), `spec.md` and `constraints.md` lock (end of Phase 2), Phase 3 build completion. Matches Git Commit Strategy in design spec. | — | Task 2 | — | Not Started |
 | 3 | Implement project state module (`status.json`, `polish_state.json` read/write) | — | Task 1 | — | Not Started |
 | 3a | Implement operational logging module (per-project `thoughtforge.log`, structured entries for agent calls, phase transitions, errors) | — | Task 1 | — | Not Started |
 | 4 | Implement notification abstraction layer + ntfy.sh channel | — | Task 1 | — | Not Started |
 | 5 | Implement phase transition notifications (ping human on every milestone) | — | Task 4 | — | Not Started |
 | 6 | Set up plugin loader (reads `/plugins/{type}/`, validates interface contract) | — | Task 1 | — | Not Started |
-| 6a | Implement main pipeline orchestrator: phase sequencing based on `status.json`, plugin selection by `deliverable_type`, Phase 2→3 entry (including Plan Completeness Gate trigger for Code mode), automatic Phase 3→4 transition, and Phase 3 stuck recovery interaction | — | Task 2, Task 3, Task 6 | — | Not Started |
+| 6a | Implement pipeline orchestrator: phase sequencing based on `status.json`, plugin selection by `deliverable_type` | — | Task 2, Task 3, Task 6 | — | Not Started |
+| 6b | Implement Phase 2→3 transition: Plan Completeness Gate trigger for Code mode, advancement logic | — | Task 6a, Task 19 | — | Not Started |
+| 6c | Implement Phase 3→4 automatic transition and Phase 3 stuck recovery interaction (Provide Input / Terminate buttons) | — | Task 6a, Task 7 | — | Not Started |
 
 > **Cross-stage dependency:** Agent Layer (Build Stage 7, Tasks 41–44) provides the core agent invocation mechanism used by Stages 2–6. Tasks 41–42 (agent invocation and adapters) must be completed before any task that invokes an AI agent. Specifically, Tasks 8, 12, 15, 19, 21, and 30 depend on Tasks 41–42. Build Stage 7 (Agent Layer) must begin in parallel with Build Stage 1. Tasks 41–42 must be complete before any agent-invoking task begins (Tasks 8, 12, 15, 19, 21, and 30).
 
@@ -47,10 +50,11 @@
 | 7f | Draft `/prompts/spec-building.md` prompt text | — | Task 7a | — | Not Started |
 | 8 | Implement Phase 1: brain dump intake, resource reading, distillation prompt (loaded from `/prompts/brain-dump-intake.md`) | — | Task 6a, Task 7, Task 7a, Task 7c, Tasks 41–42 | — | Not Started |
 | 9 | Implement correction loop (chat-based revisions, "realign from here") | — | Task 8 | — | Not Started |
+| 9a | Implement `chat_history.json` persistence: append after each chat message, clear on phase advancement confirmation, resume from last recorded message on crash | — | Task 3, Task 7 | — | Not Started |
 | 10 | Implement action buttons: Distill (Phase 1 intake trigger) and Confirm (phase advancement mechanism) | — | Task 7 | — | Not Started |
-| 11 | Implement `intent.md` generation and locking | — | Task 9 | — | Not Started |
+| 11 | Implement `intent.md` generation and locking | — | Task 9, Task 2a | — | Not Started |
 | 12 | Implement Phase 2: spec building, constraint discovery, acceptance criteria extraction, human review/override of proposed decisions, human review of acceptance criteria, Confirm to advance | — | Task 6a, Task 10, Task 11, Task 7a, Task 7f, Tasks 41–42 | — | Not Started |
-| 13 | Implement `spec.md` and `constraints.md` generation | — | Task 12 | — | Not Started |
+| 13 | Implement `spec.md` and `constraints.md` generation | — | Task 12, Task 2a | — | Not Started |
 
 ### Build Stage 3: Plan Mode Plugin
 
@@ -93,7 +97,7 @@
 |---|------|-------|------------|----------|--------|
 | 30a | Draft `/prompts/plan-review.md` and `/prompts/plan-fix.md` prompt text | — | Task 7a | — | Not Started |
 | 30b | Draft `/prompts/code-review.md` and `/prompts/code-fix.md` prompt text | — | Task 7a | — | Not Started |
-| 30 | Implement orchestrator loop: review call → parse → validate → fix call → commit | — | Task 3, Task 6a, Task 17, Task 22, Tasks 30a–30b, Tasks 41–42 | — | Not Started |
+| 30 | Implement orchestrator loop: review call → parse → validate → fix call → commit | — | Task 3, Task 6a, Task 6c, Task 17, Task 22, Tasks 30a–30b, Tasks 41–42 | — | Not Started |
 | 31 | Implement Zod validation flow (safeParse, retry on failure, halt after max retries) | — | Task 30 | — | Not Started |
 | 32 | Implement count derivation from issues array (ignore top-level counts) | — | Task 30 | — | Not Started |
 | 33 | Implement convergence guard: termination (success) | — | Task 30 | — | Not Started |
