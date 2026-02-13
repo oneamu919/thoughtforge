@@ -85,7 +85,7 @@ what the human meant in more than 2 places, it's not ready.
 **If the assessment returns INCOMPLETE:**
 - The tool creates a new Plan mode card automatically
 - Moves the document into the new Plan card's `/resources/` directory
-- Notifies the human via Telegram: "This plan isn't ready for code. Redirected to Plan mode. Here's what's missing: [gaps list]"
+- Notifies the human via configured notification channel: "This plan isn't ready for code. Redirected to Plan mode. Here's what's missing: [gaps list]"
 - The human can override and force Code mode if they disagree, but the default is redirect
 
 ### Plan Mode Safety Guardrails
@@ -105,7 +105,7 @@ A plan is a document. It may contain code snippets, architecture diagrams descri
 
 **Why this matters:** If Plan mode accidentally starts building code, the human gets pulled into debugging and iterating on code that wasn't supposed to exist yet. The entire point of Plan → Code separation is that the plan is complete and human-approved BEFORE any code pipeline starts. A Plan mode run that builds code is a total failure — it wastes human time and energy on the wrong thing at the wrong phase.
 
-**Enforcement:** The orchestrator checks the deliverable type from `intent.md` before every Phase 3 and Phase 4 action. If deliverable type is Plan, execution-related calls are blocked at the orchestrator level, not just by prompting the AI to behave. Prompts can be ignored. Orchestrator-level blocks cannot.
+**Enforcement:** The orchestrator checks the deliverable type from `intent.md` before every Phase 3 and Phase 4 action. It loads the plugin's `safety-rules.js` which declares what operations are blocked for that deliverable type. If deliverable type is Plan, the plan plugin's safety rules block all execution-related calls at the orchestrator level, not just by prompting the AI to behave. Prompts can be ignored. Orchestrator-level blocks enforced via plugin safety rules cannot.
 
 ---
 
@@ -128,8 +128,12 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 | AI Agents | Claude Code CLI, Gemini CLI, Codex CLI | Multi-agent support. Use different agents for different tasks or compare performance on the same task. Flat-rate subscriptions where available. |
 | Project State | File-based: `/projects/{id}/` with `/docs/` subdirectory for all plans, specs, and constraints (`intent.md`, `spec.md`, `constraints.md`, plan documents). Project state files (`polish_log.md`, `polish_state.json`, `status.json`) live in the project root. | Simple, human-readable, git-trackable. State access wrapped in a single module so a DB can be swapped in later if shipped as product. |
 | Version Control | Git — each project gets its own repo. Auto-commit after every polish iteration. | Rollback is built in. History is free. Separate repos per project for clean parallel isolation. |
-| Notifications | Telegram bot (bot token, direct messages) | Push notification to phone when AI needs human or is done. |
-| Config | `config.yaml` at project root | Thresholds, max iterations, concurrency limit, agent preferences. Human-editable. |
+| Notifications | Notification abstraction layer — default: ntfy.sh (Apache 2.0, self-hostable or free cloud). | One HTTP POST to `https://ntfy.sh/{topic}` or self-hosted instance. No tokens, no API keys for basic use. Pushes to phone, desktop, and browser. Abstraction layer supports adding channels (Telegram, Slack, Discord, email, webhooks) in `config.yaml` without changing ThoughtForge's notification code. |
+| Config | `config.yaml` at project root | Thresholds, max iterations, concurrency limit, agent preferences, notification channels, template/plugin directories. Human-editable. |
+| Schema Validation | Zod (MIT, TypeScript-first) | Defines the Phase 4 review JSON schema once. Validates every AI response automatically with clear error messages. Replaces hand-written typeof checks. When the review schema changes, update one place. |
+| Template Engine | Handlebars (MIT) | Plan mode document generation uses templates with OPA skeleton as fixed structure. AI fills content slots but cannot break structure. New plan types = new template file in `/templates/`, not prompt rewrites. |
+| Plugin Architecture | Convention-based folder structure: `/plugins/{type}/` | Each deliverable type (Plan, Code, future types) is a self-contained plugin folder with its own builder, reviewer, safety rules, and templates. Orchestrator delegates to plugins instead of hardcoded if/else branching. Adding a new deliverable type = adding a plugin folder, not touching the orchestrator. |
+| MCP (Future) | Model Context Protocol — not a v1 dependency | Design note: orchestrator core actions are written as clean standalone functions so they can be wrapped as MCP tools later. Enables any MCP client (including Vibe Kanban's native MCP integration) to interact with ThoughtForge without custom glue code. |
 
 ### Vibe Kanban (Execution Layer — Not Built, Integrated)
 
@@ -148,6 +152,38 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 - **No Python** — Node.js is already installed (via OpenClaw) and handles everything needed. One runtime is cleaner than two.
 - **No SQLite or any database** — Node.js handles file I/O and JSON parsing natively. State is `.md` and `.json` files, git is the history layer. A database adds a dependency for no gain. State access is wrapped in a single module so a DB can be swapped in later.
 - **No LangGraph, AutoGen, CrewAI, or any agent framework** — the orchestration logic is straightforward. Vibe Kanban handles agent spawning. ThoughtForge handles the loop logic. No framework needed in between.
+
+### Plugin Folder Structure
+
+Each deliverable type is a self-contained plugin. The orchestrator loads the plugin for the deliverable type declared in `intent.md` and delegates Phase 3 (build), Phase 4 (review), and safety enforcement to it.
+
+```
+/plugins/
+  plan/
+    builder.js        # Phase 3 logic: template-driven document drafting
+    reviewer.js       # Phase 4 review schema (Zod) and severity definitions
+    safety-rules.js   # What plan mode blocks (no code execution, no source files)
+    templates/         # OPA templates for different plan types (wedding, strategy, engineering, etc.)
+  code/
+    builder.js        # Phase 3 logic: agent-driven coding, test writing, logging
+    reviewer.js       # Phase 4 review schema (Zod) and severity definitions
+    safety-rules.js   # Code mode permissions and constraints
+    test-runner.js    # Test execution logic specific to code mode
+```
+
+**Adding a new deliverable type** (e.g., Research, Data Pipeline, Content) means creating a new folder in `/plugins/` with the same interface files. The orchestrator doesn't change — it reads the plugin config and delegates.
+
+### Future Extensibility: MCP
+
+ThoughtForge's orchestrator core actions — create project, check status, read polish log, trigger phase advance, read convergence state — are written as **clean standalone functions** with no CLI-specific coupling. This is a v1 architectural decision, not a v1 build requirement.
+
+**Why it matters now:** If these functions are tangled into CLI-specific code, adding MCP later requires a rewrite. If they're clean and independently callable, wrapping them as MCP tools later is trivial — a thin adapter layer, not a refactor.
+
+**What this enables later:**
+- Any MCP client (Claude Desktop, Cursor, etc.) can interact with ThoughtForge directly
+- Vibe Kanban's native MCP integration talks to ThoughtForge without custom glue code
+- Third-party tools can create projects, check status, and read logs via the same protocol
+- ThoughtForge itself can be used as an MCP tool inside other AI workflows
 
 ---
 
@@ -249,7 +285,7 @@ Human confirms intent (Phase 1 complete).
 - Discovers constraints through internal proposer/challenger reasoning
 - **Extracts 5-10 functional acceptance criteria from `intent.md`** — plain statements like:
   - "User can create a project from the kanban board"
-  - "Telegram notification fires when polish loop finishes"
+  - "Push notification fires when polish loop finishes"
   - "Cards move automatically when phase changes"
   - "Git commits after every polish iteration"
 - Presents the build spec, constraints, and acceptance criteria to human
@@ -297,20 +333,23 @@ Build spec confirmed (Phase 2 complete).
 
 ### AI Behavior — Plan Mode (Autonomous)
 
-- Drafts the complete plan document in `.md` format in `/docs/` based on `spec.md` structure and `intent.md` goals
+- The orchestrator loads the **plan plugin** (`/plugins/plan/builder.js`) which drives Phase 3
+- Selects the appropriate **Handlebars template** from `/plugins/plan/templates/` based on the plan type identified in `spec.md` (wedding, strategy, engineering design, etc.)
+- The template defines the **OPA skeleton** as fixed structure — master OPA table, section headers, per-section OPA tables. The AI generates content to fill each template slot but cannot break the structure. This guarantees OPA compliance without relying on prompt adherence.
 - **All plan documents must follow the OPA Framework structure:** every plan opens with the OPA table (Outcome, Purpose, Action Scope) before any procedural or detail content. Reference: `.shareddocs/opa_framework.md` (included in repo)
 - Fills every section — no placeholders, no "TBD"
 - May include illustrative code snippets, config examples, or CLI references inside the document — these are content, not executed
-- **Does NOT create source files, run commands, install packages, scaffold projects, or execute anything. Document drafting only. Enforced at orchestrator level.**
-- If stuck on a decision that requires human input not covered by spec: pings human via Telegram and waits
+- **Does NOT create source files, run commands, install packages, scaffold projects, or execute anything. Document drafting only. Enforced at orchestrator level via plan plugin's `safety-rules.js`.**
+- If stuck on a decision that requires human input not covered by spec: notifies human and waits
 
 ### AI Behavior — Code Mode (Autonomous)
 
+- The orchestrator loads the **code plugin** (`/plugins/code/builder.js`) which drives Phase 3
 - Codes the project using the configured coding agent (Claude Code, Gemini CLI, Codex, etc.) via Vibe Kanban
 - **Implements logging throughout the codebase** — every significant action, error, and state change gets logged. Logging is not optional. Without logs, debugging in Phase 4 and after delivery is blind guesswork.
 - **Writes tests to validate the code works** — unit tests for core logic, integration tests for connected components, and end-to-end tests that confirm the acceptance criteria from `constraints.md` are met. Tests are part of the deliverable, not throwaway scaffolding.
 - Runs all tests, fixes failures, iterates until passing
-- If stuck or hitting an ambiguity not covered by spec: pings human via Telegram and waits
+- If stuck or hitting an ambiguity not covered by spec: notifies human and waits
 
 ### Code Mode Testing Requirements
 
@@ -379,9 +418,9 @@ Code is working (Phase 3 complete).
     },
     {
       "severity": "critical",
-      "description": "Missing feature: Telegram notification not wired up",
+      "description": "Missing feature: push notification not wired up",
       "location": "N/A",
-      "recommendation": "Implement Telegram bot integration per acceptance criteria #4"
+      "recommendation": "Implement notification integration per acceptance criteria #4"
     },
     {
       "severity": "medium",
@@ -430,13 +469,13 @@ Code is working (Phase 3 complete).
 
 **Step 2 — Fix (apply recommendations):**
 
-The orchestrator passes the JSON issue list and recommendations to the fixer agent, which applies them to the scoped code.
+The orchestrator passes the JSON issue list and recommendations to the fixer agent, which applies them to the scoped deliverable. The plugin's `reviewer.js` defines what severity definitions and review criteria apply. For Plan mode, structural compliance checking is simplified — the Handlebars template guarantees the OPA skeleton, so the reviewer only checks content quality, completeness, and logical coherence.
 
 ### Convergence Guards
 
 | Guard | Condition | Action |
 |---|---|---|
-| **Termination (success)** | `critical == 0` AND `medium < 3` AND `minor < 5` | Done. Ping human via Telegram. |
+| **Termination (success)** | `critical == 0` AND `medium < 3` AND `minor < 5` | Done. Notify human. |
 | **Hallucination** | Error count spikes after a downward trend | Stop. Flag it. Ping human. |
 | **Scope drift** | Issues reference code outside target files/scope in `constraints.md` | Stop. Flag it. Ping human. |
 | **Stagnation** | Same error count for 3+ consecutive iterations, no meaningful change | Stop. Flag it. Ping human. |
@@ -491,14 +530,54 @@ for each iteration (max from config):
     git commit snapshot
 ```
 
-### Structured Output Validation
+### Structured Output Validation (Zod)
 
-The review call must return valid JSON. The orchestrator:
+The review call must return valid JSON matching the deliverable type's review schema. Each plugin defines its own Zod schema in `reviewer.js`. The orchestrator validates every AI response against it automatically.
 
-- Validates the JSON parses correctly
-- Validates the schema has the required fields (`critical`, `medium`, `minor`, `issues`)
+**Code mode review schema (`/plugins/code/reviewer.js`):**
+```javascript
+const { z } = require('zod');
+
+const CodeReviewSchema = z.object({
+  critical: z.number().int().min(0),
+  medium: z.number().int().min(0),
+  minor: z.number().int().min(0),
+  tests: z.object({
+    total: z.number().int().min(0),
+    passed: z.number().int().min(0),
+    failed: z.number().int().min(0),
+  }),
+  issues: z.array(z.object({
+    severity: z.enum(['critical', 'medium', 'minor']),
+    description: z.string(),
+    location: z.string(),
+    recommendation: z.string(),
+  })),
+});
+```
+
+**Plan mode review schema (`/plugins/plan/reviewer.js`):**
+```javascript
+const PlanReviewSchema = z.object({
+  critical: z.number().int().min(0),
+  medium: z.number().int().min(0),
+  minor: z.number().int().min(0),
+  issues: z.array(z.object({
+    severity: z.enum(['critical', 'medium', 'minor']),
+    description: z.string(),
+    location: z.string(),
+    recommendation: z.string(),
+  })),
+});
+```
+
+**Validation flow:**
+- Parse the AI response as JSON
+- Validate against the plugin's Zod schema: `schema.safeParse(parsed)`
+- On validation failure: Zod returns structured error messages identifying exactly which fields are wrong or missing
 - On malformed output: retries the review call (max 2 retries)
-- On repeated failure: halts and pings human
+- On repeated failure: halts and notifies human
+- When the review schema evolves (new fields, stricter types), only the Zod schema definition in the plugin's `reviewer.js` is updated — one place, one change
 
 ### Output
 
@@ -564,10 +643,22 @@ polish:
 concurrency:
   max_parallel_runs: 3
 
-# Notifications
+# Notifications — abstraction layer, add channels as needed
 notifications:
-  telegram_bot_token: ""
-  telegram_chat_id: ""
+  default_channel: "ntfy"
+  channels:
+    ntfy:
+      enabled: true
+      url: "https://ntfy.sh"          # or self-hosted: "https://ntfy.yourdomain.com"
+      topic: "thoughtforge"
+    telegram:
+      enabled: false
+      bot_token: ""
+      chat_id: ""
+    # Future channels: slack, discord, email, webhook
+    # slack:
+    #   enabled: false
+    #   webhook_url: ""
 
 # AI Agents — configure which agents are available
 agents:
@@ -582,6 +673,14 @@ agents:
     codex:
       command: "codex"
       flags: ""
+
+# Templates — plan mode document skeletons
+templates:
+  directory: "./templates"             # /templates/plan/, /templates/code/, etc.
+
+# Plugins — deliverable type definitions
+plugins:
+  directory: "./plugins"               # /plugins/plan/, /plugins/code/, etc.
 
 # Vibe Kanban integration
 vibekanban:
@@ -612,16 +711,21 @@ These decisions were made across three design conversations and one audit review
 3. **Each parallel project gets its own git repo** — clean isolation, no shared mutable state.
 4. **Chat-based confirmation over button UI** — "approved" or "item 3 is wrong" parsed by AI. Natural, no extra UI components.
 5. **Acceptance criteria added to `constraints.md`** — prevents polish loop from producing a clean deliverable that's missing what was asked for. Reviewer checks both quality AND "does this meet the acceptance criteria."
-6. **Structured output validation with retry** — JSON from review call is validated and retried on failure, not blindly trusted.
+6. **Structured output validation with Zod** — JSON from review call is validated against the plugin's Zod schema and retried on failure, not blindly trusted. Clear error messages identify exactly which fields are wrong.
 7. **Polish state persistence** — `polish_state.json` written after each iteration so the loop can resume after a crash.
 8. **No agent frameworks** — Vibe Kanban handles agent spawning and execution. ThoughtForge handles the loop logic. No LangGraph/AutoGen/CrewAI needed in between.
 9. **Phase 1 distillation prompt specified** — structured intake (objectives, assumptions, constraints, unknowns, open questions) reduces human correction rounds from 5 to 1-2.
-10. **Plan mode hard-blocks all code execution at the orchestrator level** — not just prompt instructions. If deliverable type is Plan, the orchestrator refuses to spawn CLI processes, create source files, or run anything. A Plan mode run that accidentally builds code is a total failure that wastes human time on the wrong thing at the wrong phase.
+10. **Plan mode hard-blocks all code execution via plugin safety rules** — not just prompt instructions. The plan plugin's `safety-rules.js` declares all blocked operations. The orchestrator loads and enforces them. A Plan mode run that accidentally builds code is a total failure that wastes human time on the wrong thing at the wrong phase.
 11. **Code mode requires logging and tests as part of the deliverable** — logging is mandatory throughout the codebase. Tests (unit, integration, acceptance) are mandatory. Every acceptance criterion must have a corresponding test. The Phase 4 reviewer treats missing logging as a medium flaw and missing acceptance test coverage as a critical flaw. Tests run after every fix iteration.
 12. **Plan Completeness Gate on Code mode entry** — when a Code mode pipeline receives a plan document as input, the AI assesses whether the plan is actually complete enough to build from. If it's a brain dump, rough outline, or has open decisions, the tool redirects to Plan mode automatically. Human can override, but the default is strict: 80% complete is not complete.
 13. **All plan deliverables follow the OPA Framework** — every plan document opens with the OPA table (Outcome, Purpose, Action Scope) and every major section within the plan gets its own OPA table. This is both a structural requirement during Phase 3 drafting and a review criterion during Phase 4 polish. A plan missing OPA structure is a critical flaw. Reference: `.shareddocs/opa_framework.md`
 14. **Vibe Kanban as the execution and visualization layer** — instead of building a custom kanban UI, ThoughtForge integrates with Vibe Kanban (free, open source, YC-backed). Vibe Kanban handles the kanban board, parallel task execution, git worktree isolation, multi-agent spawning, dashboard, and VS Code extension. ThoughtForge handles the intelligence: brain dump intake, plan mode, constraint discovery, polish loop logic, and convergence guards. This cuts build scope roughly in half.
 15. **Multi-agent support: Claude Code CLI, Gemini CLI, Codex CLI** — not locked to one AI provider. Different agents can be used for different tasks or compared on the same task. Agent selection is per-project in config. Vibe Kanban natively supports all of these.
+16. **ntfy.sh as default notification channel with abstraction layer** — replaces Telegram-only notifications. ntfy.sh is open source (Apache 2.0), self-hostable, requires no bot tokens or API keys for basic use, and pushes to phone, desktop, and browser with one HTTP POST. A notification abstraction layer in ThoughtForge means adding channels (Telegram, Slack, Discord, email, webhooks) is a config change, not a code change. All notification pings carry context: convergence status, which phase needs human, what decision is blocking.
+17. **Zod for structured output validation** — the Phase 4 review JSON schema is defined once as a Zod schema in each plugin's `reviewer.js`. Every AI response is validated automatically with clear error messages. Replaces hand-written typeof checks that are tedious, error-prone, and need manual updates. When the review schema changes, update one place. Zod is MIT-licensed, TypeScript-first, and standard in the Node.js ecosystem.
+18. **MCP-ready orchestrator architecture (design-time, not build-time)** — orchestrator core actions (create project, check status, read polish log, trigger phase advance, read convergence state) are written as clean standalone functions with no CLI-specific coupling. This means wrapping them as MCP tools later is a thin adapter layer, not a refactor. Enables Vibe Kanban's native MCP integration, Claude Desktop, and any MCP client to talk to ThoughtForge without custom glue code. NOT a v1 dependency — no MCP code is written in v1.
+19. **Handlebars templates for Plan mode document generation** — Plan mode uses template-driven generation instead of pure AI drafting. The OPA skeleton (master OPA table, section headers, per-section OPA tables) is a fixed Handlebars template. The AI generates content to fill each slot but cannot break the structure. This guarantees OPA structural compliance without relying on prompt adherence. Adding new plan types (wedding, strategy, engineering, etc.) means adding a new template file in `/plugins/plan/templates/`, not rewriting prompts.
+20. **Plugin architecture for deliverable types** — each deliverable type (Plan, Code, future types) is a self-contained plugin folder in `/plugins/` with its own builder, reviewer (Zod schema), safety rules, and templates. The orchestrator loads the plugin for the deliverable type declared in `intent.md` and delegates to it. No if/else branching for Plan vs. Code in the orchestrator. Adding a new deliverable type (Research, Data Pipeline, Content, etc.) means creating a new plugin folder with the same interface — the orchestrator doesn't change.
 
 ---
 
