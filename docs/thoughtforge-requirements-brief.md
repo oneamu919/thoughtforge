@@ -25,6 +25,7 @@ Eliminates the repetitive manual labor of iterative AI review — for any type o
 ## Action Scope
 
 - Accept brain dump and resources
+- Pull resources from configured external sources (Notion pages, Google Drive documents) into the project's `/resources/` directory
 - Distill intent with human correction
 - Discover constraints through AI self-negotiation
 - Autonomously build the deliverable (plan or code)
@@ -37,7 +38,7 @@ Eliminates the repetitive manual labor of iterative AI review — for any type o
 - Custom kanban UI (Vibe Kanban provides this)
 - Database layer (file-based state, DB swappable later)
 - Agent frameworks (no LangGraph/AutoGen/CrewAI)
-- MCP implementation (architecture-ready only, not v1)
+- MCP implementation (architecture-ready only, not a current build dependency)
 
 ---
 

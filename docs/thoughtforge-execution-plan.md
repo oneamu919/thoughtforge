@@ -29,7 +29,7 @@
 | 6 | Set up plugin loader (reads `/plugins/{type}/`, validates interface contract) | — | Task 1 | — | Not Started |
 | 6a | Implement main pipeline orchestrator: phase sequencing based on `status.json`, plugin selection by `deliverable_type`, Phase 2→3 entry (including Plan Completeness Gate trigger for Code mode), automatic Phase 3→4 transition, and Phase 3 stuck recovery interaction | — | Task 2, Task 3, Task 6 | — | Not Started |
 
-> **Cross-stage dependency:** Agent Layer (Build Stage 7, Tasks 41–44) provides the core agent invocation mechanism used by Stages 2–6. Tasks 41–42 (agent invocation and adapters) must be completed before any task that invokes an AI agent. Specifically, Tasks 8, 12, 15, 21, and 30 depend on Tasks 41–42. Build Stage 7 (Agent Layer) must begin in parallel with Build Stage 1. Tasks 41–42 must be complete before any agent-invoking task begins (Tasks 8, 12, 15, 19, 21, and 30).
+> **Cross-stage dependency:** Agent Layer (Build Stage 7, Tasks 41–44) provides the core agent invocation mechanism used by Stages 2–6. Tasks 41–42 (agent invocation and adapters) must be completed before any task that invokes an AI agent. Specifically, Tasks 8, 12, 15, 19, 21, and 30 depend on Tasks 41–42. Build Stage 7 (Agent Layer) must begin in parallel with Build Stage 1. Tasks 41–42 must be complete before any agent-invoking task begins (Tasks 8, 12, 15, 19, 21, and 30).
 
 ### Build Stage 2: Human Interaction Layer (Pipeline Phases 1–2)
 
@@ -38,6 +38,9 @@
 | 7 | Build ThoughtForge chat interface (terminal or lightweight web) | — | Task 1 | — | Not Started |
 | 7a | Externalize all pipeline prompts to `/prompts/` directory as `.md` files (brain-dump-intake, plan-review, code-review, plan-fix, code-fix, spec-building, completeness-gate) | — | Task 1 | — | Not Started |
 | 7b | Implement Settings button in chat interface — prompt editor that lists, views, and saves all prompt files from `/prompts/` directory | — | Task 7, Task 7a | — | Not Started |
+| 7c | Implement resource connector abstraction layer — config-driven loader, connector interface (pull → save to `/resources/`), error handling (auth failure, not found → log and continue) | — | Task 1 | — | Not Started |
+| 7d | Implement Notion connector — authenticate via API token, pull page content as Markdown, save to `/resources/` | — | Task 7c | — | Not Started |
+| 7e | Implement Google Drive connector — authenticate via service account or OAuth, pull document content as text/Markdown, save to `/resources/` | — | Task 7c | — | Not Started |
 | 8 | Implement Phase 1: brain dump intake, resource reading, distillation prompt (loaded from `/prompts/brain-dump-intake.md`) | — | Task 6a, Task 7, Task 7a, Tasks 41–42 | — | Not Started |
 | 9 | Implement correction loop (chat-based revisions, "realign from here") | — | Task 8 | — | Not Started |
 | 10 | Implement Confirm button (phase advancement mechanism) | — | Task 7 | — | Not Started |
@@ -107,6 +110,12 @@
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
+| 44a | Unit tests: project state module (`status.json`, `polish_state.json` read/write, crash recovery) | — | Task 3, Task 38 | — | Not Started |
+| 44b | Unit tests: plugin loader (interface contract validation, missing plugin handling) | — | Task 6 | — | Not Started |
+| 44c | Unit tests: convergence guards (termination, hallucination, stagnation, fabrication, max iterations — each with synthetic inputs) | — | Tasks 33–37 | — | Not Started |
+| 44d | Unit tests: agent adapters (output normalization, failure handling, timeout) | — | Tasks 41–44 | — | Not Started |
+| 44e | Unit tests: resource connectors (pull success, auth failure, not found — with mocked API responses) | — | Tasks 7c–7e | — | Not Started |
+| 44f | Unit tests: notification layer (channel routing, structured context, send failure handling) | — | Tasks 4–5 | — | Not Started |
 | 45 | End-to-end test: Plan mode pipeline (brain dump → polished plan) | — | All above | — | Not Started |
 | 46 | End-to-end test: Code mode pipeline (brain dump → polished code) | — | All above | — | Not Started |
 | 47 | End-to-end test: Plan → Code chaining (finished plan as Code mode input) | — | Task 45, Task 46 | — | Not Started |
@@ -138,6 +147,8 @@
 | Claude Code CLI / Gemini CLI / Codex CLI access | Dependency | — | — | Flat-rate subscriptions active |
 | ntfy.sh accessible (cloud or self-hosted) | Dependency | — | — | Free cloud tier or self-host |
 | Vibe Kanban CLI interface documented | Dependency | — | — | Verify actual CLI matches assumed commands in adapter |
+| Notion API token (integration token with read access to target pages) | Dependency | — | — | Create Notion integration before connector build |
+| Google Drive API credentials (service account or OAuth client) | Dependency | — | — | Set up credentials before connector build |
 
 ---
 
@@ -171,6 +182,7 @@
 - [ ] Parallel execution: 3 concurrent projects, different agents
 - [ ] Notifications fire with structured context on all event types
 - [ ] Plugin interface contract validated (plan + code plugins)
+- [ ] Unit tests pass for all core modules (state, plugins, guards, agents, connectors, notifications)
 - [ ] `config.yaml` controls all configurable values
 - [ ] Retrospective / lessons learned captured
 

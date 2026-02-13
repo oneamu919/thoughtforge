@@ -222,6 +222,45 @@ Parse AI response as JSON → validate via `schema.safeParse()` → on failure: 
 
 ---
 
+## Convergence Guard Parameters
+
+**Used by:** Tasks 33–37 (convergence guards)
+
+### Hallucination Guard
+
+- **Spike threshold:** Error count increases >20% from the prior iteration
+- **Minimum trend length:** At least 2 consecutive iterations of decreasing total error count before the spike
+- Trigger: both conditions true → halt
+
+### Stagnation Guard
+
+- **Plateau window:** Same total error count for 3+ consecutive iterations (configurable via `config.yaml` `polish.stagnation_limit`)
+- **Issue rotation detection:** Fewer than 70% of issues in the current iteration match an issue from the prior iteration
+- **Match definition:** Two issues "match" when their `description` fields have Levenshtein similarity ≥ 0.8
+- Trigger: plateau AND rotation both true → done (success)
+
+### Fabrication Guard
+
+Two conditions must both be true:
+
+1. **Category spike:** Any single severity category count exceeds its trailing 3-iteration average by more than 50%, with a minimum absolute increase of 2
+2. **Prior near-convergence:** In at least one prior iteration, the system reached within 2× of the termination thresholds (≤0 critical, ≤6 medium, ≤10 minor). This prevents false positives early in the loop when counts are still volatile.
+
+Trigger: both conditions true → halt
+
+### Termination Guard
+
+- `critical == 0` AND `medium < 3` AND `minor < 5` (thresholds from `config.yaml`)
+- Code mode additionally requires all tests passing
+- Trigger: all conditions true → done
+
+### Max Iterations Guard
+
+- Hard ceiling from `config.yaml` `polish.max_iterations` (default 50)
+- Trigger: iteration count reaches ceiling → halt
+
+---
+
 ## Agent Communication
 
 **Used by:** Tasks 41–44 (agent layer)
@@ -246,6 +285,32 @@ Agent-specific adapters handle output format differences and normalize to Though
 - Non-zero exit, timeout, or empty output → retry once
 - Second failure → halt and notify human
 - Timeout configurable via `config.yaml` (`agents.call_timeout_seconds`, default 300)
+
+---
+
+## Resource Connector Interface
+
+**Used by:** Tasks 7c–7e (resource connectors)
+
+### Connector Interface
+
+Each connector module in `/connectors/` implements:
+
+- `pull(target, projectResourcesPath)` → `Promise<{ saved: string[], failed: string[] }>` — Pulls content from the external source, writes files to the project's `/resources/` directory, returns lists of saved file paths and failed targets with reasons.
+
+### Notion Connector (`/connectors/notion.js`)
+
+- Authenticates via `config.yaml` `connectors.notion.api_token`
+- Accepts page URLs, extracts page IDs
+- Pulls page content as Markdown via Notion API
+- Saves as `notion_{page_id}.md` in `/resources/`
+
+### Google Drive Connector (`/connectors/google_drive.js`)
+
+- Authenticates via `config.yaml` `connectors.google_drive.credentials_path`
+- Accepts document URLs or IDs
+- Pulls document content as plain text or Markdown via Google Drive API export
+- Saves as `gdrive_{document_id}.md` in `/resources/`
 
 ---
 
@@ -371,6 +436,15 @@ notifications:
       bot_token: ""
       chat_id: ""
 
+# Resource Connectors (Phase 1 external resource intake)
+connectors:
+  notion:
+    enabled: false
+    api_token: ""
+  google_drive:
+    enabled: false
+    credentials_path: ""  # Path to service account JSON or OAuth client secret
+
 # AI Agents
 agents:
   default: "claude"
@@ -387,7 +461,7 @@ agents:
       flags: ""
 
 # Templates — plan mode templates live inside their plugin directory.
-# This key is reserved for future cross-plugin shared templates. Not used in v1.
+# This key is reserved for future cross-plugin shared templates. Not used in current scope.
 templates:
   directory: "./plugins/plan/templates"
 
