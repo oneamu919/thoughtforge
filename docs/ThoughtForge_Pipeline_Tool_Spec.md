@@ -43,6 +43,8 @@ The tool does NOT automatically chain these. The human decides when a plan is re
 
 When a Code mode pipeline starts and receives a plan document as input (from `/resources/`), the AI must first assess whether the plan is actually complete — or if it's a brain dump, a rough outline, or a half-fleshed idea pretending to be a plan. If the plan isn't ready, building from it will produce garbage and waste the human's time.
 
+**Plan document detection:** The orchestrator scans `/resources/` for `.md` files. Any `.md` file whose first 500 characters contain an OPA Framework table (the string `Outcome` AND `Purpose` AND `Action Scope` within a markdown table) OR whose filename contains `plan` (case-insensitive) is treated as a candidate plan document and passed to the assessment prompt. Non-markdown files and markdown files that don't match either condition are treated as supplementary resources and skipped. If multiple plan documents are detected, all are assessed individually — each must pass or the entire set is flagged.
+
 **Assessment Prompt (runs automatically at the start of Phase 1 in Code mode when a plan document is detected in `/resources/`):**
 
 ```
@@ -146,6 +148,21 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 | VS Code extension | See task status inside the IDE. |
 | Dashboard / stats | Task timing, agent performance, progress tracking — the race stats view. |
 
+### ThoughtForge / Vibe Kanban Integration Interface
+
+ThoughtForge communicates with Vibe Kanban via its CLI. The integration has two modes:
+
+| Operation | How | When |
+|---|---|---|
+| **Create task** | `vibekanban task create --name "{name}" --agent {agent} --worktree {path}` | Phase 3 start: ThoughtForge creates a Vibe Kanban task for the build. |
+| **Check task status** | `vibekanban task status --id {id}` | Phase 3: ThoughtForge polls until the build task completes. |
+| **Read task output** | `vibekanban task output --id {id}` | Phase 3: ThoughtForge reads build results when task completes. |
+| **Direct agent invocation** | ThoughtForge invokes the coding agent CLI directly (not via Vibe Kanban) using the `agents` config. | Phase 4: Review and fix calls are ThoughtForge-managed. Vibe Kanban is not in the Phase 4 loop. |
+
+**Boundary rule:** Phase 3 build execution goes through Vibe Kanban (for worktree isolation, agent management, and dashboard visibility). Phase 4 polish loop runs agents directly — ThoughtForge owns the review/fix cycle and cannot depend on Vibe Kanban's task queue for tight iteration control.
+
+If Vibe Kanban's CLI interface changes or if Vibe Kanban is not installed, ThoughtForge falls back to direct agent invocation for Phase 3 as well, losing dashboard visibility but not functionality. This is detected at startup and logged.
+
 **What's NOT in the stack and why:**
 
 - **No custom kanban UI, no Next.js, no dnd-kit, no Socket.io** — Vibe Kanban provides all of this. Building it from scratch would duplicate existing open-source tooling for no gain.
@@ -172,6 +189,60 @@ Each deliverable type is a self-contained plugin. The orchestrator loads the plu
 ```
 
 **Adding a new deliverable type** (e.g., Research, Data Pipeline, Content) means creating a new folder in `/plugins/` with the same interface files. The orchestrator doesn't change — it reads the plugin config and delegates.
+
+### Plugin Interface Contracts
+
+Every plugin must export the following from each file. The orchestrator loads the plugin folder matching the deliverable type in `intent.md` and calls these exports.
+
+**`builder.js`**
+```javascript
+module.exports = {
+  /**
+   * Run Phase 3 build for this deliverable type.
+   * @param {object} context - { projectDir, intent, spec, constraints, agent, config }
+   * @returns {Promise<{ success: boolean, outputPath: string, error?: string }>}
+   */
+  build: async (context) => { /* ... */ },
+};
+```
+
+**`reviewer.js`**
+```javascript
+module.exports = {
+  /** Zod schema for validating review JSON */
+  schema: z.object({ /* ... as defined in Structured Output Validation section ... */ }),
+
+  /**
+   * Build the review prompt for this deliverable type.
+   * @param {object} context - { projectDir, constraints, deliverablePath }
+   * @returns {string} The full review prompt to send to the agent.
+   */
+  buildReviewPrompt: (context) => { /* ... */ },
+};
+```
+
+**`safety-rules.js`**
+```javascript
+module.exports = {
+  /**
+   * List of blocked operation patterns for this deliverable type.
+   * The orchestrator checks every agent command and file write against these
+   * before execution. If a match is found, the operation is blocked and logged.
+   */
+  blocked: {
+    fileExtensions: ['.js', '.py', '.ts', '.sh', /* ... */],  // Plan mode blocks these
+    commands: ['npm', 'pip', 'node', 'python', /* ... */],     // Plan mode blocks these
+    operations: ['shell_exec', 'file_create', 'package_install', /* ... */],
+  },
+
+  /**
+   * Returns true if the given operation is allowed for this deliverable type.
+   * @param {object} operation - { type: string, target: string, command?: string }
+   * @returns {boolean}
+   */
+  isAllowed: (operation) => { /* ... */ },
+};
+```
 
 ### Future Extensibility: MCP
 
@@ -410,7 +481,8 @@ Build spec confirmed (Phase 2 complete).
 
 ### Trigger
 
-Code is working (Phase 3 complete).
+**Plan mode:** Plan document is fully drafted (Phase 3 complete).
+**Code mode:** Code is working, all tests pass (Phase 3 complete).
 
 ### Each Iteration — Two Steps
 
@@ -496,10 +568,10 @@ The orchestrator passes the JSON issue list and recommendations to the fixer age
 | Guard | Condition | Action |
 |---|---|---|
 | **Termination (success)** | `critical == 0` AND `medium < 3` AND `minor < 5` | Done. Notify human. |
-| **Hallucination** | Error count spikes after a downward trend | Stop. Flag it. Ping human. |
+| **Hallucination** | Total error count (`critical + medium + minor`) increased by more than 20% relative to the previous iteration after decreasing for at least 2 consecutive iterations, OR `critical` count increases after being 0 for 2+ iterations. Spike threshold configurable as `polish.hallucination_spike_pct` (default: `0.2`). | Stop. Flag it. Ping human. |
 | **Scope drift** | Issues reference code outside target files/scope in `constraints.md` | Stop. Flag it. Ping human. |
-| **Stagnation** | Same error count for 3+ consecutive iterations, no meaningful change | Stop. Flag it. Ping human. |
-| **Fabrication** | Model starts inventing issues outside the target code or flagging non-issues just to report something | Stop. Flag it. Ping human. |
+| **Stagnation** | Same `critical`, `medium`, AND `minor` counts (all three individually unchanged) for 3+ consecutive iterations. | Stop. Flag it. Ping human. |
+| **Fabrication** | After each review, the orchestrator validates each issue's `location` field against the actual deliverable. Code mode: verify file paths and line numbers exist. Plan mode: verify section references exist. If fabrication candidates (issues with non-existent locations) exceed 30% of total issues in a single review, the guard triggers. Threshold configurable as `polish.fabrication_threshold` (default: `0.3`). | Stop. Flag it. Ping human. |
 | **Max iterations** | Hard ceiling reached (configurable, default 50) | Stop. Ping human with current state. |
 
 ### Loop State Persistence
@@ -599,6 +671,33 @@ const PlanReviewSchema = z.object({
 - On repeated failure: halts and notifies human
 - When the review schema evolves (new fields, stricter types), only the Zod schema definition in the plugin's `reviewer.js` is updated — one place, one change
 
+**Count integrity check:** After Zod validation passes, the orchestrator derives `critical`, `medium`, and `minor` counts by filtering the `issues` array by severity. The derived counts are used for all convergence logic — the AI's self-reported top-level counts are logged but never trusted for termination decisions.
+
+```javascript
+const derived = {
+  critical: parsed.issues.filter(i => i.severity === 'critical').length,
+  medium: parsed.issues.filter(i => i.severity === 'medium').length,
+  minor: parsed.issues.filter(i => i.severity === 'minor').length,
+};
+// Use `derived` for all guard checks, not `parsed.critical` / `parsed.medium` / `parsed.minor`
+```
+
+If derived counts diverge from AI-reported counts, log the discrepancy as a warning. Repeated divergence (3+ consecutive iterations) is logged as a pattern but does not halt the loop — the derived counts are still authoritative.
+
+### Agent Invocation Pattern
+
+ThoughtForge invokes coding agents as CLI subprocesses for Phase 4 review and fix calls. The pattern:
+
+1. **Prompt assembly:** The plugin's `reviewer.js` builds the full review prompt (including `constraints.md` content and deliverable content). For fix calls, the orchestrator assembles the prompt from the review JSON issues and recommendations.
+2. **Invocation:** The orchestrator spawns the agent as a child process using the `command` and `flags` from `config.yaml`. The prompt is passed via stdin pipe.
+   ```
+   echo "{prompt}" | {agent.command} {agent.flags}
+   ```
+3. **Response capture:** Agent stdout is captured as a string. For review calls, the orchestrator extracts the JSON block from the response (scanning for the first `{` to last `}` at the top level), then validates against the plugin's Zod schema. For fix calls, the agent writes files directly to the project directory (agents like Claude Code and Codex do this natively).
+4. **Timeout:** Each agent call has a configurable timeout (default: 5 minutes for review, 10 minutes for fix). On timeout, the orchestrator retries once, then halts and notifies the human.
+
+Agent-specific invocation quirks (e.g., Claude Code's `--print` flag for non-interactive mode, Codex's `--quiet` flag) are handled by the `flags` field in `config.yaml`, not by orchestrator branching.
+
 ### Output
 
 - **Plan mode:** Polished plan document in `.md` format, stored in `/docs/` subdirectory of the project git repo. Ready for human final review. If the human approves, this plan can be fed into a new Code mode pipeline as input.
@@ -658,6 +757,8 @@ polish:
   max_iterations: 50
   stagnation_limit: 3
   retry_malformed_output: 2
+  hallucination_spike_pct: 0.2  # Halt if total errors increase by >20% after a downward trend
+  fabrication_threshold: 0.3    # Halt if >30% of reported issues reference non-existent locations
 
 # Parallel execution (managed by Vibe Kanban)
 concurrency:
@@ -694,9 +795,8 @@ agents:
       command: "codex"
       flags: ""
 
-# Templates — plan mode document skeletons
-templates:
-  directory: "./templates"             # /templates/plan/, /templates/code/, etc.
+# Templates are located inside each plugin: /plugins/{type}/templates/
+# No separate top-level templates directory. See Plugin Folder Structure.
 
 # Plugins — deliverable type definitions
 plugins:
