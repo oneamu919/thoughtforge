@@ -51,36 +51,7 @@
 8. Human clicks **Confirm** button → advances to Phase 2
 9. Output: locked `intent.md` in `/docs/`
 
-**System Prompt — Brain Dump Intake:**
-
-```
-You are receiving a raw brain dump from a human. It will be messy, incomplete,
-and possibly contradictory. That's expected.
-
-Your job is to eat everything they gave you — text, files, resources — and
-produce a single structured document with these sections:
-
-1. DELIVERABLE TYPE — Is the human asking for a Plan (a document: strategy,
-   event plan, engineering design, etc.) or Code (working software)? State
-   which one and why you think so.
-2. OBJECTIVE — What does the human want to exist when this is done? State it plainly.
-3. ASSUMPTIONS — What does the human seem to believe is true that hasn't been
-   verified? Flag anything you're inferring, not just what they stated.
-4. CONSTRAINTS — Any limitations they mentioned: OS, language, tools, budget,
-   timeline, "only this," "not that."
-5. UNKNOWNS — What hasn't been addressed but needs to be decided before building?
-   These are the gaps.
-6. OPEN QUESTIONS — Things you genuinely don't understand from the brain dump.
-   Ask them here. Maximum 5 questions. If you have more than 5, pick the 5
-   that block the most progress.
-
-Rules:
-- Do not add your own ideas, suggestions, or improvements. Only organize what
-  the human gave you.
-- If something is ambiguous, put it in UNKNOWNS with a note about what's unclear.
-- Keep each section short. Bullet points are fine.
-- Do not say "great idea" or "interesting concept." Just organize.
-```
+**Brain Dump Intake Prompt Behavior:** The prompt enforces: organize only (no AI suggestions or improvements), structured output (6 sections as listed above), maximum 5 open questions (prioritized by blocking impact), ambiguities routed to Unknowns. Full prompt text in build spec.
 
 **Confirmation model:** Chat-based corrections, button-based confirmation. Corrections are natural language in chat. Phase advancement uses an explicit Confirm button to eliminate misclassification. This applies to all human confirmation points.
 
@@ -88,13 +59,14 @@ Rules:
 
 **Primary Flow:**
 
-1. AI proposes deliverable structure and decisions
-2. AI pushes back like a real expert with reasoning
-3. AI extracts 5-10 acceptance criteria from `intent.md`
-4. Human confirms or overrides specific decisions
-5. Human reviews acceptance criteria — adds/removes as needed
-6. Human clicks **Confirm** → advances to Phase 3
-7. Outputs: locked `spec.md` and `constraints.md` in `/docs/`
+1. AI proposes deliverable structure and key decisions based on `intent.md`
+2. AI challenges weak or risky decisions from the intent — missing dependencies, unrealistic constraints, scope gaps, contradictions — with specific reasoning. Does not rubber-stamp.
+3. AI resolves Unknowns and Open Questions from `intent.md` — either by making a reasoned decision (stated in `spec.md`) or by asking the human during the Phase 2 chat. No unresolved unknowns may carry into `spec.md`.
+4. AI extracts 5-10 acceptance criteria from `intent.md`
+5. Human confirms or overrides specific decisions
+6. Human reviews acceptance criteria — adds/removes as needed
+7. Human clicks **Confirm** → advances to Phase 3
+8. Outputs: locked `spec.md` and `constraints.md` in `/docs/`
 
 **Plan Mode behavior:** Proposes plan structure following OPA Framework — every major section gets its own OPA table. Pushes back like a real planner.
 
@@ -131,11 +103,12 @@ Minimum qualification: pass 6 of 8 with no red flags on Age, Last Updated, or Li
 
 1. Orchestrator loads plan plugin (`/plugins/plan/builder.js`)
 2. Selects appropriate Handlebars template from `/plugins/plan/templates/`
-3. Template defines OPA skeleton as fixed structure — AI fills content slots but cannot break structure
-4. Fills every section — no placeholders, no "TBD"
-5. **NEVER creates source files, runs commands, installs packages, scaffolds projects, or executes anything. Document drafting only. Enforced at orchestrator level via plugin safety rules.**
-6. If stuck on a decision requiring human input: notifies and waits
-7. Output: complete but unpolished plan document (`.md`) in `/docs/`
+3. Template selection is driven by the Deliverable Type classification from `intent.md`. The template directory uses a naming convention (e.g., `wedding.hbs`, `engineering.hbs`, `strategy.hbs`). If no type-specific template matches, the `generic.hbs` template is used as the default. Template selection logic lives in the plan plugin's `builder.js`.
+4. Template defines OPA skeleton as fixed structure — AI fills content slots but cannot break structure
+5. Fills every section — no placeholders, no "TBD"
+6. **NEVER creates source files, runs commands, installs packages, scaffolds projects, or executes anything. Document drafting only. Enforced at orchestrator level via plugin safety rules.**
+7. If stuck on a decision requiring human input: notifies and waits
+8. Output: complete but unpolished plan document (`.md`) in `/docs/`
 
 **Code Mode:**
 
@@ -146,6 +119,13 @@ Minimum qualification: pass 6 of 8 with no red flags on Age, Last Updated, or Li
 5. Runs all tests, fixes failures, iterates until passing
 6. If stuck: notifies and waits
 7. Output: working but unpolished codebase
+
+**Stuck Detection (Phase 3):**
+
+| Mode | Stuck Condition | Action |
+|---|---|---|
+| Plan | AI response explicitly states it cannot proceed without human input (parsed from response) | Notify and wait |
+| Code | Build agent returns non-zero exit after 2 consecutive retries on the same task, OR test suite fails on the same tests for 3 consecutive fix attempts | Notify and wait |
 
 **Code Mode Testing Requirements:**
 
@@ -179,9 +159,11 @@ Minimum qualification: pass 6 of 8 with no red flags on Age, Last Updated, or Li
 
 #### Plan Completeness Gate (Code Mode Entry)
 
-When a Code mode pipeline starts and a plan document is detected in `/resources/`, the AI assesses whether the plan is complete enough to build from. If incomplete, the tool automatically creates a Plan mode card, moves the document there, and notifies the human. Human can override, but default is redirect.
+When a Code mode pipeline starts and a plan document is detected in `/resources/`, the AI assesses whether the plan is complete enough to build from. This is a prompt-based AI judgment — not a mechanical gate. The AI is given the completeness signals below as evaluation criteria and returns a pass/fail recommendation with reasoning.
 
-Completeness signals: OPA Framework structure present, specific objectives (not vague), decisions made (not options listed), enough detail to build without guessing, acceptance criteria defined, no TBD/placeholders, clear scope boundaries, dependencies listed.
+**Completeness signals (prompt guidance, not a scored rubric):** OPA Framework structure present, specific objectives (not vague), decisions made (not options listed), enough detail to build without guessing, acceptance criteria defined, no TBD/placeholders, clear scope boundaries, dependencies listed.
+
+If the AI recommends fail: the tool automatically creates a Plan mode card, moves the document there, and notifies the human. Human can override, but default is redirect.
 
 #### Plan Mode Safety Guardrails
 
@@ -252,81 +234,21 @@ All integration commands centralized in `vibekanban-adapter.js`. ThoughtForge ne
 
 ### Plugin Folder Structure
 
-```
-/plugins/
-  plan/
-    builder.js        # Phase 3: template-driven document drafting
-    reviewer.js       # Phase 4: review schema (Zod) and severity definitions
-    safety-rules.js   # Blocked operations (no code execution, no source files)
-    templates/        # OPA templates per plan type (wedding, strategy, engineering, etc.)
-  code/
-    builder.js        # Phase 3: agent-driven coding, test writing, logging
-    reviewer.js       # Phase 4: review schema (Zod) and severity definitions
-    safety-rules.js   # Code mode permissions and constraints
-    test-runner.js    # Test execution logic
-```
+Each plugin folder contains: a builder (Phase 3 drafting/coding), a reviewer (Phase 4 schema and severity definitions), safety rules (blocked operations), and any type-specific assets (e.g., Handlebars templates for Plan, test runner for Code). Full folder structure and filenames in build spec.
 
 ### Plugin Interface Contract
 
-**builder.js:**
-- `build(projectPath, intent, spec, constraints, agent)` → `Promise<void>`
-
-**reviewer.js:**
-- `schema` → Zod schema object for validating review JSON
-- `severityDefinitions` → object defining critical/medium/minor for this type
-- `review(projectPath, constraints, agent)` → `Promise<object>` — one review pass, raw parsed JSON. Orchestrator validates via `schema.safeParse()`, retries on failure, halts after max retries.
-
-**safety-rules.js:**
-- `blockedOperations` → `string[]` (e.g., `["shell_exec", "file_create_source", "package_install"]` for Plan mode)
-- `validate(operation)` → `{ allowed: boolean, reason?: string }` — called by orchestrator before every Phase 3/4 action.
+Plugin interface contract (function signatures, parameters, return types) defined in build spec. Includes builder.js (Phase 3), reviewer.js (Phase 4), safety-rules.js, and discovery.js (optional Phase 2 hook — used by Code plugin for OSS qualification scorecard).
 
 ### Zod Review Schemas
 
-**Code mode (`/plugins/code/reviewer.js`):**
-```javascript
-const CodeReviewSchema = z.object({
-  critical: z.number().int().min(0),
-  medium: z.number().int().min(0),
-  minor: z.number().int().min(0),
-  tests: z.object({
-    total: z.number().int().min(0),
-    passed: z.number().int().min(0),
-    failed: z.number().int().min(0),
-  }),
-  issues: z.array(z.object({
-    severity: z.enum(['critical', 'medium', 'minor']),
-    description: z.string(),
-    location: z.string(),
-    recommendation: z.string(),
-  })),
-});
-```
+**Review JSON structure:** Both modes produce a JSON error report with per-severity issue counts and an issues array. Each issue includes severity, description, location, and recommendation. Code mode additionally includes test results (total, passed, failed). Exact Zod schemas in build spec.
 
-**Plan mode (`/plugins/plan/reviewer.js`):**
-```javascript
-const PlanReviewSchema = z.object({
-  critical: z.number().int().min(0),
-  medium: z.number().int().min(0),
-  minor: z.number().int().min(0),
-  issues: z.array(z.object({
-    severity: z.enum(['critical', 'medium', 'minor']),
-    description: z.string(),
-    location: z.string(),
-    recommendation: z.string(),
-  })),
-});
-```
-
-**Validation flow:** Parse AI response as JSON → validate via `schema.safeParse()` → on failure: Zod returns structured error messages → retry (max 2) → on repeated failure: halt and notify human.
+**Validation flow:** Parse AI response as JSON → validate via Zod safeParse → on failure: retry (max configurable, default 2) → on repeated failure: halt and notify human.
 
 ### Agent Communication
 
-1. ThoughtForge writes prompt to temp file or passes via stdin
-2. Agent invoked: `{command} {flags} < prompt`
-3. ThoughtForge captures stdout
-4. Response parsed/validated (Zod for review JSON, file diff detection for fix steps)
-
-Agent-specific adapters handle output format differences and normalize to ThoughtForge's internal format.
+ThoughtForge invokes agents via CLI subprocess calls, passing prompts via file or stdin. Agent-specific adapters normalize output format differences. Invocation details in build spec.
 
 **Failure handling:**
 - Non-zero exit, timeout, or empty output → retry once
@@ -360,7 +282,7 @@ Every phase transition pings the human with a status update. Every notification 
 
 | File | Written When | Schema |
 |---|---|---|
-| `status.json` | Every phase transition and state change | `{ "phase": "brain_dump" | "distilling" | "human_review" | "spec_building" | "building" | "polishing" | "done" | "halted", "deliverable_type": "plan" | "code", "agent": string, "created_at": ISO8601, "updated_at": ISO8601, "halted_reason": string | null }` |
+| `status.json` | Every phase transition and state change | Tracks current phase, deliverable type, assigned agent, timestamps, and halt reason. Full schema in build spec. |
 | `polish_state.json` | After each Phase 4 iteration | Iteration number, error counts, convergence trajectory, timestamp |
 | `polish_log.md` | Appended after each Phase 4 iteration | Human-readable iteration log |
 
@@ -368,7 +290,7 @@ Every phase transition pings the human with a status update. Every notification 
 
 **ThoughtForge Chat (Built):** Lightweight terminal or web chat for Phases 1-2. Per-project chat thread, file/resource dropping, AI messages labeled by phase, corrections via chat, advancement via Confirm button.
 
-**Vibe Kanban Dashboard (Integrated, Not Built):** Columns map to phases: Brain Dump → Distilling → Human Review → Confirmed → Spec Building → Coding → Polishing → Done. Each card = one project. Shows agent, status, parallel execution.
+**Vibe Kanban Dashboard (Integrated, Not Built):** Columns map to `status.json` phases: Brain Dump → Distilling → Human Review → Spec Building → Building → Polishing → Done. "Confirmed" is not a separate column — confirmation advances the card from Human Review to the next phase. Cards with `halted` status remain in their current column with a visual halted indicator; "Halted" is a card state, not a column. Each card = one project. Shows agent, status, parallel execution.
 
 **Per-Card Stats:** Created timestamp, time per phase, total duration, polish loop metrics (from `polish_log.md`), status, agent used.
 
@@ -424,60 +346,17 @@ Orchestrator core actions (create project, check status, read polish log, trigge
 
 ## Configuration
 
-```yaml
-# Polish loop thresholds
-polish:
-  critical_max: 0
-  medium_max: 3
-  minor_max: 5
-  max_iterations: 50
-  stagnation_limit: 3
-  retry_malformed_output: 2
+| Config Area | What's Configurable | Defaults |
+|---|---|---|
+| Polish loop | Convergence thresholds (critical, medium, minor max), max iterations, stagnation limit, malformed output retries | 0 / 3 / 5 / 50 / 3 / 2 |
+| Concurrency | Max parallel runs | 3 |
+| Notifications | Channel selection (ntfy, telegram, etc.), channel-specific settings | ntfy enabled, topic "thoughtforge" |
+| Agents | Default agent, call timeout, per-agent command and flags | claude, 300s |
+| Templates | Template directory path | `./templates` |
+| Plugins | Plugin directory path | `./plugins` |
+| Vibe Kanban | Enabled toggle | true |
 
-# Parallel execution (managed by Vibe Kanban)
-concurrency:
-  max_parallel_runs: 3
-
-# Notifications
-notifications:
-  default_channel: "ntfy"
-  channels:
-    ntfy:
-      enabled: true
-      url: "https://ntfy.sh"
-      topic: "thoughtforge"
-    telegram:
-      enabled: false
-      bot_token: ""
-      chat_id: ""
-
-# AI Agents
-agents:
-  default: "claude"
-  call_timeout_seconds: 300
-  available:
-    claude:
-      command: "claude"
-      flags: "--print"
-    gemini:
-      command: "gemini"
-      flags: ""
-    codex:
-      command: "codex"
-      flags: ""
-
-# Templates
-templates:
-  directory: "./templates"
-
-# Plugins
-plugins:
-  directory: "./plugins"
-
-# Vibe Kanban integration
-vibekanban:
-  enabled: true
-```
+Full `config.yaml` with all keys and structure in build spec.
 
 ---
 

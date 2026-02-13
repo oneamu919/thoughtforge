@@ -27,16 +27,18 @@
 | 5 | Implement phase transition notifications (ping human on every milestone) | — | Task 4 | — | Not Started |
 | 6 | Set up plugin loader (reads `/plugins/{type}/`, validates interface contract) | — | Task 1 | — | Not Started |
 
+> **Cross-stage dependency:** Agent Layer (Build Stage 7, Tasks 41–44) provides the core agent invocation mechanism used by Stages 2–6. Tasks 41–42 (agent invocation and adapters) must be completed before any task that invokes an AI agent. Specifically, Tasks 8, 12, 15, 21, and 30 depend on Tasks 41–42. Build Stage 7 should be started in parallel with Build Stage 1, or the builder should reorder stages to place the Agent Layer earlier.
+
 ### Build Stage 2: Human Interaction Layer (Pipeline Phases 1–2)
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
 | 7 | Build ThoughtForge chat interface (terminal or lightweight web) | — | Task 1 | — | Not Started |
-| 8 | Implement Phase 1: brain dump intake, resource reading, distillation prompt | — | Task 7 | — | Not Started |
+| 8 | Implement Phase 1: brain dump intake, resource reading, distillation prompt | — | Task 7, Task 41 | — | Not Started |
 | 9 | Implement correction loop (chat-based revisions, "realign from here") | — | Task 8 | — | Not Started |
 | 10 | Implement Confirm button (phase advancement mechanism) | — | Task 7 | — | Not Started |
 | 11 | Implement `intent.md` generation and locking | — | Task 9 | — | Not Started |
-| 12 | Implement Phase 2: spec building, constraint discovery, acceptance criteria extraction | — | Task 11 | — | Not Started |
+| 12 | Implement Phase 2: spec building, constraint discovery, acceptance criteria extraction | — | Task 11, Task 41 | — | Not Started |
 | 13 | Implement `spec.md` and `constraints.md` generation | — | Task 12 | — | Not Started |
 
 ### Build Stage 3: Plan Mode Plugin
@@ -44,7 +46,7 @@
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
 | 14 | Create `/plugins/plan/` folder structure | — | Task 6 | — | Not Started |
-| 15 | Implement `builder.js` — Handlebars template-driven document drafting | — | Task 14 | — | Not Started |
+| 15 | Implement `builder.js` — Handlebars template-driven document drafting | — | Task 14, Task 41 | — | Not Started |
 | 16 | Create OPA skeleton Handlebars templates (generic, wedding, strategy, engineering) | — | Task 15 | — | Not Started |
 | 17 | Implement `reviewer.js` — Plan review Zod schema + severity definitions | — | Task 14 | — | Not Started |
 | 18 | Implement `safety-rules.js` — hard-block all code execution in plan mode | — | Task 14 | — | Not Started |
@@ -57,11 +59,11 @@
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
 | 20 | Create `/plugins/code/` folder structure | — | Task 6 | — | Not Started |
-| 21 | Implement `builder.js` — agent-driven coding via Vibe Kanban | — | Task 20, Task 27 | — | Not Started |
+| 21 | Implement `builder.js` — agent-driven coding via Vibe Kanban | — | Task 20, Task 27, Task 41 | — | Not Started |
 | 22 | Implement `reviewer.js` — Code review Zod schema + severity definitions | — | Task 20 | — | Not Started |
 | 23 | Implement `safety-rules.js` — Code mode permissions | — | Task 20 | — | Not Started |
 | 24 | Implement `test-runner.js` — test execution, result logging | — | Task 20 | — | Not Started |
-| 25 | Implement OSS qualification scorecard logic for Phase 2 Code mode | — | Task 12 | — | Not Started |
+| 25 | Implement `discovery.js` — OSS qualification scorecard for Phase 2 Code mode | — | Task 20, Task 12 | — | Not Started |
 
 ### Build Stage 5: Vibe Kanban Integration
 
@@ -76,7 +78,7 @@
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
-| 30 | Implement orchestrator loop: review call → parse → validate → fix call → commit | — | Task 3, Task 17, Task 22 | — | Not Started |
+| 30 | Implement orchestrator loop: review call → parse → validate → fix call → commit | — | Task 3, Task 17, Task 22, Task 41 | — | Not Started |
 | 31 | Implement Zod validation flow (safeParse, retry on failure, halt after max retries) | — | Task 30 | — | Not Started |
 | 32 | Implement count derivation from issues array (ignore top-level counts) | — | Task 30 | — | Not Started |
 | 33 | Implement convergence guard: termination (success) | — | Task 30 | — | Not Started |
