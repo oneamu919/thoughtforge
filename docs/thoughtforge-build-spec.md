@@ -64,6 +64,66 @@ Rules:
 
 ---
 
+## Phase 2 System Prompt — Spec Building
+
+**File:** `/prompts/spec-building.md`
+**Used by:** Task 12 (Phase 2 spec building)
+**Called via:** Agent invocation layer (Tasks 41–42)
+
+**Status:** Prompt text to be drafted before Task 12 begins.
+
+---
+
+## Phase 4 System Prompt — Plan Review
+
+**File:** `/prompts/plan-review.md`
+**Used by:** Task 30 (polish loop orchestrator, Plan mode)
+**Called via:** Agent invocation layer (Tasks 41–42)
+
+**Status:** Prompt text to be drafted before Task 30 begins.
+
+---
+
+## Phase 4 System Prompt — Code Review
+
+**File:** `/prompts/code-review.md`
+**Used by:** Task 30 (polish loop orchestrator, Code mode)
+**Called via:** Agent invocation layer (Tasks 41–42)
+
+**Status:** Prompt text to be drafted before Task 30 begins.
+
+---
+
+## Phase 4 System Prompt — Plan Fix
+
+**File:** `/prompts/plan-fix.md`
+**Used by:** Task 30 (polish loop orchestrator, Plan mode)
+**Called via:** Agent invocation layer (Tasks 41–42)
+
+**Status:** Prompt text to be drafted before Task 30 begins.
+
+---
+
+## Phase 4 System Prompt — Code Fix
+
+**File:** `/prompts/code-fix.md`
+**Used by:** Task 30 (polish loop orchestrator, Code mode)
+**Called via:** Agent invocation layer (Tasks 41–42)
+
+**Status:** Prompt text to be drafted before Task 30 begins.
+
+---
+
+## Plan Completeness Gate Prompt
+
+**File:** `/prompts/completeness-gate.md`
+**Used by:** Task 19 (Plan Completeness Gate)
+**Called via:** Agent invocation layer (Tasks 41–42)
+
+**Status:** Prompt text to be drafted before Task 19 begins.
+
+---
+
 ## Plugin Folder Structure
 
 **Used by:** Task 6 (plugin loader), Tasks 14–19 (plan plugin), Tasks 20–25 (code plugin)
@@ -325,9 +385,10 @@ agents:
       command: "codex"
       flags: ""
 
-# Templates
+# Templates — plan mode templates live inside their plugin directory.
+# This key is reserved for future cross-plugin shared templates. Not used in v1.
 templates:
-  directory: "./templates"
+  directory: "./plugins/plan/templates"
 
 # Plugins
 plugins:

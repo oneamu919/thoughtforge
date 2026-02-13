@@ -41,7 +41,7 @@
 | 9 | Implement correction loop (chat-based revisions, "realign from here") | — | Task 8 | — | Not Started |
 | 10 | Implement Confirm button (phase advancement mechanism) | — | Task 7 | — | Not Started |
 | 11 | Implement `intent.md` generation and locking | — | Task 9 | — | Not Started |
-| 12 | Implement Phase 2: spec building, constraint discovery, acceptance criteria extraction, human review/override of proposed decisions, human review of acceptance criteria, Confirm to advance | — | Task 10, Task 11, Task 41 | — | Not Started |
+| 12 | Implement Phase 2: spec building, constraint discovery, acceptance criteria extraction, human review/override of proposed decisions, human review of acceptance criteria, Confirm to advance | — | Task 10, Task 11, Task 7a, Task 41 | — | Not Started |
 | 13 | Implement `spec.md` and `constraints.md` generation | — | Task 12 | — | Not Started |
 
 ### Build Stage 3: Plan Mode Plugin
@@ -53,7 +53,7 @@
 | 16 | Create OPA skeleton Handlebars templates (generic, wedding, strategy, engineering) | — | Task 15 | — | Not Started |
 | 17 | Implement `reviewer.js` — Plan review Zod schema + severity definitions | — | Task 14 | — | Not Started |
 | 18 | Implement `safety-rules.js` — hard-block all code execution in plan mode | — | Task 14 | — | Not Started |
-| 19 | Implement Plan Completeness Gate (assessment prompt for Code mode entry, auto-redirect to Plan mode on fail) | — | Task 14, Task 41 | — | Not Started |
+| 19 | Implement Plan Completeness Gate (assessment prompt for Code mode entry, auto-redirect to Plan mode on fail) | — | Task 14, Task 7a, Task 41 | — | Not Started |
 
 ### Build Stage 4: Code Mode Plugin
 

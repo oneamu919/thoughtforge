@@ -55,6 +55,8 @@
 
 **Confirmation model:** Chat-based corrections, button-based confirmation. Corrections are natural language in chat. Phase advancement uses an explicit Confirm button to eliminate misclassification. This applies to all human confirmation points.
 
+**Phase-to-State Mapping:** Pipeline phases map to `status.json` phase values as follows: Phase 1 = `brain_dump` (initial intake) → `distilling` (AI processing brain dump) → `human_review` (human correcting distillation). Phase 2 = `spec_building`. Phase 3 = `building`. Phase 4 = `polishing`. Terminal states: `done` and `halted`. Vibe Kanban columns mirror these values directly.
+
 #### Phase 2 — Spec Building & Constraint Discovery
 
 **Primary Flow:**
@@ -65,8 +67,17 @@
 4. AI extracts 5-10 acceptance criteria from `intent.md`
 5. Human confirms or overrides specific decisions
 6. Human reviews acceptance criteria — adds/removes as needed
-7. Human clicks **Confirm** → advances to Phase 3
-8. Outputs: locked `spec.md` and `constraints.md` in `/docs/`
+7. Before advancement: AI validates that all Unknowns and Open Questions from `intent.md` have been resolved (either by AI decision in `spec.md` or by human input during Phase 2 chat). If unresolved items remain, the Confirm button is blocked and the AI presents the remaining items to the human.
+8. Human clicks **Confirm** → advances to Phase 3
+9. Outputs: locked `spec.md` and `constraints.md` in `/docs/`
+
+**Phase 2 Error Handling:**
+
+| Condition | Action |
+|---|---|
+| AI cannot resolve an Unknown from `intent.md` through reasoning | AI presents the Unknown to the human in the Phase 2 chat for decision. No unresolved Unknowns may carry into `spec.md`. |
+| Agent failure during Phase 2 conversation (timeout, crash, empty response) | Same retry behavior as agent communication layer: retry once, halt and notify on second failure. Chat resumes from last recorded message in `chat_history.json`. |
+| Human has not responded to a Phase 2 question for an extended period | No automatic action. Project remains in `spec_building` state. Notification sent as a reminder (configurable, future — not v1). |
 
 **Plan Mode behavior:** Proposes plan structure following OPA Framework — every major section gets its own OPA table. Pushes back like a real planner.
 
@@ -292,6 +303,8 @@ Every phase transition pings the human with a status update. Every notification 
 | `polish_log.md` | Appended after each Phase 4 iteration | Human-readable iteration log |
 | `chat_history.json` | Appended after each chat message (Phases 1–2) | Array of timestamped messages (role, content, phase). On crash, chat resumes from last message. Cleared after phase advancement confirmation. |
 
+**`polish_log.md` entry format:** Each entry includes: iteration number, timestamp, error counts (critical/medium/minor/total), which convergence guard was evaluated and its result, summary of issues found, summary of fixes applied, and test results (code mode only). Entries are appended in Markdown with a heading per iteration (e.g., `## Iteration 7`).
+
 ### UI
 
 **ThoughtForge Chat (Built):** Lightweight terminal or web chat for Phases 1-2. Per-project chat thread, file/resource dropping, AI messages labeled by phase, corrections via chat, advancement via Confirm button.
@@ -360,7 +373,7 @@ Orchestrator core actions (create project, check status, read polish log, trigge
 | Concurrency | Max parallel runs | 3 |
 | Notifications | Channel selection (ntfy, telegram, etc.), channel-specific settings | ntfy enabled, topic "thoughtforge" |
 | Agents | Default agent, call timeout, per-agent command and flags | claude, 300s |
-| Templates | Template directory path | `./templates` |
+| Templates | Template directory path | `./plugins/plan/templates` (plan mode templates live inside the plan plugin) |
 | Plugins | Plugin directory path | `./plugins` |
 | Prompts | Prompt directory path, individual prompt files | `/prompts/`, one `.md` file per prompt |
 | Vibe Kanban | Enabled toggle | true |
