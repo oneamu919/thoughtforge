@@ -284,6 +284,25 @@ Human confirms intent (Phase 1 complete).
 - Pushes back like a real engineer: "Node.js makes more sense here because X" or "Docker isn't needed for this, here's why"
 - Discovers constraints through internal proposer/challenger reasoning
 - **Open Source Discovery:** Before proposing custom-built components, the AI actively searches for existing open source tools, libraries, and frameworks that could replace or reduce planned build scope. For every major component in the spec, the AI asks: "Does a maintained, free, open source solution already exist that does this well enough?" If yes, it proposes integration over building from scratch — with reasoning for why the tool fits, what it replaces, what its limitations are, and what custom code is still needed around it. This also applies to future extensibility: if an open source tool would make the codebase easier to extend, upgrade, or maintain later, it should be proposed even if building from scratch is feasible now. The human has final say on all tool choices.
+
+- **OSS Qualification Scorecard:** Every recommended open source tool must include a qualification assessment. No tool is proposed without this data — vibes and name recognition are not enough. The AI researches and presents:
+
+  | Signal | What to Check | Red Flag |
+  |---|---|---|
+  | **Age** | When was v1.0 released? How long has it existed? | Less than 6 months old — immature, API likely unstable |
+  | **Last Updated** | Date of most recent commit or release | No updates in 12+ months — possibly abandoned |
+  | **GitHub Stars** | Star count as popularity proxy | Under 500 stars for a general-purpose tool — low adoption |
+  | **Weekly Downloads** | npm/PyPI weekly download count | Under 1,000 weekly downloads — limited real-world usage |
+  | **Open Issues vs. Closed** | Issue resolution rate | More open than closed — maintainers may be overwhelmed |
+  | **License** | MIT, Apache 2.0, BSD, etc. | GPL/AGPL — may conflict with future product shipping |
+  | **Bus Factor** | Number of active maintainers | Single maintainer with no recent activity — high risk |
+  | **Breaking Changes** | Major version frequency, migration guides | Frequent major bumps with no migration path — churn risk |
+
+  The AI presents each tool recommendation with a one-line score summary, e.g.:
+  `ntfy.sh — 3 years old, last updated 2 weeks ago, 19k GitHub stars, Apache 2.0, 4 active maintainers. ✅ PASS`
+  `obscure-lib — 4 months old, last updated 3 months ago, 120 stars, MIT, 1 maintainer. ⚠️ RISKY — consider alternatives`
+
+  **Minimum qualification to recommend:** tool must pass at least 6 of 8 signals with no red flags on Age, Last Updated, or License. Tools that fail qualification can still be mentioned as "considered but rejected" with reasoning.
 - **Extracts 5-10 functional acceptance criteria from `intent.md`** — plain statements like:
   - "User can create a project from the kanban board"
   - "Push notification fires when polish loop finishes"
@@ -303,7 +322,7 @@ Human confirms build spec.
 
 ### Outputs
 
-- `spec.md` — spec with all decisions locked, stored in `/docs/` (plan structure or build spec depending on mode). **Code mode includes an Open Source Dependencies section** listing recommended OSS tools with rationale for each: what it replaces, what custom code remains, and what it future-proofs.
+- `spec.md` — spec with all decisions locked, stored in `/docs/` (plan structure or build spec depending on mode). **Code mode includes an Open Source Dependencies section** listing each recommended OSS tool with: what it replaces, what custom code remains, what it future-proofs, and its **qualification scorecard** (age, last updated, stars, downloads, license, maintainers, pass/fail).
 - `constraints.md` — review constraints with severity definitions, scope boundaries, exclusion rules, AND acceptance criteria, stored in `/docs/`
 
 ### What Goes Into `constraints.md`
@@ -727,7 +746,7 @@ These decisions were made across three design conversations and one audit review
 18. **MCP-ready orchestrator architecture (design-time, not build-time)** — orchestrator core actions (create project, check status, read polish log, trigger phase advance, read convergence state) are written as clean standalone functions with no CLI-specific coupling. This means wrapping them as MCP tools later is a thin adapter layer, not a refactor. Enables Vibe Kanban's native MCP integration, Claude Desktop, and any MCP client to talk to ThoughtForge without custom glue code. NOT a v1 dependency — no MCP code is written in v1.
 19. **Handlebars templates for Plan mode document generation** — Plan mode uses template-driven generation instead of pure AI drafting. The OPA skeleton (master OPA table, section headers, per-section OPA tables) is a fixed Handlebars template. The AI generates content to fill each slot but cannot break the structure. This guarantees OPA structural compliance without relying on prompt adherence. Adding new plan types (wedding, strategy, engineering, etc.) means adding a new template file in `/plugins/plan/templates/`, not rewriting prompts.
 20. **Plugin architecture for deliverable types** — each deliverable type (Plan, Code, future types) is a self-contained plugin folder in `/plugins/` with its own builder, reviewer (Zod schema), safety rules, and templates. The orchestrator loads the plugin for the deliverable type declared in `intent.md` and delegates to it. No if/else branching for Plan vs. Code in the orchestrator. Adding a new deliverable type (Research, Data Pipeline, Content, etc.) means creating a new plugin folder with the same interface — the orchestrator doesn't change.
-21. **Open source discovery in Phase 2 Code mode** — before proposing custom-built components, the AI actively searches for existing open source tools that could replace or reduce build scope. For every major component, the AI asks: "Does a maintained, free, open source solution already exist that does this?" This is exactly how Vibe Kanban, ntfy.sh, Zod, and Handlebars were identified during ThoughtForge's own design — each one eliminated hundreds of lines of custom code. The same behavior is now baked into every Code mode pipeline run. The AI also considers future extensibility: if an open source tool makes the codebase easier to upgrade or maintain later, it should be proposed even if building from scratch is feasible now. Human has final say on all tool choices.
+21. **Open source discovery with qualification scorecard in Phase 2 Code mode** — before proposing custom-built components, the AI actively searches for existing open source tools that could replace or reduce build scope. Every recommendation includes an 8-signal qualification scorecard: age, last updated, GitHub stars, weekly downloads, issue resolution rate, license, bus factor (active maintainers), and breaking change history. Minimum qualification: pass 6 of 8 with no red flags on age, last updated, or license. This is exactly how Vibe Kanban, ntfy.sh, Zod, and Handlebars were identified during ThoughtForge's own design — each one eliminated hundreds of lines of custom code. Now baked into every Code mode pipeline run. Human has final say on all tool choices.
 
 ---
 
