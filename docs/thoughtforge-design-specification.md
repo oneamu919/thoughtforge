@@ -99,7 +99,7 @@
 | Agent failure during Phase 2 conversation (timeout, crash, empty response) | Same retry behavior as agent communication layer: retry once, halt and notify on second failure. Chat resumes from last recorded message in `chat_history.json`. |
 | Human has not responded to a Phase 2 question for an extended period | No automatic action. Project remains in `spec_building` state. Notification sent as a reminder (configurable — deferred, not a current build dependency). |
 
-**Plan Mode behavior:** Proposes plan structure following OPA Framework — every major section gets its own OPA table. Pushes back like a real planner.
+**Plan Mode behavior:** Proposes plan structure following OPA Framework — every major section gets its own OPA table. Challenges decisions per Phase 2 step 2 behavior.
 
 **Code Mode behavior:** Proposes build spec (language, OS, framework, tools, dependencies, architecture). Runs Open Source Discovery before proposing custom-built components. Every OSS recommendation includes the 8-signal qualification scorecard (signals, red flags, and minimum qualification threshold defined in build spec).
 
@@ -283,6 +283,8 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 | Operational Logging | Node.js built-in (`console` or structured logger) | ThoughtForge logs its own operations — agent invocations, phase transitions, convergence guard evaluations, errors, and halt events — to a per-project `thoughtforge.log` file. Separate from `polish_log.md` (which is the human-readable iteration log). Used for debugging, not human review. |
 | MCP (Future) | Model Context Protocol | Core actions as clean standalone functions for future MCP wrapping. Deferred. Not a current build dependency. |
 
+**Application Entry Point:** The operator starts ThoughtForge by running a Node.js server command (e.g., `thoughtforge start` or `node server.js`). This launches the lightweight web chat interface on a local port. The operator accesses the interface via browser. The entry point initializes the config loader, plugin loader, notification layer, and Vibe Kanban adapter (if enabled).
+
 **Git Commit Strategy:** Each project's git repo is initialized at project creation. Commits occur at: `intent.md` lock (end of Phase 1), `spec.md` and `constraints.md` lock (end of Phase 2), Phase 3 build completion, and after every Phase 4 review and fix step. This ensures rollback capability at every major pipeline milestone.
 
 ### Vibe Kanban (Execution Layer — Integrated, Not Built)
@@ -300,7 +302,16 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 
 ThoughtForge communicates with Vibe Kanban via its CLI through four operations: task creation (project initialization), status updates (every phase transition), agent work execution (Phase 3 build, Phase 4 fix steps), and result reading (after each agent execution). All integration calls centralized in `vibekanban-adapter.js`. ThoughtForge never calls Vibe Kanban directly from orchestrator logic. Exact CLI commands and flags in build spec.
 
-**Vibe Kanban toggle behavior:** The `vibekanban.enabled` config controls Kanban card creation, status updates, and dashboard visualization. When disabled, ThoughtForge invokes agents directly via the agent layer for all phases — no Kanban cards are created or updated. Parallel execution management without Vibe Kanban is the human's responsibility. Plan mode functions identically with the toggle on or off — the plan builder always invokes agents directly via the agent layer. Code mode, when VK is enabled, executes agent work through Vibe Kanban (`vibekanban task run`); when VK is disabled, the code builder invokes agents directly via the agent layer. Both modes function fully with the toggle off; the only loss is the Kanban board view and automated parallel execution.
+**Vibe Kanban toggle behavior:** The `vibekanban.enabled` config controls Kanban card creation, status updates, and dashboard visualization.
+
+| Condition | Behavior |
+|---|---|
+| VK enabled, Plan mode | Plan builder invokes agents directly via agent layer. Kanban card created and updated for visualization only. |
+| VK disabled, Plan mode | Identical — plan builder always invokes agents directly. No Kanban card. |
+| VK enabled, Code mode | Code builder executes agent work through Vibe Kanban (`vibekanban task run`). Kanban card tracks progress. |
+| VK disabled, Code mode | Code builder invokes agents directly via agent layer. No Kanban card. |
+
+Both modes function fully with the toggle off. The only losses are the Kanban board view and automated parallel execution (parallel execution management becomes the human's responsibility).
 
 ### Plugin Folder Structure
 
@@ -357,7 +368,7 @@ Every phase transition pings the human with a status update. Every notification 
 | `polish_log.md` | Appended after each Phase 4 iteration | Human-readable iteration log |
 | `chat_history.json` | Appended after each chat message (Phases 1–2, Phase 3 stuck recovery, Phase 4 halt recovery) | Array of timestamped messages (role, content, phase). On crash, chat resumes from last message. Cleared after each phase advancement confirmation (Phase 1 → Phase 2 and Phase 2 → Phase 3), so each phase starts with a fresh chat history. Phase 3 and Phase 4 recovery conversations are also persisted. |
 
-**`polish_log.md` entry format:** Each entry includes: iteration number, timestamp, error counts (critical/medium/minor/total), which convergence guard was evaluated and its result, summary of issues found, summary of fixes applied, and test results (code mode only). Entries are appended in Markdown with a heading per iteration (e.g., `## Iteration 7`).
+**`polish_log.md` entry format:** Each iteration appends a human-readable summary including error counts, guard evaluations, issues found, and fixes applied. Full entry format in build spec.
 
 ### UI
 

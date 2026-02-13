@@ -426,6 +426,26 @@ Log levels: `info`, `warn`, `error`. Events include: `phase_transition`, `agent_
 
 ---
 
+## `polish_log.md` Entry Format
+
+**Used by:** Task 39 (polish log append)
+**Written:** Appended after each Phase 4 iteration
+
+Each iteration is appended as a Markdown section:
+
+```markdown
+## Iteration {N}
+
+**Timestamp:** {ISO8601}
+**Error Counts:** {critical} critical, {medium} medium, {minor} minor ({total} total)
+**Guard Evaluated:** {guard_name} — {result}
+**Issues Found:** {summary}
+**Fixes Applied:** {summary}
+**Test Results:** {total} total, {passed} passed, {failed} failed (code mode only)
+```
+
+---
+
 ## `config.yaml` Template
 
 **Used by:** Task 1 (config loader)
