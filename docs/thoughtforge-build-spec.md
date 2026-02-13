@@ -261,6 +261,27 @@ Trigger: both conditions true → halt
 
 ---
 
+## OSS Qualification Scorecard
+
+**Used by:** Task 25 (Code mode discovery — OSS qualification)
+
+Every OSS recommendation during Code mode Phase 2 includes this 8-signal qualification scorecard:
+
+| Signal | What to Check | Red Flag |
+|---|---|---|
+| Age | When was v1.0 released? | Less than 6 months old |
+| Last Updated | Date of most recent commit/release | No updates in 12+ months |
+| GitHub Stars | Star count as popularity proxy | Under 500 for a general-purpose tool |
+| Weekly Downloads | npm/PyPI weekly downloads | Under 1,000 |
+| Open Issues vs. Closed | Issue resolution rate | More open than closed |
+| License | MIT, Apache 2.0, BSD, etc. | GPL/AGPL — may conflict with shipping |
+| Bus Factor | Active maintainers | Single maintainer with no activity |
+| Breaking Changes | Major version frequency | Frequent major bumps, no migration path |
+
+Minimum qualification: pass 6 of 8 with no red flags on Age, Last Updated, or License.
+
+---
+
 ## Agent Communication
 
 **Used by:** Tasks 41–44 (agent layer)
@@ -323,7 +344,7 @@ Each connector module in `/connectors/` implements:
 interface ProjectStatus {
   project_name: string;       // Human-readable name, derived during Phase 1
   phase: "brain_dump" | "distilling" | "human_review" | "spec_building" | "building" | "polishing" | "done" | "halted";
-  deliverable_type: "plan" | "code";
+  deliverable_type: "plan" | "code" | null;  // null until Phase 1 distillation determines type
   agent: string;
   created_at: string;   // ISO8601
   updated_at: string;   // ISO8601
@@ -373,7 +394,7 @@ interface PolishState {
 interface ChatMessage {
   role: "human" | "ai";
   content: string;
-  phase: "brain_dump" | "distilling" | "human_review" | "spec_building";
+  phase: "brain_dump" | "distilling" | "human_review" | "spec_building" | "building" | "polishing";
   timestamp: string;  // ISO8601
 }
 
@@ -462,8 +483,8 @@ agents:
 
 # Templates — plan mode templates live inside their plugin directory.
 # This key is reserved for future cross-plugin shared templates. Not used in current scope.
-templates:
-  directory: "./plugins/plan/templates"
+# templates:
+#   directory: "./plugins/plan/templates"
 
 # Plugins
 plugins:
@@ -486,7 +507,8 @@ vibekanban:
 
 | ThoughtForge Action | Vibe Kanban CLI Command | When |
 |---|---|---|
-| Create task | `vibekanban task create --name "{project_name}" --agent {agent}` | Phase 3 start |
+| Create task | `vibekanban task create --id {project_id} --agent {agent}` | Project initialization |
+| Update task name | `vibekanban task update {task_id} --name "{project_name}"` | After Phase 1 (project name derived) |
 | Update task status | `vibekanban task update {task_id} --status {status}` | Every phase transition |
 | Execute agent work | `vibekanban task run {task_id} --prompt-file {path}` | Phase 3 build, Phase 4 fix steps |
 | Read task result | `vibekanban task result {task_id}` | After each agent execution |

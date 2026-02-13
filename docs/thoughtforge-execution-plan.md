@@ -41,7 +41,7 @@
 | 7c | Implement resource connector abstraction layer — config-driven loader, connector interface (pull → save to `/resources/`), error handling (auth failure, not found → log and continue) | — | Task 1 | — | Not Started |
 | 7d | Implement Notion connector — authenticate via API token, pull page content as Markdown, save to `/resources/` | — | Task 7c | — | Not Started |
 | 7e | Implement Google Drive connector — authenticate via service account or OAuth, pull document content as text/Markdown, save to `/resources/` | — | Task 7c | — | Not Started |
-| 8 | Implement Phase 1: brain dump intake, resource reading, distillation prompt (loaded from `/prompts/brain-dump-intake.md`) | — | Task 6a, Task 7, Task 7a, Tasks 41–42 | — | Not Started |
+| 8 | Implement Phase 1: brain dump intake, resource reading, distillation prompt (loaded from `/prompts/brain-dump-intake.md`) | — | Task 6a, Task 7, Task 7a, Task 7c, Tasks 41–42 | — | Not Started |
 | 9 | Implement correction loop (chat-based revisions, "realign from here") | — | Task 8 | — | Not Started |
 | 10 | Implement Confirm button (phase advancement mechanism) | — | Task 7 | — | Not Started |
 | 11 | Implement `intent.md` generation and locking | — | Task 9 | — | Not Started |
@@ -80,6 +80,7 @@
 | 27 | Implement task create, update, run, result read operations | — | Task 26 | — | Not Started |
 | 28 | Map ThoughtForge phases to Vibe Kanban columns | — | Task 27 | — | Not Started |
 | 29 | Test parallel execution with multiple concurrent projects | — | Task 28 | — | Not Started |
+| 29a | Implement VK-disabled fallback: direct agent invocation path when `vibekanban.enabled` is false | — | Task 26 | — | Not Started |
 
 ### Build Stage 6: Polish Loop Engine
 
@@ -96,6 +97,7 @@
 | 38 | Implement `polish_state.json` persistence + crash recovery (resume from last iteration) | — | Task 30 | — | Not Started |
 | 39 | Implement `polish_log.md` append after each iteration | — | Task 30 | — | Not Started |
 | 40 | Implement git auto-commit after each review and fix step | — | Task 30 | — | Not Started |
+| 40a | Implement Phase 4 halt recovery interaction (resume, override, terminate buttons in chat) | — | Task 30, Task 7 | — | Not Started |
 
 ### Build Stage 7: Agent Layer
 
@@ -110,18 +112,19 @@
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
-| 44a | Unit tests: project state module (`status.json`, `polish_state.json` read/write, crash recovery) | — | Task 3, Task 38 | — | Not Started |
-| 44b | Unit tests: plugin loader (interface contract validation, missing plugin handling) | — | Task 6 | — | Not Started |
-| 44c | Unit tests: convergence guards (termination, hallucination, stagnation, fabrication, max iterations — each with synthetic inputs) | — | Tasks 33–37 | — | Not Started |
-| 44d | Unit tests: agent adapters (output normalization, failure handling, timeout) | — | Tasks 41–44 | — | Not Started |
-| 44e | Unit tests: resource connectors (pull success, auth failure, not found — with mocked API responses) | — | Tasks 7c–7e | — | Not Started |
-| 44f | Unit tests: notification layer (channel routing, structured context, send failure handling) | — | Tasks 4–5 | — | Not Started |
-| 45 | End-to-end test: Plan mode pipeline (brain dump → polished plan) | — | All above | — | Not Started |
-| 46 | End-to-end test: Code mode pipeline (brain dump → polished code) | — | All above | — | Not Started |
-| 47 | End-to-end test: Plan → Code chaining (finished plan as Code mode input) | — | Task 45, Task 46 | — | Not Started |
-| 48 | Test all convergence guards with synthetic edge cases | — | Tasks 33-37 | — | Not Started |
-| 49 | Test crash recovery (kill mid-loop, verify resume) | — | Task 38 | — | Not Started |
-| 50 | Test parallel execution (3 concurrent projects, different agents) | — | Task 29 | — | Not Started |
+| 51 | Unit tests: project state module (`status.json`, `polish_state.json` read/write, crash recovery) | — | Task 3, Task 38 | — | Not Started |
+| 52 | Unit tests: plugin loader (interface contract validation, missing plugin handling) | — | Task 6 | — | Not Started |
+| 53 | Unit tests: convergence guards (termination, hallucination, stagnation, fabrication, max iterations — each with synthetic inputs) | — | Tasks 33–37 | — | Not Started |
+| 54 | Unit tests: agent adapters (output normalization, failure handling, timeout) | — | Tasks 41–44 | — | Not Started |
+| 55 | Unit tests: resource connectors (pull success, auth failure, not found — with mocked API responses) | — | Tasks 7c–7e | — | Not Started |
+| 56 | Unit tests: notification layer (channel routing, structured context, send failure handling) | — | Tasks 4–5 | — | Not Started |
+| 57 | End-to-end test: Plan mode pipeline (brain dump → polished plan) | — | All above | — | Not Started |
+| 58 | End-to-end test: Code mode pipeline (brain dump → polished code) | — | All above | — | Not Started |
+| 59 | End-to-end test: Plan → Code chaining (finished plan as Code mode input) | — | Task 57, Task 58 | — | Not Started |
+| 60 | Test all convergence guards with synthetic edge cases | — | Tasks 33–37 | — | Not Started |
+| 61 | Test crash recovery (kill mid-loop, verify resume) | — | Task 38 | — | Not Started |
+| 62 | Test parallel execution (3 concurrent projects, different agents) | — | Task 29 | — | Not Started |
+| 63 | Test VK-disabled fallback (full pipeline without Vibe Kanban) | — | Task 29a | — | Not Started |
 
 ---
 

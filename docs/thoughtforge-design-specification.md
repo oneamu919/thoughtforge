@@ -44,6 +44,9 @@
 **Primary Flow:**
 
 0. **Project Initialization:** Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project" command or button). ThoughtForge generates a unique project ID, creates the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories), initializes a git repo, writes an initial `status.json` with phase `brain_dump`, and opens a new chat thread. If Vibe Kanban integration is enabled, a corresponding card is created at this point.
+
+**Agent Assignment:** The agent specified in `config.yaml` `agents.default` is assigned to the project at initialization and stored in `status.json` as the `agent` field. This determines which AI agent is used for all pipeline phases. Per-project agent override is deferred — not a current build dependency.
+
 1. Human brain dumps into chat
 2. Human drops files/resources into `/resources/` directory
 3. If external resource connectors are configured (Notion, Google Drive), the human provides page URLs or document links via chat. ThoughtForge pulls the content and saves it to `/resources/` as local files before proceeding to distillation. Connectors are optional — if none are configured, this step is skipped.
@@ -97,20 +100,7 @@
 
 **Plan Mode behavior:** Proposes plan structure following OPA Framework — every major section gets its own OPA table. Pushes back like a real planner.
 
-**Code Mode behavior:** Proposes build spec (language, OS, framework, tools, dependencies, architecture). Runs Open Source Discovery before proposing custom-built components. Every OSS recommendation includes the 8-signal qualification scorecard:
-
-| Signal | What to Check | Red Flag |
-|---|---|---|
-| Age | When was v1.0 released? | Less than 6 months old |
-| Last Updated | Date of most recent commit/release | No updates in 12+ months |
-| GitHub Stars | Star count as popularity proxy | Under 500 for a general-purpose tool |
-| Weekly Downloads | npm/PyPI weekly downloads | Under 1,000 |
-| Open Issues vs. Closed | Issue resolution rate | More open than closed |
-| License | MIT, Apache 2.0, BSD, etc. | GPL/AGPL — may conflict with shipping |
-| Bus Factor | Active maintainers | Single maintainer with no activity |
-| Breaking Changes | Major version frequency | Frequent major bumps, no migration path |
-
-Minimum qualification: pass 6 of 8 with no red flags on Age, Last Updated, or License.
+**Code Mode behavior:** Proposes build spec (language, OS, framework, tools, dependencies, architecture). Runs Open Source Discovery before proposing custom-built components. Every OSS recommendation includes the 8-signal qualification scorecard (signals, red flags, and minimum qualification threshold defined in build spec).
 
 **`spec.md` structure:**
 
@@ -307,9 +297,9 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 
 ### Vibe Kanban Integration Interface
 
-ThoughtForge communicates with Vibe Kanban via its CLI through four operations: task creation (Phase 3 start), status updates (every phase transition), agent work execution (Phase 3 build, Phase 4 fix steps), and result reading (after each agent execution). All integration calls centralized in `vibekanban-adapter.js`. ThoughtForge never calls Vibe Kanban directly from orchestrator logic. Exact CLI commands and flags in build spec.
+ThoughtForge communicates with Vibe Kanban via its CLI through four operations: task creation (project initialization), status updates (every phase transition), agent work execution (Phase 3 build, Phase 4 fix steps), and result reading (after each agent execution). All integration calls centralized in `vibekanban-adapter.js`. ThoughtForge never calls Vibe Kanban directly from orchestrator logic. Exact CLI commands and flags in build spec.
 
-**Vibe Kanban toggle behavior:** The `vibekanban.enabled` config controls Kanban card creation, status updates, and dashboard visualization. When disabled, ThoughtForge invokes agents directly via the agent layer for all phases — no Kanban cards are created or updated. Parallel execution management without Vibe Kanban is the human's responsibility. Code mode and Plan mode both function fully with the toggle off; the only loss is the Kanban board view and automated parallel execution.
+**Vibe Kanban toggle behavior:** The `vibekanban.enabled` config controls Kanban card creation, status updates, and dashboard visualization. When disabled, ThoughtForge invokes agents directly via the agent layer for all phases — no Kanban cards are created or updated. Parallel execution management without Vibe Kanban is the human's responsibility. Plan mode functions identically with the toggle on or off — the plan builder always invokes agents directly via the agent layer. Code mode, when VK is enabled, executes agent work through Vibe Kanban (`vibekanban task run`); when VK is disabled, the code builder invokes agents directly via the agent layer. Both modes function fully with the toggle off; the only loss is the Kanban board view and automated parallel execution.
 
 ### Plugin Folder Structure
 
@@ -364,7 +354,7 @@ Every phase transition pings the human with a status update. Every notification 
 | `status.json` | Every phase transition and state change | Tracks project name, current phase, deliverable type, assigned agent, timestamps, and halt reason. Full schema in build spec. |
 | `polish_state.json` | After each Phase 4 iteration | Iteration number, error counts, convergence trajectory, timestamp |
 | `polish_log.md` | Appended after each Phase 4 iteration | Human-readable iteration log |
-| `chat_history.json` | Appended after each chat message (Phases 1–2) | Array of timestamped messages (role, content, phase). On crash, chat resumes from last message. Cleared after each phase advancement confirmation (Phase 1 → Phase 2 and Phase 2 → Phase 3), so each phase starts with a fresh chat history. |
+| `chat_history.json` | Appended after each chat message (Phases 1–2, Phase 3 stuck recovery, Phase 4 halt recovery) | Array of timestamped messages (role, content, phase). On crash, chat resumes from last message. Cleared after each phase advancement confirmation (Phase 1 → Phase 2 and Phase 2 → Phase 3), so each phase starts with a fresh chat history. Phase 3 and Phase 4 recovery conversations are also persisted. |
 
 **`polish_log.md` entry format:** Each entry includes: iteration number, timestamp, error counts (critical/medium/minor/total), which convergence guard was evaluated and its result, summary of issues found, summary of fixes applied, and test results (code mode only). Entries are appended in Markdown with a heading per iteration (e.g., `## Iteration 7`).
 
