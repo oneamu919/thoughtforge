@@ -283,12 +283,13 @@ Human confirms intent (Phase 1 complete).
 - Proposes build spec: language, OS, framework, tools, dependencies, architecture
 - Pushes back like a real engineer: "Node.js makes more sense here because X" or "Docker isn't needed for this, here's why"
 - Discovers constraints through internal proposer/challenger reasoning
+- **Open Source Discovery:** Before proposing custom-built components, the AI actively searches for existing open source tools, libraries, and frameworks that could replace or reduce planned build scope. For every major component in the spec, the AI asks: "Does a maintained, free, open source solution already exist that does this well enough?" If yes, it proposes integration over building from scratch — with reasoning for why the tool fits, what it replaces, what its limitations are, and what custom code is still needed around it. This also applies to future extensibility: if an open source tool would make the codebase easier to extend, upgrade, or maintain later, it should be proposed even if building from scratch is feasible now. The human has final say on all tool choices.
 - **Extracts 5-10 functional acceptance criteria from `intent.md`** — plain statements like:
   - "User can create a project from the kanban board"
   - "Push notification fires when polish loop finishes"
   - "Cards move automatically when phase changes"
   - "Git commits after every polish iteration"
-- Presents the build spec, constraints, and acceptance criteria to human
+- Presents the build spec, constraints, acceptance criteria, and **open source recommendations with rationale** to human
 
 ### Human Behavior
 
@@ -302,7 +303,7 @@ Human confirms build spec.
 
 ### Outputs
 
-- `spec.md` — spec with all decisions locked, stored in `/docs/` (plan structure or build spec depending on mode)
+- `spec.md` — spec with all decisions locked, stored in `/docs/` (plan structure or build spec depending on mode). **Code mode includes an Open Source Dependencies section** listing recommended OSS tools with rationale for each: what it replaces, what custom code remains, and what it future-proofs.
 - `constraints.md` — review constraints with severity definitions, scope boundaries, exclusion rules, AND acceptance criteria, stored in `/docs/`
 
 ### What Goes Into `constraints.md`
@@ -726,6 +727,7 @@ These decisions were made across three design conversations and one audit review
 18. **MCP-ready orchestrator architecture (design-time, not build-time)** — orchestrator core actions (create project, check status, read polish log, trigger phase advance, read convergence state) are written as clean standalone functions with no CLI-specific coupling. This means wrapping them as MCP tools later is a thin adapter layer, not a refactor. Enables Vibe Kanban's native MCP integration, Claude Desktop, and any MCP client to talk to ThoughtForge without custom glue code. NOT a v1 dependency — no MCP code is written in v1.
 19. **Handlebars templates for Plan mode document generation** — Plan mode uses template-driven generation instead of pure AI drafting. The OPA skeleton (master OPA table, section headers, per-section OPA tables) is a fixed Handlebars template. The AI generates content to fill each slot but cannot break the structure. This guarantees OPA structural compliance without relying on prompt adherence. Adding new plan types (wedding, strategy, engineering, etc.) means adding a new template file in `/plugins/plan/templates/`, not rewriting prompts.
 20. **Plugin architecture for deliverable types** — each deliverable type (Plan, Code, future types) is a self-contained plugin folder in `/plugins/` with its own builder, reviewer (Zod schema), safety rules, and templates. The orchestrator loads the plugin for the deliverable type declared in `intent.md` and delegates to it. No if/else branching for Plan vs. Code in the orchestrator. Adding a new deliverable type (Research, Data Pipeline, Content, etc.) means creating a new plugin folder with the same interface — the orchestrator doesn't change.
+21. **Open source discovery in Phase 2 Code mode** — before proposing custom-built components, the AI actively searches for existing open source tools that could replace or reduce build scope. For every major component, the AI asks: "Does a maintained, free, open source solution already exist that does this?" This is exactly how Vibe Kanban, ntfy.sh, Zod, and Handlebars were identified during ThoughtForge's own design — each one eliminated hundreds of lines of custom code. The same behavior is now baked into every Code mode pipeline run. The AI also considers future extensibility: if an open source tool makes the codebase easier to upgrade or maintain later, it should be proposed even if building from scratch is feasible now. Human has final say on all tool choices.
 
 ---
 
