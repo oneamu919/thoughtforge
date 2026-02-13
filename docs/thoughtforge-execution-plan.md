@@ -16,7 +16,7 @@
 
 ## Task Breakdown
 
-### Phase 1: Foundation & Project Scaffolding
+### Build Stage 1: Foundation & Project Scaffolding
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
@@ -27,7 +27,7 @@
 | 5 | Implement phase transition notifications (ping human on every milestone) | — | Task 4 | — | Not Started |
 | 6 | Set up plugin loader (reads `/plugins/{type}/`, validates interface contract) | — | Task 1 | — | Not Started |
 
-### Phase 2: Phase 1 & 2 — Human Interaction Layer
+### Build Stage 2: Human Interaction Layer (Pipeline Phases 1–2)
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
@@ -39,7 +39,7 @@
 | 12 | Implement Phase 2: spec building, constraint discovery, acceptance criteria extraction | — | Task 11 | — | Not Started |
 | 13 | Implement `spec.md` and `constraints.md` generation | — | Task 12 | — | Not Started |
 
-### Phase 3: Plan Mode Plugin
+### Build Stage 3: Plan Mode Plugin
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
@@ -50,7 +50,9 @@
 | 18 | Implement `safety-rules.js` — hard-block all code execution in plan mode | — | Task 14 | — | Not Started |
 | 19 | Implement Plan Completeness Gate (assessment prompt for Code mode entry) | — | Task 18 | — | Not Started |
 
-### Phase 4: Code Mode Plugin
+### Build Stage 4: Code Mode Plugin
+
+> **Cross-stage dependency:** Code mode builder (Task 21) depends on Vibe Kanban operations (Task 27, Build Stage 5). Build Stage 5 Tasks 26–27 must be completed before Task 21 can begin. Remaining Build Stage 4 tasks (22–25) have no cross-stage dependencies.
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
@@ -61,7 +63,7 @@
 | 24 | Implement `test-runner.js` — test execution, result logging | — | Task 20 | — | Not Started |
 | 25 | Implement OSS qualification scorecard logic for Phase 2 Code mode | — | Task 12 | — | Not Started |
 
-### Phase 5: Vibe Kanban Integration
+### Build Stage 5: Vibe Kanban Integration
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
@@ -70,7 +72,7 @@
 | 28 | Map ThoughtForge phases to Vibe Kanban columns | — | Task 27 | — | Not Started |
 | 29 | Test parallel execution with multiple concurrent projects | — | Task 28 | — | Not Started |
 
-### Phase 6: Polish Loop Engine
+### Build Stage 6: Polish Loop Engine
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
@@ -86,7 +88,7 @@
 | 39 | Implement `polish_log.md` append after each iteration | — | Task 30 | — | Not Started |
 | 40 | Implement git auto-commit after each review and fix step | — | Task 30 | — | Not Started |
 
-### Phase 7: Agent Layer
+### Build Stage 7: Agent Layer
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
@@ -95,7 +97,7 @@
 | 43 | Implement failure handling: retry once, halt on second failure | — | Task 41 | — | Not Started |
 | 44 | Implement configurable timeout + subprocess kill | — | Task 41 | — | Not Started |
 
-### Phase 8: Integration Testing & Polish
+### Build Stage 8: Integration Testing & Polish
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
@@ -112,7 +114,7 @@
 
 | Milestone | Target Date | Deliverable | Exit Criteria |
 |-----------|-------------|-------------|---------------|
-| Foundation complete | TBD | Project scaffolding, state module, config, notifications, plugin loader | All Phase 1 tasks done |
+| Foundation complete | TBD | Project scaffolding, state module, config, notifications, plugin loader | All Build Stage 1 tasks done |
 | Human interaction working | TBD | Phase 1 & 2 chat flow functional | Brain dump → intent → spec → constraints flow works end-to-end |
 | Plan mode functional | TBD | Full Plan pipeline runs | Brain dump → polished plan document with OPA structure |
 | Code mode functional | TBD | Full Code pipeline runs | Brain dump → polished codebase with tests |

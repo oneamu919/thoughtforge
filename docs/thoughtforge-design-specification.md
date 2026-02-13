@@ -169,8 +169,8 @@ Minimum qualification: pass 6 of 8 with no red flags on Age, Last Updated, or Li
 |---|---|---|
 | Termination (success) | `critical == 0` AND `medium < 3` AND `minor < 5` (+ all tests pass for code) | Done. Notify human. |
 | Hallucination | Error count spikes >20% after 2+ iteration downward trend | Halt. Notify human: "Fix-regress cycle detected. Errors trending down then spiked. Iteration [N]: [X] total (was [Y]). Review needed." |
-| Stagnation | Same count 3+ iterations, OR <70% issue description overlap (Levenshtein ≥0.8) | Done (success). Notify human: "Polish sufficient. Ready for final review." |
-| Fabrication | Any category count exceeds trailing 3-iteration average by >50% (min increase of 2) after near-convergence | Halt. Notify human. |
+| Stagnation | Same total count for 3+ consecutive iterations AND issue rotation detected: fewer than 70% of issues in the current iteration match an issue from the prior iteration (two issues "match" when Levenshtein similarity ≥ 0.8) | Done (success). Notify human: "Polish sufficient. Ready for final review." |
+| Fabrication | Any category count exceeds its trailing 3-iteration average by >50% (minimum absolute increase of 2), AND the system has previously reached within 2× of the termination thresholds (≤0 critical, ≤6 medium, ≤10 minor) in at least one prior iteration | Halt. Notify human. |
 | Max iterations | Hard ceiling reached (default 50) | Halt. Notify human: "Max [N] iterations reached. Avg flaws/iter: [X]. Lowest: [Y] at iter [Z]. Review needed." |
 
 **Loop State Persistence:** `polish_state.json` written after each iteration (iteration number, error counts, convergence trajectory, timestamp). On crash, resumes from last completed iteration.
@@ -371,6 +371,8 @@ Every phase transition pings the human with a status update. Every notification 
 **Vibe Kanban Dashboard (Integrated, Not Built):** Columns map to phases: Brain Dump → Distilling → Human Review → Confirmed → Spec Building → Coding → Polishing → Done. Each card = one project. Shows agent, status, parallel execution.
 
 **Per-Card Stats:** Created timestamp, time per phase, total duration, polish loop metrics (from `polish_log.md`), status, agent used.
+
+**Plan vs. Code Column Display:** Plan mode cards pass through the same Kanban columns. The "Coding" column represents Phase 3 (autonomous build) for both deliverable types — document drafting for Plans, coding for Code. Column labels are not mode-specific. The card's `deliverable_type` field in `status.json` distinguishes the two in the dashboard.
 
 **Agent Performance Comparison:** Same task run with different agents shows iteration count, time, and convergence speed differences.
 
