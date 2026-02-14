@@ -412,7 +412,7 @@ interface ProjectStatus {
   agent: string;
   created_at: string;   // ISO8601
   updated_at: string;   // ISO8601
-  halt_reason: string | null;
+  halt_reason: string | null;  // Known values: "plan_incomplete", "guard_hallucination", "guard_fabrication", "guard_max_iterations", "human_terminated", "agent_failure", "file_system_error"
 }
 ```
 
