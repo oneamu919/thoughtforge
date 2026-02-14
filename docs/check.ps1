@@ -25,6 +25,16 @@ $count | Set-Content -Path $COUNTER_FILE
 
 Send-Notify "[CHECK #$count] Checking results.md..."
 
+# -- Preflight --
+if (-not (Test-Path "results.md")) {
+    Write-Host "ERROR: results.md not found. Run review.ps1 first." -ForegroundColor Red
+    exit 1
+}
+if (-not (Test-Path "check-prompt.md")) {
+    Write-Host "ERROR: check-prompt.md not found." -ForegroundColor Red
+    exit 1
+}
+
 $findings = Get-Content "results.md" -Raw
 
 $checkPrompt = Get-Content "check-prompt.md" -Raw
@@ -45,8 +55,9 @@ Apply every change from the review below to the project files. Be precise. Do no
 $findings
 "@
 
-    claude -p $applyPrompt --output-format text 2>$null | Set-Content -Path "apply-log.md"
-    Send-Notify "[APPLY #$count] Done. Changes applied. Log written to apply-log.md"
+    claude -p $applyPrompt --output-format text 2>$null | Out-Null
+    Send-Notify "[APPLY #$count] Done. Changes applied."
 } else {
+    if (Test-Path $COUNTER_FILE) { Remove-Item $COUNTER_FILE }
     Send-Notify "[CHECK #$count] No updates needed. Done."
 }
