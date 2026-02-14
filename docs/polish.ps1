@@ -56,7 +56,7 @@ while ($count -lt $MaxIterations) {
     $findings = Get-Content "results.md" -Raw
     $checkPrompt = Get-Content "check-prompt.md" -Raw
     $checkPrompt += "`n`n--- REVIEW DOCUMENT ---`n$findings"
-    $result = claude -p $checkPrompt --output-format text 2>$null
+    $result = claude -p $checkPrompt --output-format text
     if ($Verbose) { Send-Notify "[CHECK #$count] $result" }
 
     # -- Step 3: Decide --
@@ -69,7 +69,7 @@ Apply every change from the review below to the project files. Be precise. Do no
 --- REVIEW ---
 $findings
 "@
-        claude -p $applyPrompt --output-format text 2>$null | Out-Null
+        claude -p $applyPrompt --output-format text
         Send-Notify "[APPLY #$count] Done. Looping back to review."
     } else {
         # Converged
