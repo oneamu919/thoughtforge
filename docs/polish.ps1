@@ -1,33 +1,32 @@
 # ThoughtForge Polish Loop
-# Usage: .\polish.ps1 [-Verbose]
+# Usage: .\polish.ps1 [-MaxIterations 50]
 param(
-    [switch]$Verbose,
-    [int]$MaxIterations = 25
+    [int]$MaxIterations = 50
 )
 
-$TELEGRAM_TOKEN   = "7998768592:AAHxlbOZPm0b_Vf5ipuTu3BRr6LudeItIO8"
-$TELEGRAM_CHAT_ID = "7897824652"
+# -- Load .env --
+$envFile = Join-Path $PSScriptRoot ".env"
+if (Test-Path $envFile) {
+    Get-Content $envFile | ForEach-Object {
+        if ($_ -match "^(.+?)=(.+)$") { Set-Item "env:$($matches[1])" $matches[2] }
+    }
+}
+
+$TELEGRAM_TOKEN   = $env:TELEGRAM_TOKEN
+$TELEGRAM_CHAT_ID = $env:TELEGRAM_CHAT_ID
 $COUNTER_FILE     = "reviewcount.txt"
+$scriptDir        = $PSScriptRoot
 
 function Send-Notify($message) {
+    $truncated = if ($message.Length -gt 500) { $message.Substring(0, 500) + "... [truncated]" } else { $message }
     $uri = "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage"
     try {
         Invoke-RestMethod -Uri $uri -Method Post -Body @{
             chat_id = $TELEGRAM_CHAT_ID
-            text    = $message
+            text    = $truncated
         } -ErrorAction SilentlyContinue
     } catch {}
     Write-Host $message
-}
-
-# -- Preflight --
-if (-not (Test-Path "project-plan-review-prompt.md")) {
-    Write-Host "ERROR: project-plan-review-prompt.md not found." -ForegroundColor Red
-    exit 1
-}
-if (-not (Test-Path "check-prompt.md")) {
-    Write-Host "ERROR: check-prompt.md not found." -ForegroundColor Red
-    exit 1
 }
 
 # -- Counter --
@@ -43,34 +42,20 @@ while ($count -lt $MaxIterations) {
     $count++
     $count | Set-Content -Path $COUNTER_FILE
 
-    # -- Step 1: CC1 Review --
-    if ($Verbose) { Send-Notify "[REVIEW #$count] Running CC1 review..." }
-    $reviewPrompt = Get-Content "project-plan-review-prompt.md" -Raw
-    $reviewPrompt += "`n`nRead all project files and apply your review."
-    claude -p $reviewPrompt --output-format text | Set-Content -Path "results.md"
-    $size = (Get-Item "results.md").Length
-    if ($Verbose) { Send-Notify "[REVIEW #$count] results.md written ($size bytes)" }
+    # -- Step 1: Review --
+    & "$scriptDir\review.ps1"
+    if ($LASTEXITCODE -ne 0) { exit 1 }
 
-    # -- Step 2: CC2 Check --
-    if ($Verbose) { Send-Notify "[CHECK #$count] Checking results.md..." }
-    $findings = Get-Content "results.md" -Raw
-    $checkPrompt = Get-Content "check-prompt.md" -Raw
-    $checkPrompt += "`n`n--- REVIEW DOCUMENT ---`n$findings"
-    $result = claude -p $checkPrompt --output-format text
-    if ($Verbose) { Send-Notify "[CHECK #$count] $result" }
+    # -- Step 2: Check --
+    & "$scriptDir\check.ps1"
+    if ($LASTEXITCODE -ne 0) { exit 1 }
 
     # -- Step 3: Decide --
-    if ($result -match 'result:\s*true') {
+    $checkResult = Get-Content "resultscheck.md" -Raw
+    if ($checkResult -match 'result:\s*true') {
         # Still needs updates -- apply fixes
-        Send-Notify "[APPLY #$count] Applying fixes from results.md..."
-        $applyPrompt = @"
-Apply every change from the review below to the project files. Be precise. Do not skip anything. After applying all changes, git add, commit, and push.
-
---- REVIEW ---
-$findings
-"@
-        claude -p $applyPrompt --output-format text
-        Send-Notify "[APPLY #$count] Done. Looping back to review."
+        & "$scriptDir\apply.ps1"
+        if ($LASTEXITCODE -ne 0) { exit 1 }
     } else {
         # Converged
         if (Test-Path $COUNTER_FILE) { Remove-Item $COUNTER_FILE }
