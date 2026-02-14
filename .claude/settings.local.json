@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout:*)",
+      "Bash(git push:*)",
+      "Bash(tasklist:*)",
+      "Bash(wmic process where \"name=''powershell.exe''\" get processid,commandline)",
+      "Bash(git -C /s/MyProjects/github/thoughtforge log --oneline --format=\"%h %ai %s\" -10)",
+      "Bash(git pull:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
