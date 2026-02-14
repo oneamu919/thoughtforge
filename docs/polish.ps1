@@ -1,8 +1,8 @@
-# ThoughtForge Polish Loop - two-agent loop (PowerShell)
-# CC1 reviews, CC2 implements, repeat until converged
+# ThoughtForge Polish Loop
+# CC1 reviews, CC2 fixes, repeat until CC1 finds nothing.
 #
 # Usage: .\polish.ps1                  (milestones only)
-#        .\polish.ps1 -Verbose         (ping every iteration + retries)
+#        .\polish.ps1 -Verbose         (ping every iteration)
 # Stop:  Ctrl+C or wait for convergence / max iterations
 
 param(
@@ -12,23 +12,23 @@ param(
 $ErrorActionPreference = "Stop"
 
 # -- Config --
-$MAX_ITERATIONS   = 25
-$STALL_THRESHOLD  = 3
-$TELEGRAM_TOKEN   = "7998768592:AAHxlbOZPm0b_Vf5ipuTu3BRr6LudeItIO8"
-$TELEGRAM_CHAT_ID = "7897824652"
-$VERBOSE_NOTIFY   = $Verbose.IsPresent
-$REVIEW_PROMPT    = "project-plan-review-prompt.md"
-$STATE_DIR        = "state"
-$FINDINGS_FILE    = "$STATE_DIR\findings.md"
-$LOG_FILE         = "$STATE_DIR\polish-log.jsonl"
-$CONVERGENCE_FILE = "$STATE_DIR\convergence.json"
+$MAX_ITERATIONS    = 25
+$STALL_THRESHOLD   = 3
+$CLEAN_THRESHOLD   = 300          # bytes - if CC1 output is under this, plan is clean
+$TELEGRAM_TOKEN    = "7998768592:AAHxlbOZPm0b_Vf5ipuTu3BRr6LudeItIO8"
+$TELEGRAM_CHAT_ID  = "7897824652"
+$VERBOSE_NOTIFY    = $Verbose.IsPresent
+$REVIEW_PROMPT     = "project-plan-review-prompt.md"
+$STATE_DIR         = "state"
+$FINDINGS_FILE     = "$STATE_DIR\findings.md"
+$LOG_FILE          = "$STATE_DIR\polish-log.jsonl"
 
 # -- Setup --
 if (-not (Test-Path $STATE_DIR)) { New-Item -ItemType Directory -Path $STATE_DIR | Out-Null }
 
 $iteration  = 0
 $stallCount = 0
-$prevTotal  = 999999
+$prevSize   = 999999
 
 function Run-Git {
     $prev = $ErrorActionPreference
@@ -50,29 +50,14 @@ function Send-Notify($message) {
     Write-Host $message
 }
 
-function Write-Log($verdict, $critical, $major, $minor) {
+function Write-Log($verdict, $size) {
     $entry = @{
         iteration = $iteration
-        critical  = $critical
-        major     = $major
-        minor     = $minor
         verdict   = $verdict
+        filesize  = $size
         timestamp = (Get-Date -Format "yyyy-MM-ddTHH:mm:ss")
     } | ConvertTo-Json -Compress
     Add-Content -Path $LOG_FILE -Value $entry
-    $entry | Set-Content -Path $CONVERGENCE_FILE
-}
-
-function Get-Counts($file) {
-    $content = Get-Content $file -Raw -ErrorAction SilentlyContinue
-    if (-not $content) { return $null }
-
-    # Count severity tags directly from CC1 output
-    $c = ([regex]::Matches($content, '\[Critical\]', 'IgnoreCase')).Count
-    $m = ([regex]::Matches($content, '\[Major\]', 'IgnoreCase')).Count
-    $n = ([regex]::Matches($content, '\[Minor\]', 'IgnoreCase')).Count
-
-    return @{ critical = $c; major = $m; minor = $n }
 }
 
 # -- Preflight --
@@ -97,7 +82,7 @@ Write-Host "  ThoughtForge Polish Loop"
 Write-Host "  Max iterations:   $MAX_ITERATIONS"
 Write-Host "  Review prompt:    $REVIEW_PROMPT"
 Write-Host "  Stall threshold:  $STALL_THRESHOLD consecutive passes"
-Write-Host "  Verbose notify:   $VERBOSE_NOTIFY"
+Write-Host "  Clean threshold:  $CLEAN_THRESHOLD bytes"
 Write-Host "========================================================"
 Send-Notify "[STARTED] Polish loop started (max $MAX_ITERATIONS iterations)"
 
@@ -114,92 +99,60 @@ while ($iteration -lt $MAX_ITERATIONS) {
     $prompt = @"
 $reviewInput
 
-Read all project files and apply your review.
-
-IMPORTANT: Every finding MUST be prefixed with its severity tag exactly as shown: [Critical], [Major], or [Minor]. Findings without these exact tags will not be counted by the automation. Use the square bracket format, not bold or any other format.
+Read all project files and apply your review. If the plan is clean and you have no findings, say only: NO FINDINGS
 "@
 
     claude -p $prompt --output-format text 2>$null | Set-Content -Path $FINDINGS_FILE
 
-    # -- Parse convergence --
-    $counts = Get-Counts $FINDINGS_FILE
-
-    # -- No findings at all: halt --
-    if ($null -eq $counts) {
-        Write-Log "NO_OUTPUT" -1 -1 -1
-        Run-Git add -A
-        Run-Git commit -m "polish: iteration $iteration - NO OUTPUT" --allow-empty -q
-        Send-Notify "[NO OUTPUT] Polish HALTED at iteration $iteration - CC1 produced no output. Check $FINDINGS_FILE"
-        Write-Host ""
-        Write-Host "========================================================"  -ForegroundColor Red
-        Write-Host "  NO OUTPUT at iteration $iteration" -ForegroundColor Red
-        Write-Host "  CC1 produced no findings file." -ForegroundColor Red
-        Write-Host "========================================================"  -ForegroundColor Red
-        exit 1
-    }
-
-    $critical = $counts.critical
-    $major    = $counts.major
-    $minor    = $counts.minor
-    $total    = $critical + $major + $minor
-
-    # -- Sanity check: substantial output but zero tags means CC1 did not comply --
     $fileSize = (Get-Item $FINDINGS_FILE).Length
-    if ($total -eq 0 -and $fileSize -gt 500) {
-        Write-Log "NO_TAGS" -1 -1 -1
-        Run-Git add -A
-        Run-Git commit -m "polish: iteration $iteration - NO TAGS" --allow-empty -q
-        Send-Notify "[NO TAGS] Iteration $iteration - CC1 wrote findings but used no severity tags. Check $FINDINGS_FILE"
-        Write-Host ""
-        Write-Host "========================================================"  -ForegroundColor Red
-        Write-Host "  NO TAGS at iteration $iteration" -ForegroundColor Red
-        Write-Host "  CC1 produced output ($fileSize bytes) but no [Critical]/[Major]/[Minor] tags." -ForegroundColor Red
-        Write-Host "  Check $FINDINGS_FILE - likely a prompt compliance issue." -ForegroundColor Red
-        Write-Host "========================================================"  -ForegroundColor Red
-        exit 1
-    }
+    $content = Get-Content $FINDINGS_FILE -Raw -ErrorAction SilentlyContinue
+    
+    # Parse CC1's summary line (e.g. "0 Critical, 5 Major, 10 Minor")
+    $critCount = 0; $majCount = 0; $minCount = 0
+    if ($content -match '(\d+)\s+Critical') { $critCount = [int]$Matches[1] }
+    if ($content -match '(\d+)\s+Major')    { $majCount  = [int]$Matches[1] }
+    if ($content -match '(\d+)\s+Minor')    { $minCount  = [int]$Matches[1] }
 
-    Write-Host "[CC1] Found: critical=$critical major=$major minor=$minor (total=$total)"
+    Write-Host "[CC1] Output: $fileSize bytes (critical:$critCount major:$majCount minor:$minCount)"
 
-    # -- Check convergence --
-    if ($critical -eq 0 -and $major -lt 3 -and $minor -lt 5) {
-        Write-Log "CONVERGED" $critical $major $minor
+    # -- Converged: 0 critical, <3 major, <5 minor --
+    if ($fileSize -lt $CLEAN_THRESHOLD -or ($critCount -eq 0 -and $majCount -lt 3 -and $minCount -lt 5)) {
+        Write-Log "CONVERGED" $fileSize
         Run-Git add -A
         Run-Git commit -m "polish: iteration $iteration - CONVERGED" --allow-empty -q
-        Send-Notify "[CONVERGED] Polish converged at iteration $iteration (critical:$critical major:$major minor:$minor)"
+        Send-Notify "[CONVERGED] Polish converged at iteration $iteration (critical:$critCount major:$majCount minor:$minCount)"
         Write-Host ""
         Write-Host "========================================================"  -ForegroundColor Green
         Write-Host "  CONVERGED at iteration $iteration" -ForegroundColor Green
-        Write-Host "  Critical: $critical | Major: $major | Minor: $minor" -ForegroundColor Green
+        Write-Host "  Critical: $critCount | Major: $majCount | Minor: $minCount" -ForegroundColor Green
         Write-Host "========================================================"  -ForegroundColor Green
         exit 0
     }
 
-    # -- Check stall --
-    if ($total -ge $prevTotal) {
+    # -- Stall detection: output not shrinking --
+    if ($fileSize -ge $prevSize) {
         $stallCount++
     } else {
         $stallCount = 0
     }
 
     if ($stallCount -ge $STALL_THRESHOLD) {
-        Write-Log "STALLED" $critical $major $minor
+        Write-Log "STALLED" $fileSize
         Run-Git add -A
         Run-Git commit -m "polish: iteration $iteration - STALLED" --allow-empty -q
-        Send-Notify "[STALLED] Polish stalled at iteration $iteration - no improvement for $STALL_THRESHOLD passes (critical:$critical major:$major minor:$minor)"
+        Send-Notify "[STALLED] Polish stalled at iteration $iteration - no improvement for $STALL_THRESHOLD passes"
         Write-Host ""
         Write-Host "========================================================"  -ForegroundColor Yellow
         Write-Host "  STALLED at iteration $iteration" -ForegroundColor Yellow
         Write-Host "  No improvement for $STALL_THRESHOLD consecutive passes" -ForegroundColor Yellow
-        Write-Host "  Critical: $critical | Major: $major | Minor: $minor" -ForegroundColor Yellow
         Write-Host "  Review $FINDINGS_FILE for remaining issues" -ForegroundColor Yellow
         Write-Host "========================================================"  -ForegroundColor Yellow
         exit 1
     }
 
-    $prevTotal = $total
+    $prevSize = $fileSize
 
-    # -- CC2: Implement fixes --
+    # -- CC2: Fix --
     Write-Host "[CC2] Implementing fixes..." -ForegroundColor Yellow
     $findings = Get-Content $FINDINGS_FILE -Raw
 
@@ -217,20 +170,19 @@ $findings
     Run-Git add -A
     Run-Git commit -m "polish: iteration $iteration" --allow-empty -q
 
-    Write-Log "CONTINUE" $critical $major $minor
+    Write-Log "CONTINUE" $fileSize
     if ($VERBOSE_NOTIFY) {
-        Send-Notify "[ITERATION $iteration] Complete - critical:$critical major:$major minor:$minor"
+        Send-Notify "[ITERATION $iteration] Complete - critical:$critCount major:$majCount minor:$minCount"
     }
     Write-Host "[OK] Iteration $iteration complete. Looping..." -ForegroundColor Green
 }
 
 # -- Max iterations reached --
-Write-Log "MAX_ITERATIONS" $critical $major $minor
-Send-Notify "[MAX ITERATIONS] Polish hit max iterations ($MAX_ITERATIONS). Review needed. (critical:$critical major:$major minor:$minor)"
+Write-Log "MAX_ITERATIONS" $fileSize
+Send-Notify "[MAX ITERATIONS] Polish hit max iterations ($MAX_ITERATIONS). Review $FINDINGS_FILE"
 Write-Host ""
 Write-Host "========================================================"  -ForegroundColor Red
 Write-Host "  MAX ITERATIONS ($MAX_ITERATIONS) reached" -ForegroundColor Red
-Write-Host "  Critical: $critical | Major: $major | Minor: $minor" -ForegroundColor Red
 Write-Host "  Review $FINDINGS_FILE for remaining issues" -ForegroundColor Red
 Write-Host "========================================================"  -ForegroundColor Red
 exit 1
