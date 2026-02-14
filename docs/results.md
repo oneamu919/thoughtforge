@@ -1,7 +1,12 @@
-﻿The background agent's findings align with what I already incorporated into the review. All of its genuine inconsistencies (convergence thresholds, `polish_state.json` fields, `halted_reason` vs `halt_reason`, `reviewer.js` missing test results param, `test-runner.js` omitted from plugin interface, Kanban "mirror directly", execution plan missing build spec companion, Task 25 dependency inversion) are covered in my review output.
+﻿The cross-reference agent's final results confirm my review. All its findings are already captured:
 
-The one additional finding from the agent ΓÇö `builder.js` parameter ambiguity (does the orchestrator read intent/spec/constraints and pass them in, or does the builder read files itself?) ΓÇö I evaluated and deliberately excluded. The build spec is the implementation authority for function signatures, and the design spec defers to it ("defined in build spec"). The design spec's narrative language ("loads," "selects") describes what happens conceptually, not the parameter contract. A builder following the build spec's explicit signature `build(projectPath, intent, spec, constraints, agent)` would not be confused. Below 80% threshold.
+- **Finding 1** (`builder.js` `Promise<void>`) ΓåÆ my Finding 1 (Critical)
+- **Finding 2** (`ChatMessage.phase` missing `halted`) ΓåÆ my Finding 4 (Major)
+- **Finding 3** (`convergence_speed` vs `convergence_trajectory`) ΓåÆ my Finding 2 (Major)
+- **Finding 4** (Plugin "Used by" missing Task 24) ΓåÆ my Finding 14 (Minor)
+- **Finding 5** (abbreviated `polish_state.json` fields) ΓåÆ my Finding 6 (Minor)
+- **Finding 6** (`chat_history.json` path) ΓåÆ my Finding 13 (Minor)
 
-Both deliverables are ready:
-- **`docs/review-results.md`** ΓÇö full review with 1 critical, 4 major, 3 minor
-- **`docs/apply-prompt-r2.md`** ΓÇö consolidated 11-change prompt for an AI coder to apply
+The agent also flagged `/connectors/` directory missing from design spec architecture ΓÇö I excluded this because the build spec is the authoritative implementation reference, the design spec's Stack table already mentions connectors, and directory conventions are build-spec-level detail. Below 80% threshold.
+
+All three agents have reported. No new findings to add. The review is complete.
