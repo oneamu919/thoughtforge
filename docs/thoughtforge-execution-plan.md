@@ -68,7 +68,7 @@
 | 16 | Create OPA skeleton Handlebars templates (generic, wedding, strategy, engineering) | — | Task 15 | — | Not Started |
 | 17 | Implement `reviewer.js` — Plan review Zod schema + severity definitions | — | Task 14 | — | Not Started |
 | 18 | Implement `safety-rules.js` — hard-block all code execution in plan mode | — | Task 14 | — | Not Started |
-| 19 | Implement Plan Completeness Gate (assessment prompt for Code mode entry, auto-redirect to Plan mode on fail) | — | Task 14, Task 7a, Task 19a, Tasks 41–42 | — | Not Started |
+| 19 | Implement Plan Completeness Gate (assessment prompt for Code mode entry, halt with `plan_incomplete` on fail — human decides to override or create separate Plan project) | — | Task 14, Task 7a, Task 19a, Tasks 41–42 | — | Not Started |
 | 19a | Draft `/prompts/completeness-gate.md` prompt text | — | Task 7a | — | Not Started |
 
 ### Build Stage 4: Code Mode Plugin
@@ -162,7 +162,7 @@
 
 | Item | Type | Owner | Status | Resolution |
 |------|------|-------|--------|------------|
-| Vibe Kanban installed and CLI accessible | Dependency | — | — | Install before Phase 5 |
+| Vibe Kanban installed and CLI accessible | Dependency | — | — | Install before Build Stage 5 |
 | Node.js available (via OpenClaw) | Dependency | — | — | Pre-existing |
 | Claude Code CLI / Gemini CLI / Codex CLI access | Dependency | — | — | Flat-rate subscriptions active |
 | ntfy.sh accessible (cloud or self-hosted) | Dependency | — | — | Free cloud tier or self-host |

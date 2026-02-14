@@ -14,7 +14,7 @@
 
 ### OPA Framework
 
-OPA (Objective → Plan → Assessment) is the structural framework used for all Plan mode deliverables. Every major section of a plan document is expressed as an OPA table:
+Plan mode deliverables use an **OPA Table** structure — **Objective → Plan → Assessment** — for every major section. This is unrelated to the OPA (Outcome • Purpose • Action) framework used in the Requirements Brief, which follows Tony Robbins' RPM System for document organization. The deliverable OPA Table is a content structure for plan sections:
 
 | Column | Purpose |
 |---|---|
@@ -465,12 +465,15 @@ Orchestrator core actions (create project, check status, read polish log, trigge
 | Notifications | Channel selection (ntfy, telegram, etc.), channel-specific settings | ntfy enabled, topic "thoughtforge" |
 | Resource Connectors | Connector selection (Notion, Google Drive, etc.), per-connector credentials and settings | All disabled by default |
 | Agents | Default agent, call timeout, per-agent command and flags | claude, 300s |
-| Templates | Template directory path | `./plugins/plan/templates` (plan mode templates live inside the plan plugin) |
+| Templates | Plan mode templates located at `./plugins/plan/templates/` by convention (inside the plan plugin directory). Cross-plugin template directory config deferred — not a current build dependency. | N/A (convention-based, not configurable in v1) |
 | Plugins | Plugin directory path | `./plugins` |
 | Prompts | Prompt directory path, individual prompt files | `/prompts/`, one `.md` file per prompt |
 | Vibe Kanban | Enabled toggle | true |
+| Server | Web chat interface port | 3000 |
 
 **Credential Handling:** API tokens and credential paths in `config.yaml` are stored in plaintext. This is acceptable for v1 as a single-operator local tool. The operator is responsible for file system permissions on `config.yaml`. Credential encryption, secret vaults, and environment variable injection are deferred — not a current build dependency.
+
+**Config Validation:** On startup, the config loader validates `config.yaml` against the expected schema. If the file is missing, the server exits with an error message specifying the expected file path. If the file contains invalid YAML syntax or values that fail schema validation (wrong types, out-of-range numbers, missing required keys), the server exits with a descriptive error identifying the invalid key and expected format. No partial loading or default fallback for malformed config — the operator must fix the file. Validation uses the same Zod-based approach as review JSON validation.
 
 Full `config.yaml` with all keys and structure in build spec.
 

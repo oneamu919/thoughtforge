@@ -195,6 +195,10 @@ Rules:
 
 - `discover(intent, constraints)` → `Promise<object>` — Phase 2 hook for type-specific discovery logic. Code plugin uses this for OSS qualification scorecard. Plan plugin may omit this file. If the file is absent, the plugin loader skips it.
 
+### test-runner.js
+
+- `runTests(projectPath)` → `Promise<{ total: number, passed: number, failed: number, details: string }>` — Executes all tests in the project, returns structured results. The `details` field contains raw test runner output for inclusion in review context. Called by the orchestrator before each Phase 4 Code mode review step, and during Phase 3 Code mode build iteration.
+
 ---
 
 ## Zod Review Schemas
@@ -443,7 +447,7 @@ interface ChatMessage {
 type ChatHistory = ChatMessage[];
 ```
 
-On crash, chat resumes from last recorded message. Cleared after phase advancement confirmation.
+On crash, chat resumes from last recorded message. Cleared after Phase 1→Phase 2 and Phase 2→Phase 3 confirmation button presses only. Phase 3→Phase 4 transition is automatic and does NOT clear chat history — Phase 3 stuck recovery messages persist into Phase 4.
 
 ---
 
@@ -559,6 +563,10 @@ prompts:
 # Vibe Kanban integration
 vibekanban:
   enabled: true
+
+# Web server
+server:
+  port: 3000
 ```
 
 ---
