@@ -67,34 +67,12 @@ function Get-Counts($file) {
     $content = Get-Content $file -Raw -ErrorAction SilentlyContinue
     if (-not $content) { return $null }
 
-    # Try JSON block first
-    if ($content -match '(?s)```json\s*(\{.*?\})\s*```') {
-        $jsonStr = $Matches[1]
-        try {
-            $parsed = $jsonStr | ConvertFrom-Json
-            if ($null -ne $parsed.critical -and $null -ne $parsed.major -and $null -ne $parsed.minor) {
-                return @{
-                    critical = [int]$parsed.critical
-                    major    = [int]$parsed.major
-                    minor    = [int]$parsed.minor
-                }
-            }
-        } catch {}
-    }
+    # Count severity tags directly from CC1 output
+    $c = ([regex]::Matches($content, '\[Critical\]', 'IgnoreCase')).Count
+    $m = ([regex]::Matches($content, '\[Major\]', 'IgnoreCase')).Count
+    $n = ([regex]::Matches($content, '\[Minor\]', 'IgnoreCase')).Count
 
-    # Fallback: line-by-line regex
-    $c = $null; $m = $null; $n = $null
-    foreach ($line in ($content -split "`n")) {
-        if ($line -match '(?i)"?critical"?\s*[=:]\s*(\d+)') { $c = [int]$Matches[1] }
-        if ($line -match '(?i)"?major"?\s*[=:]\s*(\d+)')    { $m = [int]$Matches[1] }
-        if ($line -match '(?i)"?minor"?\s*[=:]\s*(\d+)')    { $n = [int]$Matches[1] }
-    }
-
-    if ($null -ne $c -and $null -ne $m -and $null -ne $n) {
-        return @{ critical = $c; major = $m; minor = $n }
-    }
-
-    return $null
+    return @{ critical = $c; major = $m; minor = $n }
 }
 
 # -- Preflight --
@@ -133,16 +111,10 @@ while ($iteration -lt $MAX_ITERATIONS) {
     Write-Host "[CC1] Reviewing..." -ForegroundColor Yellow
     $reviewInput = Get-Content $REVIEW_PROMPT -Raw
 
-    $jsonExample = '```json' + "`n" + '{"critical": 0, "major": 0, "minor": 0}' + "`n" + '```'
-
     $prompt = @"
 $reviewInput
 
-Read all project files and apply your review. At the very end of your output, append a JSON convergence block with your counts. Use this exact format (replace 0s with your actual counts):
-
-$jsonExample
-
-This block MUST appear at the end. Do NOT omit it. Do NOT change the format. The numbers must reflect your actual findings.
+Read all project files and apply your review.
 "@
 
     claude -p $prompt --output-format text 2>$null | Set-Content -Path $FINDINGS_FILE
@@ -150,49 +122,16 @@ This block MUST appear at the end. Do NOT omit it. Do NOT change the format. The
     # -- Parse convergence --
     $counts = Get-Counts $FINDINGS_FILE
 
-    # -- Parse failure: retry once --
+    # -- No findings at all: halt --
     if ($null -eq $counts) {
-        if ($VERBOSE_NOTIFY) {
-            Send-Notify "[RETRY] Iteration $iteration - parse retry triggered, CC1 did not output valid counts"
-        }
-        Write-Host "[CC1] Parse failed. Retrying count extraction..." -ForegroundColor Yellow
-
-        $retryPrompt = @"
-Read the file state/findings.md which contains a review you just wrote. Count the findings by severity. Output ONLY this JSON block and nothing else:
-
-$jsonExample
-
-Replace the 0s with the actual counts of Critical, Major, and Minor findings in the review.
-"@
-        $retryResult = claude -p $retryPrompt --output-format text
-        $retryResult | Set-Content -Path "$STATE_DIR\counts-retry.txt"
-
-        # Try to parse the retry
-        if ($retryResult -match '(?s)\{.*?"critical".*?\}') {
-            try {
-                $parsed = ($Matches[0] | ConvertFrom-Json)
-                if ($null -ne $parsed.critical -and $null -ne $parsed.major -and $null -ne $parsed.minor) {
-                    $counts = @{
-                        critical = [int]$parsed.critical
-                        major    = [int]$parsed.major
-                        minor    = [int]$parsed.minor
-                    }
-                }
-            } catch {}
-        }
-    }
-
-    # -- Still no counts: halt --
-    if ($null -eq $counts) {
-        Write-Log "PARSE_FAILED" -1 -1 -1
+        Write-Log "NO_OUTPUT" -1 -1 -1
         Run-Git add -A
-        Run-Git commit -m "polish: iteration $iteration - PARSE FAILED" --allow-empty -q
-        Send-Notify "[PARSE FAILED] Polish HALTED at iteration $iteration - could not parse CC1 severity counts. Check $FINDINGS_FILE"
-        Write-Host "" 
+        Run-Git commit -m "polish: iteration $iteration - NO OUTPUT" --allow-empty -q
+        Send-Notify "[NO OUTPUT] Polish HALTED at iteration $iteration - CC1 produced no output. Check $FINDINGS_FILE"
+        Write-Host ""
         Write-Host "========================================================"  -ForegroundColor Red
-        Write-Host "  PARSE FAILED at iteration $iteration" -ForegroundColor Red
-        Write-Host "  CC1 output did not contain parseable counts." -ForegroundColor Red
-        Write-Host "  Check $FINDINGS_FILE and retry manually." -ForegroundColor Red
+        Write-Host "  NO OUTPUT at iteration $iteration" -ForegroundColor Red
+        Write-Host "  CC1 produced no findings file." -ForegroundColor Red
         Write-Host "========================================================"  -ForegroundColor Red
         exit 1
     }
