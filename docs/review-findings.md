@@ -292,3 +292,45 @@ No findings. The build spec extraction has already been done thoroughly — impl
 **Major findings** are the count field confusion in Zod schemas, the execution plan task description contradicting the design spec, the missing agent response format, and the unspecified unknown-resolution mechanism for Phase 2.
 
 All findings have specific replacement text or proposed content.
+
+---
+
+## Appendix: Validation Against Git History
+
+Each finding was verified against the actual git history to confirm it represents a real issue, not fabricated noise.
+
+### Confirmed Valid (7 of 11)
+
+| # | Finding | Verdict | Evidence |
+|---|---------|---------|----------|
+| 1 | OPA acronym inconsistency | **CONFIRMED — real conflict introduced by prior review** | `1bb3c51` added "Objective → Plan → Assessment" to design spec. Requirements brief has said "Outcome • Purpose • Action" since `a9bd431`. OPA Framework Template also says "Outcome • Purpose • Action." Three documents, two different definitions. A previous review session introduced the wrong one. |
+| 2 | `halted_reason` vs `halt_reason` | **CONFIRMED** | Both field names present in `build-spec.md` since its initial extraction in `14948fd`. `status.json` schema line 393 says `halted_reason`, `polish_state.json` schema line 424 says `halt_reason`. |
+| 3 | Zod count fields required but ignored | **CONFIRMED** | Count Derivation section (added `1bb3c51`) explicitly says "orchestrator ignores top-level count fields." Both Zod schemas (added `14948fd`) require them as `z.number().int().min(0)`. A builder will see required fields the system discards. |
+| 4 | Task 19 "auto-redirect" contradicts design spec | **CONFIRMED — stale from partial update** | `7731e38` added "auto-redirect to Plan mode on fail" to Task 19. Same day, `1bb3c51` rewrote the design spec to say "ThoughtForge does not automatically create projects on the human's behalf." Execution plan was never updated to match. |
+| 5 | Agent adapter normalized format undefined | **CONFIRMED** | Build spec line 324 says "normalize to ThoughtForge's internal format" since `14948fd`. That internal format is never defined anywhere in any document. |
+| 7 | "OpenClaw" unexplained | **CONFIRMED** | Present in 3 files (requirements brief, design spec, execution plan). No definition anywhere. Truly minor — won't block a build. |
+| 8 | Template directory config mismatch | **CONFIRMED** | Design spec line 468 lists it as configurable. Build spec `config.yaml` template comments it out as "reserved for future." Minor inconsistency. |
+
+### Overclaiming / Weak (3 of 11)
+
+| # | Finding | Verdict | Why It's Weak |
+|---|---------|---------|---------------|
+| 6 | Unknown resolution mechanism missing | **OVERCLAIMING** | Design spec line 112 explicitly says "AI validates that all Unknowns and Open Questions from `intent.md` have been resolved." That IS the mechanism — prompt-based AI validation. The exact prompt is deferred to Task 12 (standard for this project). My proposed addition adds useful precision but the mechanism isn't actually missing. **Downgrade from Major to Minor.** |
+| 9 | `chat_history.json` clearing rules ambiguous | **ALREADY ADDRESSED** | I flagged the build spec (line 446) as vague, but the design spec (line 395) already has the full detail: "Cleared after each phase advancement confirmation (Phase 1 → Phase 2 and Phase 2 → Phase 3)... Phase 3 and Phase 4 recovery conversations are also persisted." The build spec is just a shorter summary. A builder reading both docs has the full picture. **Downgrade to informational — not a real gap.** |
+| 10 | Review prompt severity differs from pipeline severity | **NOT A REAL ISSUE** | The `project-plan-review-prompt.md` is a meta-document for reviewing the ThoughtForge docs themselves (Critical/Major/Minor). The pipeline's error schema (critical/medium/minor) is for reviewing deliverables. These are completely different contexts. No builder would confuse them. **Remove.** |
+
+### Non-Issue (1 of 11)
+
+| # | Finding | Verdict |
+|---|---------|---------|
+| 11 | CLAUDE.md empty sections | Already acknowledged as a template to be filled during development. Not a gap. |
+
+### Revised Honest Count
+
+| Severity | Original | After Validation |
+|----------|----------|-----------------|
+| Critical | 2 | **2** (both confirmed) |
+| Major | 4 | **3** (#6 downgraded to Minor) |
+| Minor | 5 | **3** (#7, #8 confirmed; #6 downgraded here; #9 and #10 removed) |
+| Removed | 0 | **3** (#9 already addressed, #10 not real, #11 non-issue) |
+| **Real findings** | **11** | **8** |
