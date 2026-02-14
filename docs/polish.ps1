@@ -29,33 +29,42 @@ function Send-Notify($message) {
     Write-Host $message
 }
 
-# -- Counter --
 if (Test-Path $COUNTER_FILE) {
     $count = [int](Get-Content $COUNTER_FILE)
+    Send-Notify "[RESUMED] Polish resuming from iteration $count (max $MaxIterations)"
 } else {
     $count = 0
+    Send-Notify "[STARTED] Polish loop running (max $MaxIterations iterations)"
 }
-
-Send-Notify "[STARTED] Polish loop running (max $MaxIterations iterations)"
 
 while ($count -lt $MaxIterations) {
     $count++
     $count | Set-Content -Path $COUNTER_FILE
+    Send-Notify "[ITERATION $count/$MaxIterations]"
 
     # -- Step 1: Review --
     & "$scriptDir\review.ps1"
-    if ($LASTEXITCODE -ne 0) { exit 1 }
+    if ($LASTEXITCODE -ne 0) {
+        Send-Notify "[POLISH STOPPED] Failed at iteration $count"
+        exit 1
+    }
 
     # -- Step 2: Check --
     & "$scriptDir\check.ps1"
-    if ($LASTEXITCODE -ne 0) { exit 1 }
+    if ($LASTEXITCODE -ne 0) {
+        Send-Notify "[POLISH STOPPED] Failed at iteration $count"
+        exit 1
+    }
 
     # -- Step 3: Decide --
     $checkResult = Get-Content "resultscheck.md" -Raw
     if ($checkResult -match 'result:\s*true') {
         # Still needs updates -- apply fixes
         & "$scriptDir\apply.ps1"
-        if ($LASTEXITCODE -ne 0) { exit 1 }
+        if ($LASTEXITCODE -ne 0) {
+            Send-Notify "[POLISH STOPPED] Failed at iteration $count"
+            exit 1
+        }
     } else {
         # Converged
         if (Test-Path $COUNTER_FILE) { Remove-Item $COUNTER_FILE }
