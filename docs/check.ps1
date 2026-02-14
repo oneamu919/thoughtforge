@@ -24,4 +24,10 @@ if (-not (Test-Path "check-prompt.md")) {
 Send-Notify "[CHECK] Checking results.md..."
 $result = Get-Content "check-prompt.md" -Raw -Encoding UTF8 | claude -p - --dangerously-skip-permissions --output-format text
 $result | Set-Content -Path "resultscheck.md" -Encoding UTF8
+
+# Git commit
+git add resultscheck.md
+git commit -m "Check iteration - resultscheck.md"
+git push
+
 Send-Notify "[CHECK] $result"
