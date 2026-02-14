@@ -30,11 +30,9 @@ $findings = Get-Content "results.md" -Raw
 $checkPrompt = Get-Content "check-prompt.md" -Raw
 $checkPrompt += "`n`n--- REVIEW DOCUMENT ---`n$findings"
 
-claude -p $checkPrompt --output-format text 2>$null | Set-Content -Path "resultsbool.md"
+$result = claude -p $checkPrompt --output-format text 2>$null
 
-$result = Get-Content "resultsbool.md" -Raw
 Send-Notify "[CHECK #$count] $result"
-Write-Host "Written to resultsbool.md"
 
 # -- If true, apply the fixes --
 if ($result -match 'result:\s*true') {
