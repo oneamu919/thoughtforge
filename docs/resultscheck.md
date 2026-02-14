@@ -1,15 +1,10 @@
-﻿The file has always been this short at the latest commit ΓÇö the consolidated prompt was never written into this version of `results.md`. The file itself claims "The consolidated AI coder prompt at the bottom of results.md has 14 changes" but that content is missing.
+﻿The file is only 20 lines. Line 19 references "the consolidated AI coder prompt at the bottom of `results.md`" but there is no such prompt block in the file ΓÇö the file ends at line 20.
 
-I need to construct the apply-prompt from the findings listed in `results.md`. But since the actual prompt text with find/replace instructions was never written, I can't "extract" something that doesn't exist.
+**Counts:**
+- Critical: 1
+- Major: 7
+- Minor: 7
 
-Let me be transparent about this: **The consolidated prompt block referenced in line 19 of `results.md` does not actually exist in the file.** The file ends at line 20 with no prompt content below the summary.
+These do **not** meet convergence criteria (requires 0 critical, <3 major, <5 minor). Updates are still needed.
 
-I have two options:
-1. Report that the prompt is missing and cannot be extracted
-2. Generate the prompt from the findings
-
-Since you asked me to "extract the complete block of text that is designated as the consolidated prompt," and that block does not exist in `results.md`, I cannot fulfill that part of the request. The file references 14 changes but only contains the summary of findings ΓÇö the actual prompt with find/replace instructions was never written.
-
-**Would you like me to:**
-- Generate a new apply-prompt from the 1 critical + 7 major + 7 minor findings listed in the summary, or
-- Flag this to whatever agent produced `results.md` so it can re-run and actually write the prompt?
+**result: error** ΓÇö review output is missing the consolidated prompt block. The file references a consolidated AI coder prompt "at the bottom of results.md" but the file ends at line 20 with no such block present.
