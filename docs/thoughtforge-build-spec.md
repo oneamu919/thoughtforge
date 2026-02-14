@@ -276,7 +276,7 @@ Trigger: both conditions true → halt
 
 ### Termination Guard
 
-- `critical == 0` AND `medium < 3` AND `minor < 5` (thresholds from `config.yaml`)
+- `critical <= 0` AND `medium <= 3` AND `minor <= 5` (thresholds from `config.yaml`, inclusive — the configured max is the highest allowed count)
 - Code mode additionally requires all tests passing
 - Trigger: all conditions true → done
 
@@ -384,7 +384,7 @@ Each connector module in `/connectors/` implements:
 
 ```typescript
 interface ProjectStatus {
-  project_name: string;       // Human-readable name, derived during Phase 1
+  project_name: string;       // Empty string at creation. Derived from intent.md title after Phase 1 distillation.
   phase: "brain_dump" | "distilling" | "human_review" | "spec_building" | "building" | "polishing" | "done" | "halted";
   deliverable_type: "plan" | "code" | null;  // null until Phase 1 distillation determines type
   agent: string;

@@ -41,7 +41,9 @@
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
-| 7 | Build ThoughtForge lightweight web chat interface | — | Task 1a | — | Not Started |
+| 7 | Build ThoughtForge web chat interface: core chat panel with per-project thread, AI message streaming via WebSocket, messages labeled by phase | — | Task 1a | — | Not Started |
+| 7g | Implement project list sidebar: list active projects with current phase, click to switch, "New Project" action | — | Task 7, Task 2 | — | Not Started |
+| 7h | Implement file/resource dropping in chat interface (upload to `/resources/`) | — | Task 7 | — | Not Started |
 | 7a | Externalize all pipeline prompts to `/prompts/` directory as `.md` files (brain-dump-intake, plan-review, code-review, plan-fix, code-fix, plan-build, code-build, spec-building, completeness-gate) | — | Task 1 | — | Not Started |
 | 7b | Implement Settings button in chat interface — prompt editor that lists, views, and saves all prompt files from `/prompts/` directory | — | Task 7, Task 7a | — | Not Started |
 | 7c | Implement resource connector abstraction layer — config-driven loader, connector interface (pull → save to `/resources/`), error handling (auth failure, not found → log and continue) | — | Task 1 | — | Not Started |
@@ -97,10 +99,10 @@
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
+| 30 | Implement orchestrator loop: review call → parse → validate → fix call → commit | — | Task 3, Task 6a, Task 6c, Task 17, Task 22, Tasks 30a–30b, Tasks 41–42 | — | Not Started |
 | 30a | Draft `/prompts/plan-review.md` and `/prompts/plan-fix.md` prompt text | — | Task 7a | — | Not Started |
 | 30b | Draft `/prompts/code-review.md` and `/prompts/code-fix.md` prompt text | — | Task 7a | — | Not Started |
 | 30c | Implement Code mode iteration cycle: test execution via `test-runner.js` before review, test results passed as reviewer context | — | Task 24, Task 30 | — | Not Started |
-| 30 | Implement orchestrator loop: review call → parse → validate → fix call → commit | — | Task 3, Task 6a, Task 6c, Task 17, Task 22, Tasks 30a–30b, Tasks 41–42 | — | Not Started |
 | 31 | Implement Zod validation flow (safeParse, retry on failure, halt after max retries) | — | Task 30 | — | Not Started |
 | 32 | Implement count derivation from issues array (ignore top-level counts) | — | Task 30 | — | Not Started |
 | 33 | Implement convergence guard: termination (success) | — | Task 30 | — | Not Started |
@@ -139,6 +141,7 @@
 | 55 | Test crash recovery (kill mid-loop, verify resume) | — | Task 38 | — | Not Started |
 | 56 | Test parallel execution (3 concurrent projects, different agents) | — | Task 29 | — | Not Started |
 | 57 | Test VK-disabled fallback (full pipeline without Vibe Kanban) | — | Task 29a | — | Not Started |
+| 58 | Unit tests: prompt editor (list prompt files, read content, save edits, handle missing/corrupt files) | — | Task 7b | — | Not Started |
 
 ---
 
@@ -201,6 +204,7 @@
 - [ ] Plugin interface contract validated (plan + code plugins)
 - [ ] Unit tests pass for all core modules (state, plugins, guards, agents, connectors, notifications)
 - [ ] `config.yaml` controls all configurable values
+- [ ] Prompt editor: list, view, edit, and save prompt files via Settings UI
 - [ ] Retrospective / lessons learned captured
 
 ---

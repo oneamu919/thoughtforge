@@ -55,7 +55,7 @@ Handlebars templates define the OPA skeleton — fixed section headings with OPA
 
 **Primary Flow:**
 
-0. **Project Initialization:** Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project" command or button). ThoughtForge generates a unique project ID, creates the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories), initializes a git repo, writes an initial `status.json` with phase `brain_dump`, and opens a new chat thread. If Vibe Kanban integration is enabled, a corresponding card is created at this point.
+0. **Project Initialization:** Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project" command or button). ThoughtForge generates a unique project ID, creates the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories), initializes a git repo, writes an initial `status.json` with phase `brain_dump` and `project_name` as empty string, and opens a new chat thread. After Phase 1 distillation locks `intent.md`, the project name is extracted from the `intent.md` title and written to `status.json`. If Vibe Kanban is enabled, the card name is updated at the same time. If Vibe Kanban integration is enabled, a corresponding card is created at this point.
 
 **Agent Assignment:** The agent specified in `config.yaml` `agents.default` is assigned to the project at initialization and stored in `status.json` as the `agent` field. This determines which AI agent is used for all pipeline phases. Per-project agent override is deferred — not a current build dependency.
 
@@ -67,7 +67,7 @@ Handlebars templates define the OPA skeleton — fixed section headings with OPA
 6. AI distills into structured document: Deliverable Type, Objective, Assumptions, Constraints, Unknowns, Open Questions (max 5)
 7. AI presents distillation to human in chat
 8. Human corrects via chat → AI revises and re-presents
-9. Human can say "realign from here" at any message in the correction thread — AI discards all revisions after that message and re-distills from that point forward. Does not restart from the original brain dump.
+9. Human can type "realign from here" as a chat message. The AI treats the human's most recent substantive correction (the last non-command human message before "realign from here") as the new baseline. All AI revisions produced after that correction are discarded. The AI re-distills from the original brain dump plus all human corrections up to and including that baseline message. Does not restart from the original brain dump alone.
 10. Human clicks **Confirm** button → advances to Phase 2
 11. Output: `intent.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline.
 
@@ -392,7 +392,7 @@ Every phase transition pings the human with a status update. Every notification 
 | `status.json` | Every phase transition and state change | Tracks project name, current phase, deliverable type, assigned agent, timestamps, and halt reason. Full schema in build spec. |
 | `polish_state.json` | After each Phase 4 iteration | Iteration number, error counts, convergence trajectory, timestamp |
 | `polish_log.md` | Appended after each Phase 4 iteration | Human-readable iteration log |
-| `chat_history.json` | Appended after each chat message (Phases 1–2, Phase 3 stuck recovery, Phase 4 halt recovery) | Array of timestamped messages (role, content, phase). On crash, chat resumes from last message. Cleared after each phase advancement confirmation (Phase 1 → Phase 2 and Phase 2 → Phase 3), so each phase starts with a fresh chat history. Phase 3 and Phase 4 recovery conversations are also persisted. |
+| `chat_history.json` | Appended after each chat message (Phases 1–2, Phase 3 stuck recovery, Phase 4 halt recovery) | Array of timestamped messages (role, content, phase). On crash, chat resumes from last message. Cleared after each phase advancement confirmation (Phase 1 → Phase 2 and Phase 2 → Phase 3). Phase 3→4 is automatic and does NOT clear chat history — any Phase 3 stuck recovery messages persist into Phase 4. Phase 3 and Phase 4 recovery conversations are also persisted. |
 
 **`polish_log.md` entry format:** Each iteration appends a human-readable summary including error counts, guard evaluations, issues found, and fixes applied. Full entry format in build spec.
 
@@ -460,7 +460,7 @@ Orchestrator core actions (create project, check status, read polish log, trigge
 
 | Config Area | What's Configurable | Defaults |
 |---|---|---|
-| Polish loop | Convergence thresholds (critical, medium, minor max), max iterations, stagnation limit, malformed output retries | 0 / 3 / 5 / 50 / 3 / 2 |
+| Polish loop | Convergence thresholds: `critical_max` (0), `medium_max` (3), `minor_max` (5) — maximum allowed counts, inclusive. Max iterations (50). Stagnation limit (3). Malformed output retries (2). | See "What's Configurable" column for per-key defaults |
 | Concurrency | Max parallel runs | 3 |
 | Notifications | Channel selection (ntfy, telegram, etc.), channel-specific settings | ntfy enabled, topic "thoughtforge" |
 | Resource Connectors | Connector selection (Notion, Google Drive, etc.), per-connector credentials and settings | All disabled by default |
