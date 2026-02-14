@@ -1,257 +1,347 @@
-I've read all four documents in full. Now let me produce the review.
+Good GÇö the prior review findings have already been applied (commits `1bb3c51`, `5869e2e`, `0c99f51`). The current documents are the *post-application* state. I'm reviewing the documents as they stand now.
+
+Now let me do the full review. I've read all four documents completely.
 
 ---
 
-# Plan Review GÇö ThoughtForge Pipeline Tool
+# ThoughtForge Plan Review
+
+**Documents reviewed:** Requirements Brief, Design Specification, Execution Plan, Build Spec  
+**Prior review context:** Two prior review iterations applied (commits `1bb3c51` through `ac18718`). Reviewing the current state of all documents as baseline.
+
+---
 
 ## 1. Writing That's Unclear
 
-**[Major] Design Spec, Phase 2, Step 3 GÇö "resolves" is ambiguous about what happens when the AI can't reason its way to a decision**
+**[Major] Design Spec, Phase 1 Step 0 GÇö Project Initialization is still a wall of text**
 
-The current text at line 108:
-> "AI resolves Unknowns and Open Questions from `intent.md` GÇö either by making a reasoned decision (stated in `spec.md`) or by asking the human during the Phase 2 chat. No unresolved unknowns may carry into `spec.md`."
-
-The error handling table below covers "AI cannot resolve an Unknown through reasoning," but the primary flow text makes it sound like the AI will always succeed at one of two paths. The reader has to cross-reference the error table to understand the fallback.
+Line 58 packs ~8 distinct operations into a single dense paragraph: ID generation, directory scaffolding, git init, status.json write, chat thread creation, project name extraction timing, and Vibe Kanban card creation. The prior review (results.md and findings.md) both flagged this and proposed numbered sub-steps, but the replacement was never applied GÇö the paragraph is unchanged.
 
 **Replacement:**
-> "AI attempts to resolve each Unknown and Open Question from `intent.md`. For each item, the AI either makes a reasoned decision (stated in `spec.md` with rationale) or, if it cannot reach a confident resolution through reasoning alone, presents the item to the human in the Phase 2 chat for decision. No unresolved unknowns may carry into `spec.md`."
+```
+0. **Project Initialization:**
+   1. Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project" command or button).
+   2. ThoughtForge generates a unique project ID and creates the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories).
+   3. Initializes a git repo in the project directory.
+   4. Writes an initial `status.json` with phase `brain_dump` and `project_name` as empty string.
+   5. Opens a new chat thread.
+   6. If Vibe Kanban integration is enabled, a corresponding card is created at this point.
+   7. After Phase 1 distillation locks `intent.md`, the project name is extracted from the `intent.md` title and written to `status.json`. If Vibe Kanban is enabled, the card name is updated at the same time.
+```
 
 ---
 
-**[Major] Design Spec, Stagnation Guard GÇö "issue rotation detected" needs the threshold stated inline, not just in the build spec**
+**[Major] Design Spec, Phase 4 Code Mode Iteration Cycle GÇö dense inline paragraph**
 
-Line 230:
-> "Total count plateaus across consecutive iterations AND issue rotation detected (specific issues change between iterations even though the total stays flat GÇö the loop has reached the best quality achievable autonomously)"
-
-The design spec defines every other guard's trigger condition with enough specificity to understand the mechanism (e.g., hallucination says "spikes sharply after a sustained downward trend"). Stagnation says "issue rotation detected" but the actual definition (70% match threshold, Levenshtein GëÑ0.8) only appears in the build spec. A reader of the design spec alone can't understand what "rotation" means concretely.
+Line 222 describes a three-step process (Test GåÆ Review GåÆ Fix) in a single paragraph with nested parentheticals. The prior review (findings.md) flagged this too, but it was never applied.
 
 **Replacement:**
-> "Total count plateaus across consecutive iterations AND issue rotation detected GÇö fewer than 70% of issues in the current iteration match issues from the prior iteration (matched by description similarity). The loop has reached the best quality achievable autonomously."
+```
+**Code Mode Iteration Cycle:** Code mode adds a test execution step to each iteration. The full cycle per iteration is:
+
+1. **Test** GÇö Orchestrator runs tests via the code plugin's `test-runner.js` and captures results.
+2. **Review** GÇö Orchestrator passes test results as additional context to the reviewer AI, alongside the codebase and `constraints.md`. Reviewer outputs JSON error report including test results.
+3. **Fix** GÇö Orchestrator passes issue list to fixer agent. Git commit after fix.
+
+This three-step cycle repeats until a convergence guard triggers. Plan mode iterations use the two-step cycle (Review GåÆ Fix) with no test execution.
+```
 
 ---
 
-**[Major] Design Spec, Fabrication Guard GÇö same problem as stagnation: mechanism unclear without build spec**
+**[Major] Design Spec, Stagnation Guard GÇö "issue rotation" is under-explained at the plan level**
 
-Line 231:
-> "A severity category spikes well above its recent average, AND the system had previously approached convergence thresholds GÇö suggesting the reviewer is manufacturing issues because nothing real remains"
+Line 230 says "specific issues change between iterations even though the total stays flat" but doesn't explain *why* this indicates success rather than failure. A builder reading only the design spec would wonder why changing issues with the same count means "done" instead of "stuck." The findings.md review proposed clarifying the Action cell, but the current text is unchanged.
 
-"Spikes well above" and "approached convergence thresholds" are vague at the plan level. The build spec defines these precisely (>50% above trailing 3-iteration average, within 2+ù of termination thresholds), but the design spec reader has no sense of scale.
-
-**Replacement:**
-> "A severity category spikes significantly above its trailing average (e.g., >50% increase), AND the system had previously reached near-convergence (within roughly 2+ù of termination thresholds) GÇö suggesting the reviewer is manufacturing issues because nothing real remains."
-
----
-
-**[Minor] Requirements Brief, line 9 GÇö "~12 hours" appears as both the problem and the target without distinguishing them**
-
-The Outcome says the polish loop "currently takes ~12 hours of manual work" and the Value section says "Reclaims ~12 hours of manual polish grind per project." These are the same number used two different ways (current cost vs. expected savings), which implies 100% automation of that time. If that's the intent, say so. If not, clarify.
-
-**Replacement for Value (line 79):**
-> "Reclaims the majority of ~12 hours currently spent on manual polish per project. Human time reduces to brain dump, correction, and final review only."
-
----
-
-**[Minor] Design Spec, Phase 1, Step 0 GÇö dense paragraph covering 6+ distinct operations**
-
-Line 58 is a single paragraph that covers: ID generation, directory creation, git init, status.json write, project name extraction timing, Vibe Kanban card creation. It's hard to parse as a sequence.
-
-**Replacement:**
-> 0. **Project Initialization:**
->    1. Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project" command or button).
->    2. ThoughtForge generates a unique project ID and creates the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories).
->    3. Initializes a git repo in the project directory.
->    4. Writes an initial `status.json` with phase `brain_dump` and `project_name` as empty string.
->    5. Opens a new chat thread.
->    6. After Phase 1 distillation locks `intent.md`, the project name is extracted from the `intent.md` title and written to `status.json`. If Vibe Kanban is enabled, the card name is updated at the same time.
->    7. If Vibe Kanban integration is enabled, a corresponding card is created at this point.
+**Replacement for the Stagnation guard row's Action cell:**
+> Done (success). The loop is producing different issues each iteration at the same count GÇö it's not fixing the same problems but finding new ones at the same rate, indicating the autonomous loop has reached diminishing returns. Notify human: "Polish sufficient. Ready for final review."
 
 ---
 
 **[Minor] Design Spec, Hallucination Guard GÇö "spikes sharply" is subjective**
 
-Line 229:
-> "Error count spikes sharply after a sustained downward trend"
-
-The build spec defines this as ">20% increase after 2+ declining iterations." The plan-level text should give directional specificity.
+Line 229 says "Error count spikes sharply after a sustained downward trend." The build spec defines this as ">20% increase after 2+ declining iterations" GÇö the design spec should give the same directional specificity so a builder doesn't have to cross-reference.
 
 **Replacement:**
-> "Error count increases meaningfully (e.g., >20%) after a sustained downward trend of 2+ iterations"
+> Error count increases meaningfully (e.g., >20%) after a sustained downward trend of 2+ iterations
+
+---
+
+**[Minor] Design Spec, Fabrication Guard GÇö same vagueness problem**
+
+Line 231 says "spikes well above its recent average" and "previously approached convergence thresholds." The build spec defines these precisely (>50% above trailing 3-iteration average, within 2+ù of termination thresholds). The plan-level text should indicate scale.
+
+**Replacement:**
+> A severity category spikes significantly above its trailing average (e.g., >50% increase), AND the system had previously reached near-convergence (within roughly 2+ù of termination thresholds) GÇö suggesting the reviewer is manufacturing issues because nothing real remains
+
+---
+
+**[Minor] Execution Plan, Task 30 dependency list GÇö hard to parse at a glance**
+
+Task 30 (line 102) depends on `Task 3, Task 6a, Task 6c, Task 17, Task 22, Tasks 30aGÇô30b, Tasks 41GÇô42`. This is the longest dependency chain in the plan and mixes foundation, orchestrator, both plugin reviewers, prompts, and agent layer. It's technically correct but would benefit from a brief contextual note.
+
+**Proposed:** Add a blockquote above Task 30's row:
+> Task 30 is the main polish loop GÇö it wires together the orchestrator, both plugin reviewers, review/fix prompts, and agent layer.
 
 ---
 
 ## 2. Genuinely Missing Plan-Level Content
 
-**[Critical] No error handling for concurrent access to shared resources**
+**[Major] No project ID format specified**
 
-The plan supports up to 3 parallel projects. The design spec says each project gets its own git repo and directory, which handles file isolation. But the shared resources are: the config file (`config.yaml`), the notification channel (ntfy.sh topic), and the web chat server (single Express instance on port 3000). There is no mention of:
-- What happens if two projects try to send notifications simultaneously (likely fine with ntfy.sh, but the abstraction layer isn't specified as concurrent-safe)
-- How the single web server handles multiple concurrent project chat sessions (does WebSocket multiplex? Is there a project-scoped session model?)
+The design spec says "ThoughtForge generates a unique project ID" (line 58) and uses `{id}` throughout but never states the format. This affects directory names, `status.json`, Vibe Kanban card IDs, and any future URL routing. Two builders would invent incompatible formats.
 
-**Proposed addition to Design Spec, Technical Design section, after the Chat Interface stack entry:**
+**Proposed addition** (Design Spec, after the Project Initialization section):
+> **Project ID Format:** UUIDv4 via `crypto.randomUUID()`. Used for directory names, `status.json` identity, and Vibe Kanban card IDs. Human-readable project names are stored separately in `status.json` `project_name`.
 
+---
+
+**[Major] Safety rules operation vocabulary undefined**
+
+The design spec says the orchestrator calls `safety-rules.js` `validate(operation)` (line 277) but never defines what `operation` values exist. The build spec shows `blockedOperations` as `string[]` with example values `["shell_exec", "file_create_source", "package_install"]` GÇö but these are examples, not a defined vocabulary. Two independent builders would produce incompatible operation taxonomies, breaking the safety enforcement contract.
+
+**Proposed addition** (Build Spec, under the `safety-rules.js` section):
+```
+**Operation Vocabulary (v1):**
+
+| Operation | Meaning |
+|---|---|
+| `shell_exec` | Execute a shell command or subprocess |
+| `file_create_source` | Create a source code file (`.js`, `.py`, `.ts`, `.sh`, etc.) |
+| `file_create_doc` | Create a document file (`.md`, `.json` state files) |
+| `package_install` | Install a package via npm, pip, etc. |
+| `agent_invoke` | Invoke a coding agent for code generation |
+| `test_run` | Execute a test suite |
+
+Plan mode blocks: `shell_exec`, `file_create_source`, `package_install`, `agent_invoke`, `test_run`. Allows: `file_create_doc`.
+Code mode blocks: none (all operations allowed).
+```
+
+---
+
+**[Major] Phase 4 fix step failure handling missing**
+
+The design spec defines error handling for the review step (Zod validation failure GåÆ retry GåÆ halt) and for the agent communication layer generally (retry once, halt on second). But Phase 4 has a specific nuance: if the fix step fails, should the orchestrator re-run the review before retrying the fix, or use the same review output? This is unspecified.
+
+**Proposed addition** (Design Spec, after the Step 2 Fix description):
+> **Fix Step Failure Handling:** If the fixer agent returns a non-zero exit, times out, or produces empty output, the same agent communication failure handling applies: retry once, halt and notify human on second failure. The failed iteration's review results are preserved in `polish_state.json` GÇö on resume, the orchestrator re-attempts the fix step using the same review output rather than re-running the review.
+
+---
+
+**[Major] No concurrency model for the web server**
+
+The plan supports up to 3 parallel projects running through a single Express/WebSocket server on port 3000. But the design never specifies how multiple concurrent project chat sessions are handled. Is the WebSocket multiplexed by project ID? Does each project get its own connection? How does the client switch between projects? The project list sidebar is described in the UI section but the underlying session model is absent.
+
+**Proposed addition** (Design Spec, Technical Design section, after the ThoughtForge Stack table):
 > **Concurrency Model:** The single Express/WebSocket server handles all active projects. Each WebSocket connection is scoped to a project ID GÇö the client sends the project ID on connection, and all subsequent messages are routed to that project's pipeline instance. Multiple browser tabs can connect to different projects simultaneously. Notification sends are stateless HTTP POSTs and require no concurrency coordination. The orchestrator runs one pipeline instance per active project; each instance operates on its own project directory and state files with no shared mutable state.
 
 ---
 
-**[Major] No specification of how the chat interface connects brain dump text to the pipeline**
+**[Major] No specification of how brain dump chat messages become distillation input**
 
-Phase 1 describes: "Human brain dumps into chat GÇö one or more messages of freeform text" and then "Human clicks Distill button." But the design never specifies how the chat messages become the input to the distillation prompt. Are all messages concatenated? Is there a message boundary? Is the raw chat text passed to the agent, or is it pre-processed?
+Phase 1 describes "Human brain dumps into chat GÇö one or more messages of freeform text" (step 1) and "Human clicks Distill button" (step 4), then "AI reads all resources and the brain dump" (step 5). But the design never specifies how the chat messages are assembled into the input for the distillation prompt. Are they concatenated? Separated? Pre-processed? The builder has to invent this.
 
-**Proposed addition to Design Spec, Phase 1, between current steps 4 and 5:**
-
+**Proposed addition** (Design Spec, Phase 1, as a new step between current steps 4 and 5):
 > When the human clicks **Distill**, the orchestrator concatenates all human chat messages from the current `brain_dump` phase (from `chat_history.json`) in chronological order, separated by newlines. This concatenated text, along with any files in `/resources/`, is passed to the distillation prompt as the brain dump input. No pre-processing or summarization is applied GÇö the AI receives the raw human text.
 
 ---
 
-**[Major] Execution Plan has no definition of "done" for prompt-drafting tasks**
+**[Minor] No notification failure handling**
 
-Tasks 7f, 15a, 19a, 21a, 30a, 30b are all "Draft `/prompts/{name}.md` prompt text." The execution plan doesn't specify what "done" means for a prompt. Is it written and committed? Written, tested against a real agent call, and revised? Just a first draft?
+The design spec defines notification content and channels but never says what happens if notification delivery fails (ntfy.sh unreachable, HTTP timeout). Notifications are non-critical, but a silent failure with no logging would make debugging harder.
 
-**Proposed addition to Execution Plan, before Build Stage 2 (as a note or convention):**
-
-> **Prompt drafting convention:** A prompt task is complete when the prompt file is written to `/prompts/`, committed, and the drafting developer has verified it produces the expected structured output format when tested against at least one agent with representative input. Prompts are iterable GÇö refinement happens during integration testing (Build Stage 8) GÇö but the initial draft must produce valid output.
-
----
-
-**[Major] No specification of unique project ID generation strategy**
-
-Design spec line 58 says "ThoughtForge generates a unique project ID" but never specifies the format or generation method. This matters because the ID is used in directory paths, git repo names, Vibe Kanban card IDs, and `status.json`. Is it a UUID? A timestamp? A slug? A sequential number?
-
-**Proposed addition to Design Spec, Phase 1, Step 0 (or as a footnote to the project initialization):**
-
-> **Project ID format:** UUID v4 (e.g., `a1b2c3d4-e5f6-7890-abcd-ef1234567890`). Generated via Node.js `crypto.randomUUID()`. Used as directory name, Vibe Kanban card ID, and internal reference. Human-readable project name is stored separately in `status.json` after Phase 1 distillation.
+**Proposed addition** (Design Spec, after the Notification Examples list):
+> **Notification Failure Handling:** If a notification send fails (HTTP error, timeout, unreachable endpoint), the failure is logged to `thoughtforge.log` as a `warn`-level event. The pipeline does not halt or retry GÇö notifications are best-effort. The human can review missed notifications via the project's state files.
 
 ---
 
-**[Minor] No mention of browser/client requirements for the chat UI**
+**[Minor] No guidance on manual edits to locked files**
 
-The design specifies "server-rendered HTML + vanilla JavaScript" and "WebSocket client in plain JS" but doesn't state whether this needs to work in any specific browser or just the operator's local browser. For a solo-operator tool this is low-stakes, but it's a standard plan-level item.
+The design spec says `intent.md`, `spec.md`, and `constraints.md` are "locked GÇö no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline." But it doesn't say whether manual edits take effect. Does the polish loop re-read `constraints.md` each iteration or cache it? A human editing acceptance criteria between iterations would expect the change to take effect.
 
-**Proposed addition to Design Spec, Technical Design, Chat UI entry:**
-
-> Targets modern evergreen browsers (Chrome, Firefox, Edge). No mobile support required. Operator accesses via `localhost:{port}` on the same machine running ThoughtForge.
+**Proposed addition** (Design Spec, after Phase 2 outputs):
+> **Manual Edit Behavior:** The orchestrator re-reads `constraints.md` at the start of each Phase 4 iteration. Manual human edits to locked files between iterations will take effect on the next iteration. No cache GÇö always reads from disk.
 
 ---
 
-**[Minor] Execution Plan has no rollback or recovery strategy for failed builds**
+**[Minor] Execution Plan missing chat UI integration tests**
 
-The plan has crash recovery for the polish loop (`polish_state.json`) but no mention of what happens if the build itself fails partway through a stage. If Task 15 (plan builder) partially completes and the operator needs to restart, what state is preserved? The git commits provide rollback points, but the plan doesn't explicitly state "roll back to last git commit and re-run the phase."
+Build Stage 8 has unit tests for state, plugins, guards, agents, connectors, notifications, and prompt editor. It has e2e tests for the full pipeline. But there's no mention of testing the web chat interface GÇö WebSocket streaming, button interactions, project switching, file dropping.
 
-**Proposed addition to Execution Plan, after the Dependencies & Blockers section:**
+**Proposed addition** (Execution Plan, Build Stage 8 table, after Task 58):
+> | 58a | Integration tests: chat interface (WebSocket connection, message streaming, button actions, project switching, file upload to `/resources/`) | GÇö | Task 7, Task 10 | GÇö | Not Started |
 
-> **Recovery Strategy:** Each pipeline phase commits to git at completion (per Design Spec git commit strategy). If a phase fails or produces unacceptable results, the operator can `git reset` the project repo to the last phase-completion commit and re-trigger the phase. Phase 4 crash recovery uses `polish_state.json` to resume mid-loop. No automated rollback GÇö the operator decides when to reset.
+---
+
+**[Minor] Execution Plan missing prompt drafting "done" definition**
+
+Tasks 7f, 15a, 19a, 21a, 30a, 30b are all "Draft `/prompts/{name}.md` prompt text." The execution plan doesn't specify completion criteria. Is it written and committed? Tested against a real agent? Just a first draft?
+
+**Proposed addition** (Execution Plan, before Build Stage 2, as a convention note):
+> **Prompt drafting convention:** A prompt task is complete when the prompt file is written to `/prompts/`, committed, and verified to produce the expected structured output format when tested against at least one agent with representative input. Prompts are iterable GÇö refinement continues during integration testing (Build Stage 8) GÇö but the initial draft must produce valid output.
 
 ---
 
 ## 3. Build Spec Material That Should Be Extracted
 
-**[Minor] Design Spec, line 157GÇô163 GÇö Plugin folder structure with specific filenames**
-
-The Design Spec section "Plugin Folder Structure" says "Full folder structure and filenames in build spec" but then the paragraphs above it (lines 342-344) already describe the exact contents: "a builder (Phase 3 drafting/coding), a reviewer (Phase 4 schema and severity definitions), safety rules (blocked operations), and any type-specific assets." This is fine at plan level. However, noting this for completeness: the design spec correctly defers the full file tree to the build spec. No action needed.
-
-**[Minor] Design Spec, line 348 GÇö Plugin interface contract function signatures**
-
-Line 348 says: "Plugin interface contract (function signatures, parameters, return types) defined in build spec." This is correctly deferred. The design spec describes what each component does without listing signatures. No action needed.
-
-**No items requiring extraction.** The design spec consistently defers implementation detail to the build spec using explicit forward references. The separation is clean.
+**No findings.** The design spec consistently defers implementation details (schemas, function signatures, CLI commands, prompt text, config templates) to the build spec using explicit forward references. The separation is clean.
 
 ---
 
-# Consolidated Coder Prompt
+## Summary
+
+| Severity | Count |
+|---|---|
+| Critical | 0 |
+| Major | 8 |
+| Minor | 6 |
+
+The plan is structurally sound GÇö no blockers, no contradictions, architecture is coherent. The 8 major findings fall into two categories: (1) three clarity rewrites that were flagged in prior reviews but never applied to the source files, and (2) five genuinely missing plan-level specifications that a builder would have to invent (project ID format, safety operation vocabulary, fix step failure handling, concurrency model, brain dump assembly). The minor findings are standard completeness improvements.
+
+---
+
+## Consolidated Coder Prompt
 
 ```
-You are applying the results of a plan review to the ThoughtForge project documentation.
-Apply every change below exactly as specified. Do not interpret, summarize, or skip any item.
+Apply the following changes to the ThoughtForge plan documents. Each change specifies
+the target file, the location, and the exact content to add or replace. Do not interpret GÇö
+apply exactly as written. All file paths are relative to docs/.
 
-## File: docs/thoughtforge-requirements-brief.md
+GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+File: thoughtforge-design-specification.md
+GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
 
-### Change 1 GÇö Clarify Value metric (line 79)
-Replace:
-"Reclaims ~12 hours of manual polish grind per project. Enables parallel execution of multiple projects with minimal human attention."
+CHANGE 1 GÇö Replace Phase 1 Step 0 paragraph (line 58)
+Find the paragraph starting with:
+  "0. **Project Initialization:** Human initiates a new project via the ThoughtForge chat interface"
+Replace the ENTIRE paragraph (from "0. **Project Initialization:**" through "...a corresponding card is created at this point.") with:
 
-With:
-"Reclaims the majority of ~12 hours currently spent on manual polish per project. Human time reduces to brain dump, correction, and final review only. Enables parallel execution of multiple projects with minimal human attention."
-
----
-
-## File: docs/thoughtforge-design-specification.md
-
-### Change 2 GÇö Clarify Phase 2 Unknown resolution (line 108)
-Replace:
-"AI resolves Unknowns and Open Questions from `intent.md` GÇö either by making a reasoned decision (stated in `spec.md`) or by asking the human during the Phase 2 chat. No unresolved unknowns may carry into `spec.md`."
-
-With:
-"AI attempts to resolve each Unknown and Open Question from `intent.md`. For each item, the AI either makes a reasoned decision (stated in `spec.md` with rationale) or, if it cannot reach a confident resolution through reasoning alone, presents the item to the human in the Phase 2 chat for decision. No unresolved unknowns may carry into `spec.md`."
-
-### Change 3 GÇö Break up Phase 1 Step 0 into numbered sub-steps (line 58)
-Replace the entire sentence starting "**Project Initialization:** Human initiates..." through "...a corresponding card is created at this point." with:
-
-"**Project Initialization:**
+0. **Project Initialization:**
    1. Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project" command or button).
-   2. ThoughtForge generates a unique project ID (UUID v4 via `crypto.randomUUID()`) and creates the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories).
+   2. ThoughtForge generates a unique project ID and creates the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories).
    3. Initializes a git repo in the project directory.
    4. Writes an initial `status.json` with phase `brain_dump` and `project_name` as empty string.
    5. Opens a new chat thread.
    6. If Vibe Kanban integration is enabled, a corresponding card is created at this point.
-   7. After Phase 1 distillation locks `intent.md`, the project name is extracted from the `intent.md` title and written to `status.json`. If Vibe Kanban is enabled, the card name is updated at the same time."
+   7. After Phase 1 distillation locks `intent.md`, the project name is extracted from the `intent.md` title and written to `status.json`. If Vibe Kanban is enabled, the card name is updated at the same time.
 
-### Change 4 GÇö Add brain dump concatenation specification
-After the current step 4 ("Human clicks **Distill** button...") and before step 5 ("AI reads all resources..."), insert:
+**Project ID Format:** UUIDv4 via `crypto.randomUUID()`. Used for directory names, `status.json` identity, and Vibe Kanban card IDs. Human-readable project names are stored separately in `status.json` `project_name`.
 
-"4a. When the human clicks **Distill**, the orchestrator concatenates all human chat messages from the current `brain_dump` phase (from `chat_history.json`) in chronological order, separated by newlines. This concatenated text, along with any files in `/resources/`, is passed to the distillation prompt as the brain dump input. No pre-processing or summarization is applied GÇö the AI receives the raw human text."
 
-### Change 5 GÇö Clarify Hallucination guard (line 229)
-Replace:
-"Error count spikes sharply after a sustained downward trend"
+CHANGE 2 GÇö Insert brain dump assembly step
+After the current step 4 ("Human clicks **Distill** button GÇö signals that all inputs...") and before step 5 ("AI reads all resources..."), insert as a new step:
 
+4a. When the human clicks **Distill**, the orchestrator concatenates all human chat messages from the current `brain_dump` phase (from `chat_history.json`) in chronological order, separated by newlines. This concatenated text, along with any files in `/resources/`, is passed to the distillation prompt as the brain dump input. No pre-processing or summarization is applied GÇö the AI receives the raw human text.
+
+
+CHANGE 3 GÇö Replace Code Mode Iteration Cycle paragraph (line 222)
+Find the paragraph starting with:
+  "**Code Mode Iteration Cycle:** Code mode adds a test execution step"
+Replace the ENTIRE paragraph with:
+
+**Code Mode Iteration Cycle:** Code mode adds a test execution step to each iteration. The full cycle per iteration is:
+
+1. **Test** GÇö Orchestrator runs tests via the code plugin's `test-runner.js` and captures results.
+2. **Review** GÇö Orchestrator passes test results as additional context to the reviewer AI, alongside the codebase and `constraints.md`. Reviewer outputs JSON error report including test results.
+3. **Fix** GÇö Orchestrator passes issue list to fixer agent. Git commit after fix.
+
+This three-step cycle repeats until a convergence guard triggers. Plan mode iterations use the two-step cycle (Review GåÆ Fix) with no test execution.
+
+
+CHANGE 4 GÇö Add fix step failure handling
+After the line "**Step 2 GÇö Fix (apply recommendations):** Orchestrator passes JSON issue list to fixer agent, which applies fixes. Git commit snapshot after each step.", add:
+
+**Fix Step Failure Handling:** If the fixer agent returns a non-zero exit, times out, or produces empty output, the same agent communication failure handling applies: retry once, halt and notify human on second failure. The failed iteration's review results are preserved in `polish_state.json` GÇö on resume, the orchestrator re-attempts the fix step using the same review output rather than re-running the review.
+
+
+CHANGE 5 GÇö Clarify Hallucination guard (Convergence Guards table, line 229)
+Replace the Condition cell:
+  "Error count spikes sharply after a sustained downward trend"
 With:
-"Error count increases meaningfully (e.g., >20%) after a sustained downward trend of 2+ iterations"
+  "Error count increases meaningfully (e.g., >20%) after a sustained downward trend of 2+ iterations"
 
-### Change 6 GÇö Clarify Stagnation guard (line 230)
-Replace:
-"Total count plateaus across consecutive iterations AND issue rotation detected (specific issues change between iterations even though the total stays flat GÇö the loop has reached the best quality achievable autonomously)"
 
+CHANGE 6 GÇö Clarify Stagnation guard Action cell (line 230)
+Replace the Action cell:
+  "Done. Notify human: "Polish sufficient. Ready for final review.""
 With:
-"Total count plateaus across consecutive iterations AND issue rotation detected GÇö fewer than 70% of issues in the current iteration match issues from the prior iteration (matched by description similarity). The loop has reached the best quality achievable autonomously."
+  "Done (success). The loop is producing different issues each iteration at the same count GÇö it's not fixing the same problems but finding new ones at the same rate, indicating the autonomous loop has reached diminishing returns. Notify human: "Polish sufficient. Ready for final review.""
 
-### Change 7 GÇö Clarify Fabrication guard (line 231)
-Replace:
-"A severity category spikes well above its recent average, AND the system had previously approached convergence thresholds GÇö suggesting the reviewer is manufacturing issues because nothing real remains"
 
+CHANGE 7 GÇö Clarify Fabrication guard (line 231)
+Replace the Condition cell:
+  "A severity category spikes well above its recent average, AND the system had previously approached convergence thresholds GÇö suggesting the reviewer is manufacturing issues because nothing real remains"
 With:
-"A severity category spikes significantly above its trailing average (e.g., >50% increase), AND the system had previously reached near-convergence (within roughly 2+ù of termination thresholds) GÇö suggesting the reviewer is manufacturing issues because nothing real remains"
+  "A severity category spikes significantly above its trailing average (e.g., >50% increase), AND the system had previously reached near-convergence (within roughly 2+ù of termination thresholds) GÇö suggesting the reviewer is manufacturing issues because nothing real remains"
 
-### Change 8 GÇö Add concurrency model
-In the Technical Design section, after the "Chat UI (Frontend)" row in the ThoughtForge Stack table, add a new paragraph:
 
-"**Concurrency Model:** The single Express/WebSocket server handles all active projects. Each WebSocket connection is scoped to a project ID GÇö the client sends the project ID on connection, and all subsequent messages are routed to that project's pipeline instance. Multiple browser tabs can connect to different projects simultaneously. Notification sends are stateless HTTP POSTs and require no concurrency coordination. The orchestrator runs one pipeline instance per active project; each instance operates on its own project directory and state files with no shared mutable state."
+CHANGE 8 GÇö Add concurrency model
+In the Technical Design section, after the ThoughtForge Stack table and before the "### Vibe Kanban" heading, add:
 
-### Change 9 GÇö Add browser target
-In the ThoughtForge Stack table, in the "Chat UI (Frontend)" row's "Why" column, append:
+**Concurrency Model:** The single Express/WebSocket server handles all active projects. Each WebSocket connection is scoped to a project ID GÇö the client sends the project ID on connection, and all subsequent messages are routed to that project's pipeline instance. Multiple browser tabs can connect to different projects simultaneously. Notification sends are stateless HTTP POSTs and require no concurrency coordination. The orchestrator runs one pipeline instance per active project; each instance operates on its own project directory and state files with no shared mutable state.
 
-" Targets modern evergreen browsers (Chrome, Firefox, Edge). No mobile support required. Operator accesses via `localhost:{port}`."
 
----
+CHANGE 9 GÇö Add notification failure handling
+After the Notification Examples list (after the last example bullet), add:
 
-## File: docs/thoughtforge-execution-plan.md
+**Notification Failure Handling:** If a notification send fails (HTTP error, timeout, unreachable endpoint), the failure is logged to `thoughtforge.log` as a `warn`-level event. The pipeline does not halt or retry GÇö notifications are best-effort. The human can review missed notifications via the project's state files.
 
-### Change 10 GÇö Add prompt drafting convention
+
+CHANGE 10 GÇö Add manual edit behavior
+After Phase 2 step 9 ("Outputs: `spec.md` and `constraints.md` written to `/docs/` and locked..."), add:
+
+**Manual Edit Behavior:** The orchestrator re-reads `constraints.md` at the start of each Phase 4 iteration. Manual human edits to locked files between iterations will take effect on the next iteration. No cache GÇö always reads from disk.
+
+
+GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+File: thoughtforge-build-spec.md
+GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+
+CHANGE 11 GÇö Add operation vocabulary under safety-rules.js
+After the `safety-rules.js` interface definition (after the line "- `validate(operation)` GåÆ `{ allowed: boolean, reason?: string }` GÇö called by orchestrator before every Phase 3/4 action."), add:
+
+**Operation Vocabulary (v1):**
+
+| Operation | Meaning |
+|---|---|
+| `shell_exec` | Execute a shell command or subprocess |
+| `file_create_source` | Create a source code file (`.js`, `.py`, `.ts`, `.sh`, etc.) |
+| `file_create_doc` | Create a document file (`.md`, `.json` state files) |
+| `package_install` | Install a package via npm, pip, etc. |
+| `agent_invoke` | Invoke a coding agent for code generation |
+| `test_run` | Execute a test suite |
+
+Plan mode blocks: `shell_exec`, `file_create_source`, `package_install`, `agent_invoke`, `test_run`. Allows: `file_create_doc`.
+Code mode blocks: none (all operations allowed).
+
+
+GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+File: thoughtforge-execution-plan.md
+GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+
+CHANGE 12 GÇö Add prompt drafting convention
 Before the "### Build Stage 2" heading, add:
 
-"> **Prompt drafting convention:** A prompt task is complete when the prompt file is written to `/prompts/`, committed, and the drafting developer has verified it produces the expected structured output format when tested against at least one agent with representative input. Prompts are iterable GÇö refinement continues during integration testing (Build Stage 8) GÇö but the initial draft must produce valid output."
+> **Prompt drafting convention:** A prompt task is complete when the prompt file is written to `/prompts/`, committed, and verified to produce the expected structured output format when tested against at least one agent with representative input. Prompts are iterable GÇö refinement continues during integration testing (Build Stage 8) GÇö but the initial draft must produce valid output.
 
-### Change 11 GÇö Add recovery strategy
-After the "## Dependencies & Blockers" section and before the "## Risk Register" section, add:
 
-"## Recovery Strategy
+CHANGE 13 GÇö Add context comment above Task 30
+Before Task 30's row in the Build Stage 6 table, add as a blockquote:
 
-Each pipeline phase commits to git at completion (per Design Spec git commit strategy). If a phase fails or produces unacceptable results, the operator can `git reset` the project repo to the last phase-completion commit and re-trigger the phase. Phase 4 crash recovery uses `polish_state.json` to resume mid-loop. No automated rollback GÇö the operator decides when to reset."
+> Task 30 is the main polish loop GÇö it wires together the orchestrator, both plugin reviewers, review/fix prompts, and agent layer.
 
----
 
-After all changes are applied:
+CHANGE 14 GÇö Add chat UI integration test
+In the Build Stage 8 table, after Task 58, add:
+
+| 58a | Integration tests: chat interface (WebSocket connection, message streaming, button actions, project switching, file upload to `/resources/`) | GÇö | Task 7, Task 10 | GÇö | Not Started |
+
+
+GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+After all changes are applied
+GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+
 1. Review each file to confirm no formatting was broken by the insertions.
-2. git add the three modified files.
-3. git commit with message: "Apply plan review findings: clarity, completeness, and concurrency model"
-4. git push to sync with remote.
+2. git add docs/thoughtforge-design-specification.md docs/thoughtforge-build-spec.md docs/thoughtforge-execution-plan.md
+3. git commit -m "polish: apply review iteration 3 GÇö 8 major, 6 minor findings"
+4. git push
 ```
