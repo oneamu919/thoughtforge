@@ -21,6 +21,8 @@ All pipeline prompts are stored as external `.md` files in `/prompts/`. The orch
   code-fix.md               # Phase 4: code mode fix prompt
   spec-building.md          # Phase 2: spec and constraint discovery prompt
   completeness-gate.md      # Plan completeness assessment for Code mode entry
+  plan-build.md             # Phase 3: plan mode document drafting prompt
+  code-build.md             # Phase 3: code mode build prompt
 ```
 
 New prompts added to this directory are automatically picked up by the Settings UI.
@@ -124,6 +126,26 @@ Rules:
 
 ---
 
+## Phase 3 System Prompt — Plan Build
+
+**File:** `/prompts/plan-build.md`
+**Used by:** Task 15 (plan builder)
+**Called via:** Agent invocation layer (Tasks 41–42)
+
+**Status:** Prompt text to be drafted before Task 15 begins.
+
+---
+
+## Phase 3 System Prompt — Code Build
+
+**File:** `/prompts/code-build.md`
+**Used by:** Task 21 (code builder)
+**Called via:** Agent invocation layer (Tasks 41–42)
+
+**Status:** Prompt text to be drafted before Task 21 begins.
+
+---
+
 ## Plugin Folder Structure
 
 **Used by:** Task 6 (plugin loader), Tasks 14–19 (plan plugin), Tasks 20–25 (code plugin)
@@ -219,6 +241,10 @@ const PlanReviewSchema = z.object({
 ### Validation Flow
 
 Parse AI response as JSON → validate via `schema.safeParse()` → on failure: Zod returns structured error messages → retry (max configurable via `config.yaml` `polish.retry_malformed_output`, default 2) → on repeated failure: halt and notify human.
+
+### Count Derivation
+
+The orchestrator ignores top-level count fields (`critical`, `medium`, `minor`) in the review JSON. It derives all counts from the `issues` array by counting per severity. Top-level counts remain in the schema for human readability in logs only and must not be used for convergence guard evaluation.
 
 ---
 
@@ -403,8 +429,8 @@ interface PolishState {
 
 ## `chat_history.json` Schema
 
-**Used by:** Tasks 7–9 (chat interface, correction loop)
-**Written:** After each chat message during Phases 1–2
+**Used by:** Tasks 7–9 (chat interface, correction loop), Task 6c (Phase 3 stuck recovery), Task 40a (Phase 4 halt recovery)
+**Written:** After each chat message during Phases 1–2, Phase 3 stuck recovery, and Phase 4 halt recovery
 
 ```typescript
 interface ChatMessage {

@@ -11,9 +11,20 @@ Review this plan as a senior dev who will eventually build from it.
 - Don't speculate about edge cases the architecture already handles through its core loop mechanics.
 - This is a plan, not a build spec. Do NOT review for implementation details like function signatures, module wiring, file manifests, or code-level data flow. If you find implementation detail that doesn't belong in a plan, flag it for extraction.
 - For every issue you raise: specific replacement text or proposed content to add. No vague observations.
-- Three output lists only: (1) Writing that's unclear — with exact replacement text. (2) Genuinely missing plan-level content — with proposed content to add. (3) Build spec material that should be extracted out of this document — identify each section and why it belongs in a build spec, not the plan.
 - If you're below 80% sure something is actually a problem, don't include it.
+
+## Severity Ratings:
+Every finding must be tagged with exactly one severity:
+- **Critical** — The build cannot proceed without resolving this. Missing requirements, contradictions, or ambiguities that would block implementation or guarantee rework.
+- **Major** — The build can start but this will cause significant rework, misalignment, or quality issues if not resolved before or during implementation.
+- **Minor** — Clarity or quality improvement. Won't block the build or cause rework, but raises the bar on the plan as a communication document.
+
+## Output Format:
+Three output lists only. Each finding within each list must be prefixed with its severity tag — `[Critical]`, `[Major]`, or `[Minor]`. Sort findings within each list by severity (Critical first, then Major, then Minor).
+
+1. **Writing that's unclear** — with exact replacement text.
+2. **Genuinely missing plan-level content** — with proposed content to add.
+3. **Build spec material that should be extracted** — identify each section and why it belongs in a build spec, not the plan.
 
 ## Final Output:
 - Generate a single consolidated prompt I can hand directly to an AI coder. That prompt must instruct the coder to apply every change from your review — replacements, additions, and extractions — to the source files. Be explicit about what changes go where. No interpretation required on the coder's end. The prompt must conclude by instructing the AI coder to git commit and sync to remote once all changes have been applied.
-

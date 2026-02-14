@@ -25,7 +25,7 @@
 | 1 | Initialize Node.js project, folder structure, `config.yaml` loader | — | — | — | Not Started |
 | 1a | Implement application entry point: Node.js server startup, config initialization, local web server for chat interface | — | Task 1 | — | Not Started |
 | 2 | Implement project initialization: unique ID generation, `/projects/{id}/` directory scaffolding (including `/docs/` and `/resources/`), git repo init, initial `status.json` write, Vibe Kanban card creation (if enabled), and new chat thread creation | — | Task 1 | — | Not Started |
-| 2a | Implement git commit at pipeline milestones: `intent.md` lock (end of Phase 1), `spec.md` and `constraints.md` lock (end of Phase 2), Phase 3 build completion. Matches Git Commit Strategy in design spec. | — | Task 2 | — | Not Started |
+| 2a | Implement git commit at pipeline milestones: `intent.md` lock (end of Phase 1), `spec.md` and `constraints.md` lock (end of Phase 2), Phase 3 build completion. Phase 4 per-iteration commits are handled separately in Task 40. | — | Task 2 | — | Not Started |
 | 3 | Implement project state module (`status.json`, `polish_state.json` read/write) | — | Task 1 | — | Not Started |
 | 3a | Implement operational logging module (per-project `thoughtforge.log`, structured entries for agent calls, phase transitions, errors) | — | Task 1 | — | Not Started |
 | 4 | Implement notification abstraction layer + ntfy.sh channel | — | Task 1 | — | Not Started |
@@ -42,7 +42,7 @@
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
 | 7 | Build ThoughtForge lightweight web chat interface | — | Task 1a | — | Not Started |
-| 7a | Externalize all pipeline prompts to `/prompts/` directory as `.md` files (brain-dump-intake, plan-review, code-review, plan-fix, code-fix, spec-building, completeness-gate) | — | Task 1 | — | Not Started |
+| 7a | Externalize all pipeline prompts to `/prompts/` directory as `.md` files (brain-dump-intake, plan-review, code-review, plan-fix, code-fix, plan-build, code-build, spec-building, completeness-gate) | — | Task 1 | — | Not Started |
 | 7b | Implement Settings button in chat interface — prompt editor that lists, views, and saves all prompt files from `/prompts/` directory | — | Task 7, Task 7a | — | Not Started |
 | 7c | Implement resource connector abstraction layer — config-driven loader, connector interface (pull → save to `/resources/`), error handling (auth failure, not found → log and continue) | — | Task 1 | — | Not Started |
 | 7d | Implement Notion connector — authenticate via API token, pull page content as Markdown, save to `/resources/` | — | Task 7c | — | Not Started |
@@ -61,7 +61,8 @@
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
 | 14 | Create `/plugins/plan/` folder structure | — | Task 6 | — | Not Started |
-| 15 | Implement `builder.js` — Handlebars template-driven document drafting | — | Task 6a, Task 14, Tasks 41–42 | — | Not Started |
+| 15 | Implement `builder.js` — Handlebars template-driven document drafting | — | Task 6a, Task 14, Task 15a, Tasks 41–42 | — | Not Started |
+| 15a | Draft `/prompts/plan-build.md` prompt text | — | Task 7a | — | Not Started |
 | 16 | Create OPA skeleton Handlebars templates (generic, wedding, strategy, engineering) | — | Task 15 | — | Not Started |
 | 17 | Implement `reviewer.js` — Plan review Zod schema + severity definitions | — | Task 14 | — | Not Started |
 | 18 | Implement `safety-rules.js` — hard-block all code execution in plan mode | — | Task 14 | — | Not Started |
@@ -75,7 +76,8 @@
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
 | 20 | Create `/plugins/code/` folder structure | — | Task 6 | — | Not Started |
-| 21 | Implement `builder.js` — agent-driven coding via Vibe Kanban | — | Task 6a, Task 20, Task 27, Tasks 41–42 | — | Not Started |
+| 21 | Implement `builder.js` — agent-driven coding via Vibe Kanban | — | Task 6a, Task 20, Task 21a, Task 27, Tasks 41–42 | — | Not Started |
+| 21a | Draft `/prompts/code-build.md` prompt text | — | Task 7a | — | Not Started |
 | 22 | Implement `reviewer.js` — Code review Zod schema + severity definitions | — | Task 20 | — | Not Started |
 | 23 | Implement `safety-rules.js` — Code mode permissions | — | Task 20 | — | Not Started |
 | 24 | Implement `test-runner.js` — test execution, result logging | — | Task 20 | — | Not Started |

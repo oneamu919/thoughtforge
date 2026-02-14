@@ -12,6 +12,18 @@
 
 ## Functional Design
 
+### OPA Framework
+
+OPA (Objective → Plan → Assessment) is the structural framework used for all Plan mode deliverables. Every major section of a plan document is expressed as an OPA table:
+
+| Column | Purpose |
+|---|---|
+| Objective | What this section aims to achieve |
+| Plan | The specific actions, decisions, or content that accomplish the objective |
+| Assessment | How success will be measured or validated for this section |
+
+Handlebars templates define the OPA skeleton — fixed section headings with OPA table placeholders. The AI fills the table content but cannot alter the structure. The Phase 4 review loop evaluates both content quality and OPA structural compliance.
+
 ### Inputs
 
 | Input | Source | Format | Required |
@@ -237,7 +249,7 @@ Recovery is initiated through the ThoughtForge chat interface. The halted card r
 
 **Halt Recovery Interaction:** When the chat interface presents a halted state, it displays three action buttons: Resume, Override, and Terminate. These follow the same confirmation model as phase advancement — explicit button presses, not chat-parsed commands. Before Override or Terminate, the interface prompts the human to confirm the action (single confirmation step).
 
-**Count Derivation:** Orchestrator ignores top-level count fields. Derives counts from the `issues` array by counting per severity. Top-level counts remain for human readability in logs only.
+**Count Derivation:** The orchestrator derives error counts from the issues array, not from top-level count fields. Count derivation logic is specified in the build spec.
 
 #### Plan Completeness Gate (Code Mode Entry)
 
@@ -245,7 +257,7 @@ When a Code mode pipeline starts and a plan document is detected in `/resources/
 
 **Completeness signals (prompt guidance, not a scored rubric):** OPA Framework structure present, specific objectives (not vague), decisions made (not options listed), enough detail to build without guessing, acceptance criteria defined, no TBD/placeholders, clear scope boundaries, dependencies listed.
 
-If the AI recommends fail: the tool automatically creates a Plan mode card, moves the document there, and notifies the human. Human can override, but default is redirect.
+If the AI recommends fail: ThoughtForge halts the Code mode pipeline, sets `status.json` to `halted` with reason `plan_incomplete`, and notifies the human with the AI's reasoning. The human can either override (proceed with Code mode despite the incomplete plan) or create a new Plan mode project manually to refine the plan first. ThoughtForge does not automatically create projects on the human's behalf.
 
 **Plan → Code Chaining Workflow:** To chain a completed plan into a code pipeline, the human creates a new project and places the finished plan document into the new project's `/resources/` directory. The new project proceeds through Phase 1 as normal — the plan document is one of the resources the AI reads during brain dump intake. At Phase 3 entry, the Plan Completeness Gate evaluates the plan and either proceeds or redirects as described above. The two projects are independent — separate project IDs, directories, git repos, and pipeline states.
 
@@ -283,6 +295,7 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 | Runtime | Node.js | Already installed (via OpenClaw), single runtime |
 | Core | Node.js CLI + orchestration logic | Intelligence layer: Phase 1-2 chat, polish loop, convergence guards, plan mode enforcement |
 | Chat Interface | Express.js + WebSocket (ws) | Lightweight HTTP server for chat UI, WebSocket for real-time AI response streaming. Both MIT-licensed, standard Node.js ecosystem. |
+| Chat UI (Frontend) | Server-rendered HTML + vanilla JavaScript | Minimal build tooling, no bundler required. WebSocket client in plain JS. Consistent with lightweight single-operator tool scope. |
 | AI Agents | Claude Code CLI, Gemini CLI, Codex CLI | Multi-agent support, flat-rate subscriptions |
 | Project State | File-based: `/projects/{id}/` with `/docs/` subdirectory | Human-readable, git-trackable. State access wrapped in single module for future DB swap |
 | Version Control | Git — each project gets its own repo | Rollback built in. Separate repos for clean parallel isolation |
@@ -293,7 +306,7 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 | Schema Validation | Zod (MIT, TypeScript-first) | Single-source review JSON schema. Auto-validation with clear errors |
 | Template Engine | Handlebars (MIT) | OPA skeleton as fixed structure. AI fills slots, can't break structure |
 | Plugin Architecture | Convention-based: `/plugins/{type}/` | Self-contained per deliverable type. Orchestrator delegates, no if/else branching |
-| Operational Logging | Node.js built-in (`console` or structured logger) | ThoughtForge logs its own operations — agent invocations, phase transitions, convergence guard evaluations, errors, and halt events — to a per-project `thoughtforge.log` file. Separate from `polish_log.md` (which is the human-readable iteration log). Used for debugging, not human review. |
+| Operational Logging | Structured JSON logger (Node.js built-in) | ThoughtForge logs its own operations — agent invocations, phase transitions, convergence guard evaluations, errors, and halt events — to a per-project `thoughtforge.log` file as structured JSON lines. Separate from `polish_log.md` (which is the human-readable iteration log). Used for debugging, not human review. |
 | MCP (Future) | Model Context Protocol | Core actions as clean standalone functions for future MCP wrapping. Deferred. Not a current build dependency. |
 
 **Application Entry Point:** The operator starts ThoughtForge by running a Node.js server command (e.g., `thoughtforge start` or `node server.js`). This launches the lightweight web chat interface on a local port. The operator accesses the interface via browser. The entry point initializes the config loader, plugin loader, notification layer, and Vibe Kanban adapter (if enabled).
