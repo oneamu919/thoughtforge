@@ -115,6 +115,8 @@ while ($iteration -lt $MAX_ITERATIONS) {
 $reviewInput
 
 Read all project files and apply your review.
+
+IMPORTANT: Every finding MUST be prefixed with its severity tag exactly as shown: [Critical], [Major], or [Minor]. Findings without these exact tags will not be counted by the automation. Use the square bracket format, not bold or any other format.
 "@
 
     claude -p $prompt --output-format text 2>$null | Set-Content -Path $FINDINGS_FILE
@@ -140,6 +142,22 @@ Read all project files and apply your review.
     $major    = $counts.major
     $minor    = $counts.minor
     $total    = $critical + $major + $minor
+
+    # -- Sanity check: substantial output but zero tags means CC1 did not comply --
+    $fileSize = (Get-Item $FINDINGS_FILE).Length
+    if ($total -eq 0 -and $fileSize -gt 500) {
+        Write-Log "NO_TAGS" -1 -1 -1
+        Run-Git add -A
+        Run-Git commit -m "polish: iteration $iteration - NO TAGS" --allow-empty -q
+        Send-Notify "[NO TAGS] Iteration $iteration - CC1 wrote findings but used no severity tags. Check $FINDINGS_FILE"
+        Write-Host ""
+        Write-Host "========================================================"  -ForegroundColor Red
+        Write-Host "  NO TAGS at iteration $iteration" -ForegroundColor Red
+        Write-Host "  CC1 produced output ($fileSize bytes) but no [Critical]/[Major]/[Minor] tags." -ForegroundColor Red
+        Write-Host "  Check $FINDINGS_FILE - likely a prompt compliance issue." -ForegroundColor Red
+        Write-Host "========================================================"  -ForegroundColor Red
+        exit 1
+    }
 
     Write-Host "[CC1] Found: critical=$critical major=$major minor=$minor (total=$total)"
 
