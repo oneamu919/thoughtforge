@@ -174,11 +174,15 @@ Rules:
 
 ## Plugin Interface Contract
 
-**Used by:** Tasks 6, 15, 17, 18, 21, 22, 23, 25
+**Used by:** Tasks 6, 15, 17, 18, 21, 22, 23, 24, 25
 
 ### builder.js
 
-- `build(projectPath, intent, spec, constraints, agent)` → `Promise<void>`
+- `build(projectPath, intent, spec, constraints, agent)` → `Promise<BuildResult>`
+
+Return type varies by plugin:
+- **Plan plugin** returns `Promise<{ stuck: boolean, reason?: string, content?: string }>` — matches `PlanBuilderResponse` schema. Orchestrator checks `stuck` flag to detect stuck condition.
+- **Code plugin** returns `Promise<{ stuck: boolean, reason?: string }>` — orchestrator detects stuck via the `stuck` flag (set after 2 consecutive non-zero exits on the same task, or 3 consecutive identical test failures).
 
 ### reviewer.js
 
@@ -440,7 +444,7 @@ interface PolishState {
 interface ChatMessage {
   role: "human" | "ai";
   content: string;
-  phase: "brain_dump" | "distilling" | "human_review" | "spec_building" | "building" | "polishing";
+  phase: "brain_dump" | "distilling" | "human_review" | "spec_building" | "building" | "polishing" | "halted";
   timestamp: string;  // ISO8601
 }
 

@@ -48,6 +48,7 @@ Handlebars templates define the OPA skeleton — fixed section headings with OPA
 | `polish_log.md` | `/projects/{id}/` | Markdown — iteration-by-iteration log |
 | `polish_state.json` | `/projects/{id}/` | JSON — loop state for crash recovery |
 | `status.json` | `/projects/{id}/` | JSON — current phase and metadata |
+| `chat_history.json` | `/projects/{id}/` | JSON — per-phase chat messages for crash recovery |
 
 ### Behavior
 
@@ -55,7 +56,7 @@ Handlebars templates define the OPA skeleton — fixed section headings with OPA
 
 **Primary Flow:**
 
-0. **Project Initialization:** Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project" command or button). ThoughtForge generates a unique project ID, creates the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories), initializes a git repo, writes an initial `status.json` with phase `brain_dump` and `project_name` as empty string, and opens a new chat thread. After Phase 1 distillation locks `intent.md`, the project name is set to the first heading (H1) of `intent.md`. If `intent.md` has no H1 heading, the AI generates a short descriptive name (2-4 words) from the brain dump content and uses that as both the `intent.md` title and the project name. The project name is written to `status.json`. If Vibe Kanban is enabled, the card name is updated at the same time. If Vibe Kanban integration is enabled, a corresponding card is created at this point.
+0. **Project Initialization:** Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project" command or button). ThoughtForge generates a unique project ID, creates the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories), initializes a git repo, writes an initial `status.json` with phase `brain_dump` and `project_name` as empty string, and opens a new chat thread. During Phase 1 distillation, the AI determines the project name: it uses the first heading (H1) of the distilled document. If no H1 heading is present, the AI generates a short descriptive name (2-4 words) from the brain dump content and includes it as the H1 heading. When intent.md is written and locked, the project name is extracted from its H1 heading and written to status.json. If Vibe Kanban is enabled, the card name is updated at the same time. If Vibe Kanban integration is enabled, a corresponding card is created at this point.
 
 **Agent Assignment:** The agent specified in `config.yaml` `agents.default` is assigned to the project at initialization and stored in `status.json` as the `agent` field. This determines which AI agent is used for all pipeline phases. Per-project agent override is deferred — not a current build dependency.
 
@@ -67,7 +68,7 @@ Handlebars templates define the OPA skeleton — fixed section headings with OPA
 6. AI distills into structured document: Deliverable Type, Objective, Assumptions, Constraints, Unknowns, Open Questions (max 5)
 7. AI presents distillation to human in chat
 8. Human corrects via chat → AI revises and re-presents
-9. Human can type "realign from here" as a chat message. The AI treats the human's most recent substantive correction (the last non-command human message before "realign from here") as the new baseline. All AI revisions produced after that correction are discarded. The AI re-distills from the original brain dump plus all human corrections up to and including that baseline message. Does not restart from the original brain dump alone.
+9. Human can type "realign from here" as a chat message. The AI identifies the human's most recent substantive correction — defined as the last human message that is not a "realign from here" command. All messages after that correction (both AI and human) are excluded from the working context but remain in chat_history.json for audit purposes. The AI re-distills from the original brain dump plus all human corrections up to and including that baseline message. Does not restart from the original brain dump alone. If no human corrections exist yet (i.e., "realign from here" is sent before any corrections), the command is ignored and the AI responds asking the human to provide a correction first.
 10. Human clicks **Confirm** button → advances to Phase 2
 11. Output: `intent.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline.
 
@@ -238,7 +239,7 @@ Recovery follows the same confirmation model as Phase 4: explicit button presses
 
 Algorithmic parameters for each guard (spike thresholds, similarity measures, window sizes) are defined in the build spec.
 
-**Loop State Persistence:** `polish_state.json` written after each iteration (iteration number, error counts, convergence trajectory, timestamp). On crash, resumes from last completed iteration.
+**Loop State Persistence:** polish_state.json written after each iteration. Full field list in Project State Files table below. On crash, resumes from last completed iteration.
 
 **Halt Recovery:**
 
@@ -253,6 +254,15 @@ When a convergence guard halts the loop, the human is notified with context (gua
 Recovery is initiated through the ThoughtForge chat interface. The halted card remains in the Polishing column with a visual halted indicator until the human acts.
 
 **Halt Recovery Interaction:** When the chat interface presents a halted state, it displays three action buttons: Resume, Override, and Terminate. These follow the same confirmation model as phase advancement — explicit button presses, not chat-parsed commands. Before Override or Terminate, the interface prompts the human to confirm the action (single confirmation step).
+
+**Phase 4 Error Handling:**
+
+| Condition | Action |
+|---|---|
+| Agent failure during review or fix step (timeout, crash, empty response) | Same retry behavior as agent communication layer: retry once, halt and notify on second failure. `polish_state.json` preserves loop progress — on resume, the failed iteration is re-attempted from the beginning (review step). |
+| Zod validation failure on review JSON | Retry up to `config.yaml` `polish.retry_malformed_output` (default 2). On repeated failure: halt and notify human. |
+| File system error during git commit after fix | Halt and notify human immediately. `polish_state.json` for the current iteration is not written (last completed iteration preserved for recovery). |
+| Test runner crash during Code mode iteration (process error, not test assertion failure) | Same retry behavior as agent communication layer: retry once, halt on second failure. Distinct from test assertion failures, which are passed to the reviewer as context. |
 
 **Count Derivation:** The orchestrator derives error counts from the issues array, not from top-level count fields. Count derivation logic is specified in the build spec.
 
@@ -390,6 +400,8 @@ Every phase transition pings the human with a status update. Every notification 
 - `"Project 'API Backend' — Phase 3 complete. Deliverable built. Polish loop starting."`
 - `"Project 'CLI Tool' — Phase 2 spec building. AI stuck on ambiguity: should auth use JWT or session cookies? Decision needed."`
 
+Each notification is sent as a structured object containing all five fields from the schema above. The examples show the summary field value only. The full object for the first example would be: { project_id: "{id}", project_name: "Wedding Plan", phase: "polishing", event_type: "convergence_success", summary: "Polish loop converged. 0 critical, 1 medium, 3 minor. Ready for final review." }
+
 ### Project State Files
 
 | File | Written When | Schema |
@@ -413,7 +425,7 @@ Every phase transition pings the human with a status update. Every notification 
 
 **Plan vs. Code Column Display:** Plan mode cards pass through the same Kanban columns. The "Building" column represents Phase 3 (autonomous build) for both deliverable types — document drafting for Plans, coding for Code. Column labels are not mode-specific. The card's `deliverable_type` field in `status.json` distinguishes the two in the dashboard.
 
-**Agent Performance Comparison:** Vibe Kanban's dashboard surfaces timing and agent data natively. ThoughtForge enables comparison by writing iteration count, convergence speed, and final error counts to `polish_state.json`, which Vibe Kanban reads per-card.
+**Agent Performance Comparison:** Vibe Kanban's dashboard surfaces timing and agent data natively. ThoughtForge enables comparison by writing iteration count, convergence trajectory, and final error counts to `polish_state.json`, which Vibe Kanban reads per-card.
 
 ### Future Extensibility: MCP
 
