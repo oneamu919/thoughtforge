@@ -10,7 +10,7 @@
 
 **Used by:** Task 7b (prompt management UI), all tasks that invoke AI agents
 
-All pipeline prompts are stored as external `.md` files in `/prompts/`. The orchestrator reads prompts from this directory at invocation time — never from embedded strings. The Settings UI in the chat interface reads from and writes to these files.
+All pipeline prompts are stored as external `.md` files in `./prompts/` (relative to project root). The orchestrator reads prompts from this directory at invocation time — never from embedded strings. The Settings UI in the chat interface reads from and writes to these files.
 
 ```
 /prompts/
@@ -260,6 +260,18 @@ The orchestrator ignores top-level count fields (`critical`, `medium`, `minor`) 
 
 **Used by:** Tasks 33–37 (convergence guards)
 
+### Guard Evaluation Order
+
+Guards are evaluated in the following order after each iteration. The first guard that triggers ends evaluation — subsequent guards are not checked.
+
+1. **Termination** (success) — checked first so that a successful outcome is never overridden by a halt
+2. **Hallucination** — checked before stagnation/fabrication because a spike after a downward trend is the strongest anomaly signal
+3. **Fabrication** — checked before stagnation because fabricated issues would produce false plateau signals
+4. **Stagnation** (success) — checked after halt guards to ensure the plateau is genuine
+5. **Max iterations** — checked last as the backstop
+
+If no guard triggers, the loop proceeds to the next iteration.
+
 ### Hallucination Guard
 
 - **Spike threshold:** Error count increases >20% from the prior iteration
@@ -326,6 +338,8 @@ Minimum qualification: pass 6 of 8 with no red flags on Age, Last Updated, or Li
 2. Agent invoked: `{command} {flags} < prompt`
 3. ThoughtForge captures stdout
 4. Response parsed/validated (Zod for review JSON, file diff detection for fix steps)
+
+**Shell safety:** Prompt content is passed to agent subprocesses via file descriptor or stdin pipe — never through shell argument expansion or interpolation. The agent invocation layer must not use shell string concatenation for prompt content. This prevents accidental command execution from shell metacharacters in brain dump text or resource files.
 
 ### Output Normalization
 
@@ -444,7 +458,7 @@ interface PolishState {
 interface ChatMessage {
   role: "human" | "ai";
   content: string;
-  phase: "brain_dump" | "distilling" | "human_review" | "spec_building" | "building" | "polishing" | "halted";
+  phase: "brain_dump" | "distilling" | "human_review" | "spec_building" | "building" | "polishing" | "halted";  // "done" excluded — no chat occurs after completion
   timestamp: string;  // ISO8601
 }
 
@@ -570,6 +584,7 @@ vibekanban:
 
 # Web server
 server:
+  host: "127.0.0.1"  # Bind to localhost only. Change to "0.0.0.0" for network access.
   port: 3000
 ```
 
@@ -584,10 +599,97 @@ server:
 | Create task | `vibekanban task create --id {project_id} --agent {agent}` | Project initialization |
 | Update task name | `vibekanban task update {task_id} --name "{project_name}"` | After Phase 1 (project name derived) |
 | Update task status | `vibekanban task update {task_id} --status {status}` | Every phase transition |
-| Execute agent work | `vibekanban task run {task_id} --prompt-file {path}` | Phase 3 build, Phase 4 fix steps |
-| Read task result | `vibekanban task result {task_id}` | After each agent execution |
+| Execute agent work | `vibekanban task run {task_id} --prompt-file {path}` | Code mode only: Phase 3 build, Phase 4 fix steps. Plan mode invokes agents directly via agent layer — VK is visualization only. |
+| Read task result | `vibekanban task result {task_id}` | After each Code mode agent execution via VK |
 
 **Note:** These commands are assumed from Vibe Kanban documentation. Verify actual CLI matches before build (see Risk Register in Execution Plan).
+
+---
+
+---
+
+## `spec.md` Structure
+
+**Used by:** Task 13 (spec and constraints generation)
+**Written:** End of Phase 2, locked after write
+
+### Plan Mode
+
+```markdown
+# {Project Name} — Specification
+
+## Deliverable Overview
+{Restated objective from intent.md}
+
+## Deliverable Structure
+{Proposed plan sections following OPA Framework — every major section gets an OPA table}
+
+## Key Decisions
+{Each decision the AI made or the human confirmed, with rationale}
+
+## Resolved Unknowns
+{Every Unknown and Open Question from intent.md, with resolution and source (AI-reasoned or human-provided)}
+
+## Dependencies
+{External tools, services, data, or prerequisites required}
+
+## Scope Boundaries
+{What is explicitly included and excluded}
+```
+
+### Code Mode
+
+Same structure as Plan mode, except:
+- **Deliverable Structure** contains proposed architecture, language, framework, and tools (including OSS qualification results where applicable)
+
+---
+
+## `constraints.md` Structure
+
+**Used by:** Task 13 (spec and constraints generation), Task 30 (polish loop — re-read at each Phase 4 iteration start)
+**Written:** End of Phase 2, locked after write (but human may manually edit; changes picked up at next Phase 4 iteration)
+
+```markdown
+# {Project Name} — Review Constraints
+
+## Context
+{What this deliverable does, from intent.md}
+
+## Deliverable Type
+{Plan or Code}
+
+## Priorities
+{What the human cares about}
+
+## Exclusions
+{What not to touch, what not to flag}
+
+## Severity Definitions
+{What counts as critical / medium / minor}
+
+## Scope
+{Plan mode: sections/topics in scope. Code mode: files/functions in scope.}
+
+## Acceptance Criteria
+{5–10 statements of what the deliverable must contain or do}
+```
+
+---
+
+## Notification Payload Schema
+
+**Used by:** Tasks 4–5 (notification layer + phase transition notifications)
+**Sent:** Every phase transition, convergence event, error, and stuck/halt condition
+
+```typescript
+interface NotificationPayload {
+  project_id: string;
+  project_name: string;
+  phase: string;
+  event_type: "convergence_success" | "guard_triggered" | "human_needed" | "milestone_complete" | "error";
+  summary: string;  // One-line description with actionable context
+}
+```
 
 ---
 
