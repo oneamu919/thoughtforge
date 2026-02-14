@@ -1,6 +1,6 @@
 # ThoughtForge Pipeline Tool — Execution Plan
 
-> **Companion to:** [ThoughtForge Design Specification](./thoughtforge-design-specification.md)
+> **Companion to:** [ThoughtForge Design Specification](./thoughtforge-design-specification.md) | [ThoughtForge Build Spec](./thoughtforge-build-spec.md)
 
 ---
 
@@ -55,7 +55,7 @@
 | 9a | Implement `chat_history.json` persistence: append after each chat message, clear on phase advancement confirmation, resume from last recorded message on crash | — | Task 3, Task 7 | — | Not Started |
 | 10 | Implement action buttons: Distill (Phase 1 intake trigger) and Confirm (phase advancement mechanism) | — | Task 7 | — | Not Started |
 | 11 | Implement `intent.md` generation and locking | — | Task 9, Task 2a | — | Not Started |
-| 12 | Implement Phase 2: spec building, constraint discovery, acceptance criteria extraction, human review/override of proposed decisions, human review of acceptance criteria, Confirm to advance | — | Task 6a, Task 10, Task 11, Task 7a, Task 7f, Tasks 41–42 | — | Not Started |
+| 12 | Implement Phase 2: spec building, constraint discovery, acceptance criteria extraction, human review/override of proposed decisions, human review of acceptance criteria, Confirm to advance | — | Task 6a, Task 10, Task 11, Task 7a, Task 7f, Task 25, Tasks 41–42 | — | Not Started |
 | 13 | Implement `spec.md` and `constraints.md` generation | — | Task 12, Task 2a | — | Not Started |
 
 ### Build Stage 3: Plan Mode Plugin
@@ -83,7 +83,7 @@
 | 22 | Implement `reviewer.js` — Code review Zod schema + severity definitions | — | Task 20 | — | Not Started |
 | 23 | Implement `safety-rules.js` — Code mode permissions | — | Task 20 | — | Not Started |
 | 24 | Implement `test-runner.js` — test execution, result logging | — | Task 20 | — | Not Started |
-| 25 | Implement `discovery.js` — OSS qualification scorecard for Phase 2 Code mode | — | Task 20, Task 12 | — | Not Started |
+| 25 | Implement `discovery.js` — OSS qualification scorecard for Phase 2 Code mode | — | Task 20 | — | Not Started |
 
 ### Build Stage 5: Vibe Kanban Integration
 

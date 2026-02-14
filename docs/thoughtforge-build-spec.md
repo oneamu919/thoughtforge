@@ -184,7 +184,7 @@ Rules:
 
 - `schema` → Zod schema object for validating review JSON
 - `severityDefinitions` → object defining critical/medium/minor for this type
-- `review(projectPath, constraints, agent)` → `Promise<object>` — one review pass, raw parsed JSON. Orchestrator validates via `schema.safeParse()`, retries on failure, halts after max retries.
+- `review(projectPath, constraints, agent, testResults?)` → `Promise<object>` — one review pass, raw parsed JSON. `testResults` is an optional parameter (required for Code mode, omitted for Plan mode) containing the structured output from `test-runner.js`. Orchestrator validates via `schema.safeParse()`, retries on failure, halts after max retries.
 
 ### safety-rules.js
 
@@ -394,7 +394,7 @@ interface ProjectStatus {
   agent: string;
   created_at: string;   // ISO8601
   updated_at: string;   // ISO8601
-  halted_reason: string | null;
+  halt_reason: string | null;
 }
 ```
 

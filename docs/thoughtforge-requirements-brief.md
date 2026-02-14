@@ -6,7 +6,7 @@
 
 ## Outcome
 
-A personal tool that takes a human brain dump and autonomously produces a polished deliverable — either a **plan** (wedding, event, engineering design, business strategy, etc.) or **working code**. Reduces human touchpoints to 3-4 per project. Multiple projects run in parallel via Vibe Kanban with per-project timing and agent performance stats. The polish loop that currently takes ~12 hours of manual work runs unattended to convergence: 0 critical errors, <3 medium, <5 minor.
+A personal tool that takes a human brain dump and autonomously produces a polished deliverable — either a **plan** (wedding, event, engineering design, business strategy, etc.) or **working code**. Reduces human touchpoints to 3-4 per project. Multiple projects run in parallel via Vibe Kanban with per-project timing and agent performance stats. The polish loop that currently takes ~12 hours of manual work runs unattended to convergence: 0 critical errors, ≤3 medium, ≤5 minor.
 
 ---
 
@@ -75,7 +75,7 @@ Everything between touchpoints 3 and 4 is fully autonomous.
 | Criteria | Metric | Target |
 |----------|--------|--------|
 | Human touchpoints per project | Count of required human interactions | 3-4 max |
-| Polish loop convergence | Error counts after autonomous run | 0 critical, <3 medium, <5 minor |
+| Polish loop convergence | Error counts after autonomous run | 0 critical, ≤3 medium, ≤5 minor (thresholds inclusive — matches config.yaml convergence settings) |
 | Manual labor replaced | Hours of iterative review saved | ~12 hours per project |
 | Parallel execution | Concurrent projects running | Up to 3 (configurable via `config.yaml` `concurrency.max_parallel_runs`) |
 | Plan mode safety | Code execution during plan mode | Zero — hard blocked |

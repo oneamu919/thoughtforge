@@ -95,7 +95,7 @@ Handlebars templates define the OPA skeleton — fixed section headings with OPA
 | Phase 4 | `polishing` | Entered automatically on Phase 3 completion. |
 | Terminal | `done`, `halted` | `done`: convergence or stagnation success. `halted`: guard trigger, human terminate, or unrecoverable error. |
 
-Vibe Kanban columns mirror these `status.json` values directly.
+Vibe Kanban columns correspond to these `status.json` phase values, except `halted` — which is a card state indicator, not a separate column. See the UI section for full column mapping.
 
 **Project Lifecycle After Completion:** Once a project reaches `done` or `halted`, no further pipeline actions are taken. The project directory, git repo, and all state files remain in place for human reference. Project archival, deletion, and re-opening are deferred. Not a current build dependency.
 
@@ -182,7 +182,7 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 
 | Mode | Stuck Condition | Action |
 |---|---|---|
-| Plan | AI returns a JSON response containing a `stuck` boolean, an optional `reason` string (required when stuck), and a `content` string (the drafted document content when not stuck). The orchestrator parses this JSON to detect stuck status. Schema in build spec (`PlanBuilderResponse`). | Notify and wait |
+| Plan | AI returns a JSON response containing a `stuck` boolean, an optional `reason` string (required when stuck), and a `content` string (required when not stuck — contains the drafted document content; absent when stuck). The orchestrator parses this JSON to detect stuck status. Schema in build spec (`PlanBuilderResponse`). | Notify and wait |
 | Code | Build agent returns non-zero exit after 2 consecutive retries on the same task, OR test suite fails on the same tests for 3 consecutive fix attempts | Notify and wait |
 
 **Phase 3 Stuck Recovery:**
@@ -350,7 +350,7 @@ Each plugin folder contains: a builder (Phase 3 drafting/coding), a reviewer (Ph
 
 ### Plugin Interface Contract
 
-Plugin interface contract (function signatures, parameters, return types) defined in build spec. Includes builder.js (Phase 3), reviewer.js (Phase 4), safety-rules.js, and discovery.js (optional Phase 2 hook — used by Code plugin for OSS qualification scorecard).
+Plugin interface contract (function signatures, parameters, return types) defined in build spec. Includes builder.js (Phase 3), reviewer.js (Phase 4), safety-rules.js, discovery.js (optional Phase 2 hook — used by Code plugin for OSS qualification scorecard), and test-runner.js (Code plugin only — test execution for Phase 3 build iteration and Phase 4 review context).
 
 ### Zod Review Schemas
 
@@ -395,7 +395,7 @@ Every phase transition pings the human with a status update. Every notification 
 | File | Written When | Schema |
 |---|---|---|
 | `status.json` | Every phase transition and state change | Tracks project name, current phase, deliverable type, assigned agent, timestamps, and halt reason. Full schema in build spec. |
-| `polish_state.json` | After each Phase 4 iteration | Iteration number, error counts, convergence trajectory, timestamp |
+| `polish_state.json` | After each Phase 4 iteration | Iteration number, error counts, convergence trajectory, tests passed (null for plan mode), completed flag, halt reason, timestamp. Full schema in build spec. |
 | `polish_log.md` | Appended after each Phase 4 iteration | Human-readable iteration log |
 | `chat_history.json` | Appended after each chat message (Phases 1–2, Phase 3 stuck recovery, Phase 4 halt recovery) | Array of timestamped messages (role, content, phase). On crash, chat resumes from last message. Cleared after each phase advancement confirmation (Phase 1 → Phase 2 and Phase 2 → Phase 3). Phase 3→4 is automatic and does NOT clear chat history — any Phase 3 stuck recovery messages persist into Phase 4. Phase 3 and Phase 4 recovery conversations are also persisted. |
 
