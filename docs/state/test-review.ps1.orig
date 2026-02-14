@@ -1,0 +1,7 @@
+# Test - Run CC1 review manually, output to screen
+# Usage: .\test-review.ps1
+
+$prompt = Get-Content "project-plan-review-prompt.md" -Raw
+$prompt += "`n`nReview these files: thoughtforge-requirements-brief.md, thoughtforge-design-specification.md, thoughtforge-build-spec.md, thoughtforge-execution-plan.md"
+
+claude -p $prompt --output-format text

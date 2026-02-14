@@ -1,4 +1,4 @@
-# ThoughtForge Review - Run CC1 review, write results.md
+# ThoughtForge Review - Run CC1 review, write results.md + results-applyprompttext.md
 # Usage: .\review.ps1
 
 $TELEGRAM_TOKEN   = "7998768592:AAHxlbOZPm0b_Vf5ipuTu3BRr6LudeItIO8"
@@ -22,7 +22,37 @@ if (-not (Test-Path "project-plan-review-prompt.md")) {
 }
 
 Send-Notify "[REVIEW] Running CC1 review..."
-claude -p "Read project-plan-review-prompt.md for your instructions. Review these four files: thoughtforge-requirements-brief.md, thoughtforge-design-specification.md, thoughtforge-build-spec.md, thoughtforge-execution-plan.md. Output your complete review with all findings, severity tags, and the consolidated coder prompt." --output-format text | Set-Content -Path "results.md"
-$size = (Get-Item "results.md").Length
-Send-Notify "[REVIEW] Done. results.md written ($size bytes)"
 
+$reviewPrompt = @"
+Read project-plan-review-prompt.md and follow the instructions. Review these files:
+- thoughtforge-requirements-brief.md
+- thoughtforge-design-specification.md
+- thoughtforge-build-spec.md
+- thoughtforge-execution-plan.md
+"@
+
+$output = $reviewPrompt | claude -p - --output-format text
+
+# Write full review for auditing
+$output | Set-Content -Path "results.md" -Encoding UTF8
+$fullSize = (Get-Item "results.md").Length
+Send-Notify "[REVIEW] results.md written ($fullSize bytes)"
+
+# Extract Consolidated Coder Prompt section
+$marker = "Consolidated Coder Prompt"
+$idx = $output.IndexOf($marker)
+if ($idx -ge 0) {
+    $coderPrompt = $output.Substring($idx)
+    $coderPrompt | Set-Content -Path "results-applyprompttext.md" -Encoding UTF8
+    $promptSize = (Get-Item "results-applyprompttext.md").Length
+    Send-Notify "[REVIEW] results-applyprompttext.md written ($promptSize bytes)"
+} else {
+    Send-Notify "[REVIEW] WARNING: Could not find '$marker' in output. results-applyprompttext.md not created."
+}
+
+# Git commit
+git add results.md results-applyprompttext.md
+git commit -m "Review iteration - results.md ($fullSize bytes)"
+git push
+
+Send-Notify "[REVIEW] Done."

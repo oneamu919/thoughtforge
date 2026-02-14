@@ -16,18 +16,12 @@ function Send-Notify($message) {
 }
 
 # -- Preflight --
-if (-not (Test-Path "results.md")) {
-    Write-Host "ERROR: results.md not found. Run review.ps1 first." -ForegroundColor Red
-    exit 1
-}
 if (-not (Test-Path "check-prompt.md")) {
     Write-Host "ERROR: check-prompt.md not found." -ForegroundColor Red
     exit 1
 }
 
 Send-Notify "[CHECK] Checking results.md..."
-$findings = Get-Content "results.md" -Raw
-$checkPrompt = Get-Content "check-prompt.md" -Raw
-$checkPrompt += "`n`n--- REVIEW DOCUMENT ---`n$findings"
-$result = claude -p $checkPrompt --output-format text
+$result = Get-Content "check-prompt.md" -Raw -Encoding UTF8 | claude -p - --dangerously-skip-permissions --output-format text
+$result | Set-Content -Path "resultscheck.md" -Encoding UTF8
 Send-Notify "[CHECK] $result"

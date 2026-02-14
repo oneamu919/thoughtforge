@@ -1,4 +1,4 @@
-# ThoughtForge Apply - Pass results.md to CC3 to apply fixes
+# ThoughtForge Apply - Build apply-prompt.md from results-applyprompttext.md, send to CC3
 # Usage: .\apply.ps1
 
 $TELEGRAM_TOKEN   = "7998768592:AAHxlbOZPm0b_Vf5ipuTu3BRr6LudeItIO8"
@@ -16,19 +16,40 @@ function Send-Notify($message) {
 }
 
 # -- Preflight --
-if (-not (Test-Path "results.md")) {
-    Write-Host "ERROR: results.md not found. Run polish.ps1 first." -ForegroundColor Red
+if (-not (Test-Path "results-applyprompttext.md")) {
+    Write-Host "ERROR: results-applyprompttext.md not found. Run review.ps1 first." -ForegroundColor Red
     exit 1
 }
 
-$findings = Get-Content "results.md" -Raw
-$applyPrompt = @"
-Apply every change from the review below to the project files. Be precise. Do not skip anything. After applying all changes, git add, commit, and push.
+Send-Notify "[APPLY] Writing apply-prompt.md..."
 
---- REVIEW ---
-$findings
+$coderPrompt = Get-Content "results-applyprompttext.md" -Raw
+$applyPrompt = @"
+You MUST directly edit the files on disk. Do NOT describe or summarize changes. Do NOT explain what you would do. Open each file, make the edits, and save.
+
+Read the coder prompt below. Apply every change to the correct file:
+- thoughtforge-requirements-brief.md
+- thoughtforge-design-specification.md
+- thoughtforge-build-spec.md
+- thoughtforge-execution-plan.md
+
+Save each file after editing. After all files are edited and saved, run:
+git add -A
+git commit -m "Apply review findings from results.md"
+git push
+
+When finished, output ONLY a single line in this format: Applied: X critical, Y major, Z minor. Do not output anything else.
+
+--- CODER PROMPT ---
+$coderPrompt
 "@
 
-Send-Notify "[APPLY] Applying fixes from results.md..."
-claude -p $applyPrompt --output-format text
-Send-Notify "[APPLY] Done. Changes applied."
+$applyPrompt | Set-Content -Path "apply-prompt.md" -Encoding UTF8
+$size = (Get-Item "apply-prompt.md").Length
+Send-Notify "[APPLY] apply-prompt.md written ($size bytes)"
+
+Send-Notify "[APPLY] Applying fixes..."
+$result = claude -p (Get-Content "apply-prompt.md" -Raw) --output-format text
+Write-Host $result
+
+Send-Notify "[APPLY] $result"

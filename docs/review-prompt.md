@@ -1,3 +1,12 @@
+﻿
+read these files to understand the Project
+thoughtforge-requirements-brief.md
+
+scrutinize  these files and follow this prompt
+thoughtforge-design-specification.md
+thoughtforge-build-spec.md
+thoughtforge-execution-plan.md
+
 # Project Plan Review Prompt
 
 Review this plan as a senior dev who will eventually build from it.
@@ -28,3 +37,4 @@ Three output lists only. Each finding within each list must be prefixed with its
 
 ## Final Output:
 - Generate a single consolidated prompt I can hand directly to an AI coder. That prompt must instruct the coder to apply every change from your review -- replacements, additions, and extractions -- to the source files. Be explicit about what changes go where. No interpretation required on the coder's end. The prompt must conclude by instructing the AI coder to git commit and sync to remote once all changes have been applied.
+

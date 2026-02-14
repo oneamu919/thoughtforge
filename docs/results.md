@@ -1,410 +1,265 @@
-The review is complete. Here's the full output:
+ï»¿I see there's a previous review result. Now let me proceed with my own full review following the prompt's instructions. Let me read through all four documents carefully Î“Ã‡Ã¶ I've already loaded them Î“Ã‡Ã¶ and produce my review.
 
 ---
 
-# ThoughtForge Project Plan Review
-
-> **Review Date:** 2026-02-14
-> **Reviewer Posture:** Senior dev who will build from this plan
-> **Documents Reviewed:** Requirements Brief, Design Specification, Build Spec, Execution Plan
-
----
+# Project Plan Review Î“Ã‡Ã¶ ThoughtForge Pipeline Tool
 
 ## 1. Writing That's Unclear
 
-### Finding 1.1 GÇö [Minor] "Realign from here" baseline definition is convoluted
+**[Major] DS-1: Phase 2 conversation mechanics are unspecified.**
+The design spec describes Phase 1's correction flow in detail (chat corrections, "realign from here," Distill/Confirm buttons) but Phase 2 says only "Human confirms or overrides specific decisions" and "Human reviews acceptance criteria" with no specification of how the back-and-forth works. Phase 1's confirmation model statement says "This model applies to all human action points in the pipeline" but Phase 2 has no equivalent detail for multi-turn conversation, how the AI presents decisions for override, or how acceptance criteria editing works in the chat.
 
-**Location:** Design Specification, Phase 1, step 9
+**Replacement text** (add after Phase 2 step 6, before step 7, in the design spec):
 
-**Current text:**
-> Human can type "realign from here" as a chat message. The AI treats the human's most recent substantive correction (the last non-command human message before "realign from here") as the new baseline. All AI revisions produced after that correction are discarded. The AI re-distills from the original brain dump plus all human corrections up to and including that baseline message. Does not restart from the original brain dump alone.
-
-**Problem:** "Most recent substantive correction" and "last non-command human message" create ambiguity about what counts as the baseline. A builder would have to guess at classification rules for "substantive" vs. "non-substantive" messages.
-
-**Replacement text:**
-> Human can type "realign from here" as a chat message. ThoughtForge identifies the last human message before "realign from here" that is not itself "realign from here" GÇö this becomes the baseline. All AI revisions produced after that baseline message are discarded. The AI re-distills from the original brain dump plus all human messages up to and including the baseline. Does not restart from the original brain dump alone.
+> **Phase 2 Conversation Mechanics:** The AI presents each proposed element (deliverable structure, key decisions, resolved unknowns, acceptance criteria) as a structured message in chat. The human responds with natural language corrections or overrides Î“Ã‡Ã¶ same chat-based correction model as Phase 1. The AI revises and re-presents the updated element. There is no "realign from here" in Phase 2 Î“Ã‡Ã¶ the scope of each element is small enough that targeted corrections suffice. The Confirm button advances to Phase 3 only after the validation gate in step 7 passes.
 
 ---
 
-### Finding 1.2 GÇö [Minor] Stagnation guard description conflates two behaviors under one term
+**[Major] DS-2: "Stuck status via a structured flag in its JSON output" is ambiguous in the design spec.**
+Phase 3 Plan mode stuck detection says the AI signals via "a structured flag in its JSON output" with "Exact JSON schema in build spec." The build spec provides a TypeScript interface (`PlanBuilderResponse`) but the design spec wording implies the AI's natural response contains JSON, which conflicts with the Handlebars template-driven drafting described in the same section. It's unclear whether the builder prompt instructs the AI to return JSON wrapping the drafted content, or whether the orchestrator parses a separate signal.
 
-**Location:** Design Specification, Convergence Guards table, "Stagnation" row
+**Replacement text** (design spec, Phase 3 Stuck Detection, Plan mode row):
 
-**Current text:**
-> Total count plateaus across consecutive iterations AND issue rotation detected (specific issues change between iterations even though the total stays flat GÇö the loop has reached the best quality achievable autonomously)
-
-**Problem:** "Issue rotation detected" is stated as a trigger condition but the parenthetical explains the *interpretation* rather than the *detection rule*. The build spec fills in the algorithmic details (Levenshtein similarity), but the design spec's own description reads as if rotation alone is the signal, when what it actually means is: the counts are flat AND the specific issues are churning (replacing each other), indicating the AI is finding different things of similar severity each pass GÇö a plateau.
-
-**Replacement text:**
-> Total error count remains the same across consecutive iterations AND the specific issues are rotating GÇö fewer than a threshold percentage of issues from one iteration match the prior iteration. This indicates the loop has reached the best quality achievable autonomously: it keeps finding different things, but the overall quality level is stable.
+> Plan | AI returns a JSON response containing a `stuck` boolean, an optional `reason` string (required when stuck), and a `content` string (the drafted document content when not stuck). The orchestrator parses this JSON to detect stuck status. Schema in build spec (`PlanBuilderResponse`). | Notify and wait
 
 ---
 
-### Finding 1.3 GÇö [Minor] Fabrication guard description is dense and hard to parse in a single pass
-
-**Location:** Design Specification, Convergence Guards table, "Fabrication" row
-
-**Current text:**
-> A severity category spikes well above its recent average, AND the system had previously approached convergence thresholds GÇö suggesting the reviewer is manufacturing issues because nothing real remains
-
-**Problem:** "Well above its recent average" is vague at the plan level. The build spec defines "50% above trailing 3-iteration average with minimum absolute increase of 2" GÇö but the design spec should at least convey the two-condition structure clearly without requiring the reader to consult the build spec for basic understanding.
+**[Minor] DS-3: "Extended period" is vague in Phase 2 error handling.**
+The Phase 2 error handling table says "Human has not responded to a Phase 2 question for an extended period" Î“Ã‡Ã¶ no definition of what "extended" means.
 
 **Replacement text:**
-> Two conditions: (1) any single severity category count spikes sharply above its recent trailing average, AND (2) the system had previously approached convergence thresholds. Together these suggest the reviewer is manufacturing issues because nothing real remains.
+
+> Human has not responded to a Phase 2 question | No automatic action. Project remains in `spec_building` state. No timeout Î“Ã‡Ã¶ the project stays open indefinitely until the human acts. Reminder notification is deferred (not a current build dependency).
 
 ---
 
-### Finding 1.4 GÇö [Minor] Phase 1 step 0 is a dense paragraph covering 6 distinct operations
+**[Minor] DS-4: "Trailing 3-iteration average" in the fabrication guard needs a cold-start clause.**
+The build spec says "Any single severity category count exceeds its trailing 3-iteration average by more than 50%." What happens in iterations 1-2 when there aren't 3 prior iterations?
 
-**Location:** Design Specification, Phase 1, step 0 ("Project Initialization")
+**Replacement text** (build spec, Fabrication Guard, condition 1):
 
-**Problem:** Mixing initialization-time actions with post-Phase-1 actions in one paragraph makes it easy to miss the temporal split.
+> **Category spike:** Any single severity category count exceeds its trailing 3-iteration average by more than 50%, with a minimum absolute increase of 2. If fewer than 3 prior iterations exist, use the available iterations for the average. The fabrication guard cannot trigger before iteration 4 (need at least 3 data points for a meaningful trailing average).
+
+---
+
+**[Minor] DS-5: "Fewer than 70% of issues match" in the stagnation guard Î“Ã‡Ã¶ direction is ambiguous.**
+The build spec says "Fewer than 70% of issues in the current iteration match an issue from the prior iteration." This could mean 70% of current issues match prior, or 70% of prior issues match current. These produce different results when issue counts differ between iterations.
 
 **Replacement text:**
-> Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project" command or button). At initialization, ThoughtForge: generates a unique project ID, creates the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories), initializes a git repo, writes an initial `status.json` with phase `brain_dump` and `project_name` as empty string, opens a new chat thread, and GÇö if Vibe Kanban integration is enabled GÇö creates a corresponding Kanban card.
->
-> After Phase 1 distillation locks `intent.md`, the project name is extracted from the `intent.md` title and written to `status.json`. If Vibe Kanban is enabled, the card name is updated at the same time.
+
+> **Issue rotation detection:** Fewer than 70% of issues in the current iteration have a matching issue in the prior iteration (i.e., for each current issue, check if any prior issue has Levenshtein similarity Î“Ã«Ã‘ 0.8 on the `description` field Î“Ã‡Ã¶ if fewer than 70% of current issues find a match, rotation is detected).
+
+---
+
+**[Minor] DS-6: Requirements brief says "Up to 3 (configurable)" for parallel execution but doesn't clarify what configures it.**
+
+**Replacement text** (requirements brief, Success Criteria table, Parallel execution row):
+
+> Up to 3 (configurable via `config.yaml` `concurrency.max_parallel_runs`)
+
+---
+
+**[Minor] DS-7: Build spec prompt sections that say "Status: Prompt text to be drafted before Task N begins" are ambiguous about ownership.**
+Seven prompt sections in the build spec have placeholder status lines. This is fine for a build spec, but it's unclear whether the AI coder drafts these or the human provides them.
+
+**Replacement text** for each placeholder prompt section (spec-building, plan-review, code-review, plan-fix, code-fix, completeness-gate, plan-build, code-build):
+
+> **Status:** To be drafted by the AI coder as the first step of the task that depends on this prompt (see "Used by" reference above). The human reviews and edits via the Settings UI after initial draft.
 
 ---
 
 ## 2. Genuinely Missing Plan-Level Content
 
-### Finding 2.1 GÇö [Major] No project ID generation strategy specified
+**[Critical] EP-M1: The execution plan has no testing strategy for the chat interface and UI components.**
+Build Stage 8 has unit tests for state module, plugin loader, convergence guards, agent adapters, resource connectors, notifications, and prompt editor Î“Ã‡Ã¶ but no tests for the core chat interface (Task 7), WebSocket streaming, action buttons (Task 10), project list sidebar (Task 7g), or file dropping (Task 7h). The chat interface is the primary human interaction surface and has zero test coverage specified.
 
-**Location:** Design Specification, Phase 1 step 0; Build Spec, `status.json` schema
+**Proposed content** (add to Build Stage 8 in the execution plan):
 
-**Problem:** The plan says "generates a unique project ID" but neither the design spec nor the build spec specifies the ID format or generation strategy. UUID? Incremental? Timestamp-based? This affects directory naming, Vibe Kanban task IDs, URL routing in the chat interface, and human readability.
+> | 58a | Unit tests: chat interface (WebSocket message delivery, AI response streaming, phase-labeled messages, project thread switching) | Î“Ã‡Ã¶ | Task 7, Task 7g | Î“Ã‡Ã¶ | Not Started |
+> | 58b | Unit tests: action buttons (Distill triggers distillation, Confirm advances phase, button state disabled during processing, Phase 4 halt recovery buttons) | Î“Ã‡Ã¶ | Task 10, Task 40a | Î“Ã‡Ã¶ | Not Started |
+> | 58c | Unit tests: file/resource dropping (upload to `/resources/`, unsupported file handling, concurrent uploads) | Î“Ã‡Ã¶ | Task 7h | Î“Ã‡Ã¶ | Not Started |
 
-**Proposed content to add to Design Specification, Phase 1 step 0, after "generates a unique project ID":**
-> Project IDs are generated as `{timestamp}-{short-random}` (e.g., `20260214-a3f2`). The timestamp prefix provides natural chronological ordering in the filesystem. The random suffix prevents collisions when projects are created in rapid succession. IDs are used as directory names, Vibe Kanban task IDs, and URL path segments.
+Also add to the Completion Checklist:
 
----
-
-### Finding 2.2 GÇö [Major] No definition of what "locking" a document means in implementation terms
-
-**Location:** Design Specification, Phase 1 step 11, Phase 2 step 9
-
-**Problem:** The plan repeatedly says documents are "locked GÇö no further modification by AI in subsequent phases." But there is no specification of how locking is enforced. Without this, a builder might implement locking inconsistently or not at all, and the plan's safety guarantees around `intent.md` immutability become unenforceable.
-
-**Proposed content to add to Design Specification, after the Phase-to-State Mapping table (as a new subsection "Document Locking"):**
-> **Document Locking:** When a document is "locked," the orchestrator records the lock in `status.json` (e.g., `locked_docs: ["intent.md"]`). Before any AI write operation in subsequent phases, the orchestrator checks this list and blocks writes to locked files. This is an orchestrator-level enforcement GÇö not file system permissions. The human can still edit locked files manually outside the pipeline.
+> - [ ] Chat interface tests pass (WebSocket, streaming, buttons, file drop, project switching)
 
 ---
 
-### Finding 2.3 GÇö [Major] Chat history clearing rules create a gap for Phase 4 agent context
-
-**Location:** Design Specification, Project State Files, `chat_history.json`
-
-**Problem:** Phase 3 stuck recovery messages persist into Phase 4 by design, but the design spec doesn't address whether Phase 4 review prompts should receive this chat context or only the deliverable files and `constraints.md`. A builder won't know whether to pass the full `chat_history.json` to Phase 4 agents or filter by phase.
-
-**Proposed content to add to Design Specification, Phase 4 section, before "Each Iteration GÇö Two Steps":**
-> **Phase 4 Context:** Phase 4 review and fix prompts receive only the deliverable files and `constraints.md` as input. Chat history from prior phases (including Phase 3 stuck recovery) is not passed to Phase 4 agents. `chat_history.json` retains these messages for human reference and crash recovery, but they are not agent input during polish iterations.
+**[Major] EP-M2: No task for drafting the Phase 2 spec-building prompt, but the task is actually present as 7f Î“Ã‡Ã¶ it's just easy to miss because it's embedded in Build Stage 2 without a clear connection to Task 12.**
+Actually, Task 7f exists ("Draft `/prompts/spec-building.md` prompt text"). This is addressed. No action needed Î“Ã‡Ã¶ withdrawing this finding.
 
 ---
 
-### Finding 2.4 GÇö [Major] No specification for how the Phase 2 "Confirm button blocked" mechanism works
+**[Major] EP-M3: The execution plan has no task for config schema validation.**
+The design spec describes config validation on startup (Zod-based, exit on invalid/missing, descriptive errors). No task in the execution plan covers implementing this. Task 1 says "config.yaml loader" but doesn't mention validation.
 
-**Location:** Design Specification, Phase 2 step 7
+**Proposed content** (update Task 1 in the execution plan):
 
-**Problem:** "Blocked" is a UI behavior that has no corresponding technical spec. What triggers the validation GÇö is it a pre-check when the human clicks Confirm, or is the button state continuously updated? This affects whether the builder implements a synchronous gate or a reactive UI state.
-
-**Proposed content to add to Design Specification, Phase 2, after step 7:**
-> **Confirm Gate Mechanism:** When the human clicks Confirm during Phase 2, the orchestrator runs a pre-advancement validation: it checks whether the AI has marked all Unknowns and Open Questions from `intent.md` as resolved in the current spec draft. If unresolved items remain, the advancement is rejected GÇö the Confirm action fails with a message listing the remaining items, and the phase does not advance. The button is always visible and clickable; the gate is a server-side validation, not a UI state toggle.
+> | 1 | Initialize Node.js project, folder structure, `config.yaml` loader with Zod schema validation (exit with descriptive error on missing file, invalid YAML, or schema violations) | Î“Ã‡Ã¶ | Î“Ã‡Ã¶ | Î“Ã‡Ã¶ | Not Started |
 
 ---
 
-### Finding 2.5 GÇö [Major] No specification for how review prompts handle acceptance criteria
+**[Major] EP-M4: No task for implementing the "realign from here" behavior.**
+The design spec describes specific "realign from here" mechanics (Phase 1, step 9) Î“Ã‡Ã¶ treating the last substantive correction as baseline, discarding AI revisions after that point, re-distilling from original brain dump plus corrections. Task 9 says "correction loop (chat-based revisions, 'realign from here')" which covers it in name, but the realign mechanic is non-trivial and worth calling out explicitly.
 
-**Location:** Design Specification, Phase 4; Build Spec, prompt placeholders
+**Proposed content** (clarify Task 9 in the execution plan):
 
-**Problem:** The design spec says Phase 4 reviews evaluate the deliverable against `constraints.md` including acceptance criteria. But it never specifies how GÇö are criteria checked one-by-one? Reported as a separate section in the review JSON? Part of general judgment? This matters because acceptance criteria are the primary quality gate and a reviewer prompt that doesn't explicitly enumerate them will likely miss some.
-
-**Proposed content to add to Design Specification, Phase 4, after "Step 1 GÇö Review":**
-> The review prompt passes the full text of `constraints.md` (including all acceptance criteria) to the reviewer AI. The reviewer must evaluate every acceptance criterion individually and report unmet criteria as issues in the JSON error report. Acceptance criteria violations are always severity `critical`. This ensures the polish loop cannot converge while acceptance criteria remain unmet.
+> | 9 | Implement correction loop: chat-based revisions with AI re-presentation, and "realign from here" command (discard post-correction AI revisions, re-distill from brain dump + corrections up to baseline message) | Î“Ã‡Ã¶ | Task 8 | Î“Ã‡Ã¶ | Not Started |
 
 ---
 
-### Finding 2.6 GÇö [Minor] Execution Plan has no task for config.yaml schema validation
+**[Major] DS-M5: No specification of what happens when the human manually edits locked files (`intent.md`, `spec.md`, `constraints.md`) outside the pipeline.**
+The design spec says these files are "locked Î“Ã‡Ã¶ no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline." But there's no specification of the consequences. Does the polish loop re-read `constraints.md` each iteration (picking up manual edits)? Does `spec.md` get re-read at Phase 3 start? If the human edits `intent.md` after Phase 2, does anything notice?
 
-**Location:** Design Specification, "Config Validation" paragraph; Execution Plan, Build Stage 1
+**Proposed content** (add to design spec, after the Phase 2 outputs section):
 
-**Problem:** The design spec describes Zod-based config validation, but the Execution Plan Task 1 only says "config.yaml loader" GÇö the validation is non-trivial and deserves its own task.
-
-**Proposed: add Task 1b to Build Stage 1:**
-
-| # | Task | Owner | Depends On | Estimate | Status |
-|---|------|-------|------------|----------|--------|
-| 1b | Implement `config.yaml` Zod schema validation: validate all keys on startup, exit with descriptive per-key error on failure, no partial loading | GÇö | Task 1 | GÇö | Not Started |
+> **Manual Edit Behavior:** "Locked" means the AI pipeline will not modify these files after their creation phase. However, the pipeline re-reads `constraints.md` at the start of each Phase 4 iteration, so manual human edits to acceptance criteria or review rules are picked up automatically. `spec.md` and `intent.md` are read at Phase 3 start and not re-read Î“Ã‡Ã¶ manual edits to these files after their respective phases require restarting from that phase (not currently supported; project must be recreated). The pipeline does not detect or warn about manual edits.
 
 ---
 
-### Finding 2.7 GÇö [Minor] No error handling specified for project initialization failures
+**[Minor] DS-M6: No specification for how the project name is derived from `intent.md`.**
+The design spec says "the project name is extracted from the `intent.md` title" and the notification section says "the AI extracts or generates a short name from the brain dump." These describe slightly different things Î“Ã‡Ã¶ one says extraction from `intent.md` title, the other says generation from brain dump.
 
-**Location:** Design Specification, Phase 1 step 0
+**Proposed content** (add clarification to design spec, Phase 1 step 0):
 
-**Problem:** The Phase 1 error handling table covers agent failures, empty brain dumps, unreadable resources, and connector failures GÇö but not initialization failures (filesystem errors, git init failures, VK card creation failures).
-
-**Proposed content to add to Phase 1 Error Handling table:**
-
-| Condition | Action |
-|---|---|
-| Project directory creation failure (permissions, disk space) | Halt immediately with error message. No project created, no state files written. |
-| Git repo initialization failure | Halt immediately with error message. Clean up any partially created project directory. |
-| Vibe Kanban card creation failure (VK enabled) | Log the failure, notify the human, proceed without Kanban visualization. Project runs in VK-disabled mode for this project. |
-
----
-
-### Finding 2.8 GÇö [Minor] No input size limits for brain dump or resource files
-
-**Location:** Design Specification, Phase 1 Inputs table
-
-**Problem:** AI context windows have hard token limits. A large resource would silently fail or produce garbage distillation.
-
-**Proposed content to add after Phase 1 Inputs table:**
-> **Input Size Limits:** Resource files exceeding the configured agent's context window will be truncated with a notification to the human specifying which file was truncated and how much was lost. ThoughtForge does not chunk or summarize oversized inputs GÇö truncation is the only strategy in v1. The human can split large files manually. Maximum individual file sizes and total input budget are deferred to build spec configuration.
-
----
-
-### Finding 2.9 GÇö [Minor] Execution Plan Build Stage 8 has no chat interface integration test task
-
-**Location:** Execution Plan, Build Stage 8
-
-**Problem:** No integration test for the chat interface GÇö WebSocket connectivity, message streaming, button interactions, project switching, file dropping.
-
-**Proposed: add Task 59 to Build Stage 8:**
-
-| # | Task | Owner | Depends On | Estimate | Status |
-|---|------|-------|------------|----------|--------|
-| 59 | Integration tests: chat interface (WebSocket connection, message streaming, button actions, project switching, file upload to `/resources/`) | GÇö | Task 7, Task 7g, Task 7h, Task 10 | GÇö | Not Started |
-
-Also add to Completion Checklist:
-> - [ ] Chat interface integration tests pass (WebSocket, streaming, buttons, file upload)
+> After Phase 1 distillation locks `intent.md`, the project name is set to the first heading (H1) of `intent.md`. If `intent.md` has no H1 heading, the AI generates a short descriptive name (2-4 words) from the brain dump content and uses that as both the `intent.md` title and the project name.
 
 ---
 
 ## 3. Build Spec Material That Should Be Extracted
 
-**No findings.** The design specification stays at the plan level throughout. Implementation details (schemas, function signatures, prompt text, CLI commands, algorithmic parameters) are already correctly placed in the build spec. This split is clean.
+**[Minor] BS-1: The design spec contains Vibe Kanban CLI command details that belong in the build spec.**
+The design spec's "Vibe Kanban Integration Interface" section describes "four operations: task creation, status updates, agent work execution, result reading" and references "Exact CLI commands and flags in build spec." This is fine Î“Ã‡Ã¶ the design spec describes operations, not commands. However, the sentence "All integration calls centralized in `vibekanban-adapter.js`" includes the filename, which is an implementation detail. This is borderline but acceptable since it serves as an architectural constraint (single adapter pattern), not just a filename. **No extraction needed** Î“Ã‡Ã¶ withdrawing this finding.
 
 ---
 
-## Summary
+**[Minor] BS-2: The design spec Phase 1 step 0 contains implementation-level detail about directory creation.**
+"ThoughtForge generates a unique project ID, creates the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories), initializes a git repo, writes an initial `status.json`..." Î“Ã‡Ã¶ this reads more like a build task than a design behavior. However, since it establishes the project structure that all subsequent phases depend on, it's appropriately at the plan level. **No extraction needed** Î“Ã‡Ã¶ withdrawing this finding.
 
-| Severity | Count |
-|----------|-------|
-| Critical | 0 |
-| Major | 5 |
-| Minor | 8 |
-| **Total** | **13** |
-
-No critical blockers. The five major findings (project ID format, document locking mechanism, Phase 4 agent context, Phase 2 confirm gate, acceptance criteria review behavior) would each force a builder to make undocumented architectural decisions. All are resolvable with the proposed additions above.
+No items require extraction. The design spec and build spec are cleanly separated Î“Ã‡Ã¶ the build spec already contains the implementation details (schemas, function signatures, CLI commands, prompt text) while the design spec stays at the behavioral level.
 
 ---
 
-## Consolidated Coder Prompt
+## Final Output: Consolidated AI Coder Prompt
 
 ```
-You are applying the results of a plan review to the ThoughtForge project documents.
-Apply every change below to the specified files. Do not interpret, reorder, or skip any
-change. After all changes are applied, git add the modified files, commit with the message
-"Apply plan review findings GÇö clarity fixes, missing content, new tasks", and push to remote.
+You are applying review changes to the ThoughtForge project plan documents. Apply every change below exactly as specified. Do not interpret or improvise Î“Ã‡Ã¶ each change has explicit replacement or addition text.
 
-=============================================================================
-FILE: docs/thoughtforge-design-specification.md
-=============================================================================
+## FILE: docs/thoughtforge-design-specification.md
 
-CHANGE 1 GÇö Replace "realign from here" description (Phase 1, step 9)
+### CHANGE 1 (DS-1): Add Phase 2 conversation mechanics
+Location: Phase 2, after step 6 ("Human reviews acceptance criteria Î“Ã‡Ã¶ adds/removes as needed"), before step 7.
+Add the following as a new paragraph between steps 6 and 7:
 
-Find:
-> Human can type "realign from here" as a chat message. The AI treats the human's most
-> recent substantive correction (the last non-command human message before "realign from
-> here") as the new baseline. All AI revisions produced after that correction are discarded.
-> The AI re-distills from the original brain dump plus all human corrections up to and
-> including that baseline message. Does not restart from the original brain dump alone.
+**Phase 2 Conversation Mechanics:** The AI presents each proposed element (deliverable structure, key decisions, resolved unknowns, acceptance criteria) as a structured message in chat. The human responds with natural language corrections or overrides Î“Ã‡Ã¶ same chat-based correction model as Phase 1. The AI revises and re-presents the updated element. There is no "realign from here" in Phase 2 Î“Ã‡Ã¶ the scope of each element is small enough that targeted corrections suffice. The Confirm button advances to Phase 3 only after the validation gate in step 7 passes.
 
-Replace with:
-> Human can type "realign from here" as a chat message. ThoughtForge identifies the last
-> human message before "realign from here" that is not itself "realign from here" GÇö this
-> becomes the baseline. All AI revisions produced after that baseline message are discarded.
-> The AI re-distills from the original brain dump plus all human messages up to and
-> including the baseline. Does not restart from the original brain dump alone.
+### CHANGE 2 (DS-2): Clarify Plan mode stuck detection
+Location: Phase 3 Stuck Detection table, Plan mode row.
+Replace the current Plan row:
+OLD: "Plan | AI signals stuck status via a structured flag in its JSON output Î“Ã‡Ã¶ not freeform text. The Phase 3 plan builder prompt requires this structured signal. Exact JSON schema in build spec. | Notify and wait"
+NEW: "Plan | AI returns a JSON response containing a `stuck` boolean, an optional `reason` string (required when stuck), and a `content` string (the drafted document content when not stuck). The orchestrator parses this JSON to detect stuck status. Schema in build spec (`PlanBuilderResponse`). | Notify and wait"
 
----
+### CHANGE 3 (DS-3): Fix vague "extended period" in Phase 2 error handling
+Location: Phase 2 Error Handling table, third row.
+Replace:
+OLD: "Human has not responded to a Phase 2 question for an extended period | No automatic action. Project remains in `spec_building` state. Notification sent as a reminder (configurable Î“Ã‡Ã¶ deferred, not a current build dependency)."
+NEW: "Human has not responded to a Phase 2 question | No automatic action. Project remains in `spec_building` state. No timeout Î“Ã‡Ã¶ the project stays open indefinitely until the human acts. Reminder notification is deferred (not a current build dependency)."
 
-CHANGE 2 GÇö Replace Stagnation guard description in Convergence Guards table
+### CHANGE 4 (DS-M5): Add manual edit behavior specification
+Location: After the Phase 2 outputs paragraph (after step 9, "Outputs: `spec.md` and `constraints.md` written to `/docs/` and locked..."), add a new paragraph:
 
-Find the Stagnation row's "Condition" cell:
-> Total count plateaus across consecutive iterations AND issue rotation detected (specific
-> issues change between iterations even though the total stays flat GÇö the loop has reached
-> the best quality achievable autonomously)
+**Manual Edit Behavior:** "Locked" means the AI pipeline will not modify these files after their creation phase. However, the pipeline re-reads `constraints.md` at the start of each Phase 4 iteration, so manual human edits to acceptance criteria or review rules are picked up automatically. `spec.md` and `intent.md` are read at Phase 3 start and not re-read Î“Ã‡Ã¶ manual edits to these files after their respective phases require restarting from that phase (not currently supported; project must be recreated). The pipeline does not detect or warn about manual edits.
 
-Replace with:
-> Total error count remains the same across consecutive iterations AND the specific issues
-> are rotating GÇö fewer than a threshold percentage of issues from one iteration match the
-> prior iteration. This indicates the loop has reached the best quality achievable
-> autonomously: it keeps finding different things, but the overall quality level is stable.
+### CHANGE 5 (DS-M6): Clarify project name derivation
+Location: Phase 1 step 0, replace the sentence "After Phase 1 distillation locks `intent.md`, the project name is extracted from the `intent.md` title and written to `status.json`."
+NEW: "After Phase 1 distillation locks `intent.md`, the project name is set to the first heading (H1) of `intent.md`. If `intent.md` has no H1 heading, the AI generates a short descriptive name (2-4 words) from the brain dump content and uses that as both the `intent.md` title and the project name. The project name is written to `status.json`."
 
 ---
 
-CHANGE 3 GÇö Replace Fabrication guard description in Convergence Guards table
+## FILE: docs/thoughtforge-build-spec.md
 
-Find the Fabrication row's "Condition" cell:
-> A severity category spikes well above its recent average, AND the system had previously
-> approached convergence thresholds GÇö suggesting the reviewer is manufacturing issues
-> because nothing real remains
+### CHANGE 6 (DS-4): Add cold-start clause to fabrication guard
+Location: Convergence Guard Parameters Î“Ã¥Ã† Fabrication Guard Î“Ã¥Ã† condition 1.
+Replace:
+OLD: "1. **Category spike:** Any single severity category count exceeds its trailing 3-iteration average by more than 50%, with a minimum absolute increase of 2"
+NEW: "1. **Category spike:** Any single severity category count exceeds its trailing 3-iteration average by more than 50%, with a minimum absolute increase of 2. If fewer than 3 prior iterations exist, use the available iterations for the average. The fabrication guard cannot trigger before iteration 4 (need at least 3 data points for a meaningful trailing average)."
 
-Replace with:
-> Two conditions: (1) any single severity category count spikes sharply above its recent
-> trailing average, AND (2) the system had previously approached convergence thresholds.
-> Together these suggest the reviewer is manufacturing issues because nothing real remains.
+### CHANGE 7 (DS-5): Clarify stagnation guard issue rotation direction
+Location: Convergence Guard Parameters Î“Ã¥Ã† Stagnation Guard Î“Ã¥Ã† Issue rotation detection.
+Replace:
+OLD: "- **Issue rotation detection:** Fewer than 70% of issues in the current iteration match an issue from the prior iteration"
+NEW: "- **Issue rotation detection:** Fewer than 70% of issues in the current iteration have a matching issue in the prior iteration (i.e., for each current issue, check if any prior issue has Levenshtein similarity Î“Ã«Ã‘ 0.8 on the `description` field Î“Ã‡Ã¶ if fewer than 70% of current issues find a match, rotation is detected)"
 
----
+### CHANGE 8 (DS-7): Clarify prompt draft ownership
+Location: Every prompt section that currently says "**Status:** Prompt text to be drafted before Task N begins."
+Replace each instance with:
+"**Status:** To be drafted by the AI coder as the first step of the task that depends on this prompt (see "Used by" reference above). The human reviews and edits via the Settings UI after initial draft."
 
-CHANGE 4 GÇö Replace Phase 1 step 0 paragraph (Project Initialization)
-
-Find the paragraph starting with:
-> Human initiates a new project via the ThoughtForge chat interface
-
-Replace the entire paragraph (from "Human initiates" through "a corresponding card is
-created at this point.") with:
-
-> Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project"
-> command or button). At initialization, ThoughtForge: generates a unique project ID
-> (format: `{timestamp}-{short-random}`, e.g., `20260214-a3f2` GÇö timestamp prefix for
-> chronological ordering, random suffix to prevent collisions; used as directory names,
-> Vibe Kanban task IDs, and URL path segments), creates the `/projects/{id}/` directory
-> structure (including `/docs/` and `/resources/` subdirectories), initializes a git repo,
-> writes an initial `status.json` with phase `brain_dump` and `project_name` as empty
-> string, opens a new chat thread, and GÇö if Vibe Kanban integration is enabled GÇö creates
-> a corresponding Kanban card.
->
-> After Phase 1 distillation locks `intent.md`, the project name is extracted from the
-> `intent.md` title and written to `status.json`. If Vibe Kanban is enabled, the card
-> name is updated at the same time.
+This applies to the following sections:
+- Phase 2 System Prompt Î“Ã‡Ã¶ Spec Building
+- Phase 4 System Prompt Î“Ã‡Ã¶ Plan Review
+- Phase 4 System Prompt Î“Ã‡Ã¶ Code Review
+- Phase 4 System Prompt Î“Ã‡Ã¶ Plan Fix
+- Phase 4 System Prompt Î“Ã‡Ã¶ Code Fix
+- Plan Completeness Gate Prompt
+- Phase 3 System Prompt Î“Ã‡Ã¶ Plan Build
+- Phase 3 System Prompt Î“Ã‡Ã¶ Code Build
 
 ---
 
-CHANGE 5 GÇö Add "Document Locking" subsection after the Phase-to-State Mapping table
+## FILE: docs/thoughtforge-requirements-brief.md
 
-Insert the following new subsection immediately after the "Vibe Kanban columns mirror
-these `status.json` values directly." line and BEFORE "Project Lifecycle After Completion":
-
-**Document Locking:** When a document is "locked," the orchestrator records the lock in
-`status.json` (e.g., `locked_docs: ["intent.md"]`). Before any AI write operation in
-subsequent phases, the orchestrator checks this list and blocks writes to locked files.
-This is an orchestrator-level enforcement GÇö not file system permissions. The human can
-still edit locked files manually outside the pipeline.
+### CHANGE 9 (DS-6): Clarify parallel execution config reference
+Location: Success Criteria table, Parallel execution row, Target column.
+Replace:
+OLD: "Up to 3 (configurable)"
+NEW: "Up to 3 (configurable via `config.yaml` `concurrency.max_parallel_runs`)"
 
 ---
 
-CHANGE 6 GÇö Add Phase 4 Context note before "Each Iteration GÇö Two Steps"
+## FILE: docs/thoughtforge-execution-plan.md
 
-Insert the following immediately before the "**Each Iteration GÇö Two Steps:**" line in
-Phase 4:
+### CHANGE 10 (EP-M1): Add chat interface test tasks
+Location: Build Stage 8 table, after Task 58.
+Add three new rows:
 
-**Phase 4 Context:** Phase 4 review and fix prompts receive only the deliverable files
-and `constraints.md` as input. Chat history from prior phases (including Phase 3 stuck
-recovery) is not passed to Phase 4 agents. `chat_history.json` retains these messages
-for human reference and crash recovery, but they are not agent input during polish
-iterations.
+| 58a | Unit tests: chat interface (WebSocket message delivery, AI response streaming, phase-labeled messages, project thread switching) | Î“Ã‡Ã¶ | Task 7, Task 7g | Î“Ã‡Ã¶ | Not Started |
+| 58b | Unit tests: action buttons (Distill triggers distillation, Confirm advances phase, button state disabled during processing, Phase 4 halt recovery buttons) | Î“Ã‡Ã¶ | Task 10, Task 40a | Î“Ã‡Ã¶ | Not Started |
+| 58c | Unit tests: file/resource dropping (upload to `/resources/`, unsupported file handling, concurrent uploads) | Î“Ã‡Ã¶ | Task 7h | Î“Ã‡Ã¶ | Not Started |
 
----
+### CHANGE 11 (EP-M1): Add chat interface to completion checklist
+Location: Completion Checklist, after the last checkbox item.
+Add:
 
-CHANGE 7 GÇö Add acceptance criteria review behavior after Phase 4 "Step 1 GÇö Review"
+- [ ] Chat interface tests pass (WebSocket, streaming, buttons, file drop, project switching)
 
-Insert the following immediately after the "Step 1 GÇö Review" description ("Outputs ONLY
-a JSON error report. Does not fix anything."):
+### CHANGE 12 (EP-M3): Add config validation to Task 1
+Location: Build Stage 1, Task 1 description.
+Replace:
+OLD: "Initialize Node.js project, folder structure, `config.yaml` loader"
+NEW: "Initialize Node.js project, folder structure, `config.yaml` loader with Zod schema validation (exit with descriptive error on missing file, invalid YAML, or schema violations)"
 
-The review prompt passes the full text of `constraints.md` (including all acceptance
-criteria) to the reviewer AI. The reviewer must evaluate every acceptance criterion
-individually and report unmet criteria as issues in the JSON error report. Acceptance
-criteria violations are always severity `critical`. This ensures the polish loop cannot
-converge while acceptance criteria remain unmet.
-
----
-
-CHANGE 8 GÇö Add Confirm Gate Mechanism after Phase 2 step 7
-
-Insert the following after step 7 in Phase 2 (after "the AI presents the remaining items
-to the human.") and before step 8:
-
-**Confirm Gate Mechanism:** When the human clicks Confirm during Phase 2, the orchestrator
-runs a pre-advancement validation: it checks whether the AI has marked all Unknowns and
-Open Questions from `intent.md` as resolved in the current spec draft. If unresolved items
-remain, the advancement is rejected GÇö the Confirm action fails with a message listing the
-remaining items, and the phase does not advance. The button is always visible and clickable;
-the gate is a server-side validation, not a UI state toggle.
+### CHANGE 13 (EP-M4): Clarify Task 9 description
+Location: Build Stage 2, Task 9 description.
+Replace:
+OLD: "Implement correction loop (chat-based revisions, \"realign from here\")"
+NEW: "Implement correction loop: chat-based revisions with AI re-presentation, and \"realign from here\" command (discard post-correction AI revisions, re-distill from brain dump + corrections up to baseline message)"
 
 ---
 
-CHANGE 9 GÇö Add Input Size Limits after Phase 1 Inputs table
+## AFTER ALL CHANGES
 
-Insert the following after the Phase 1 Inputs table and before "### Outputs":
-
-**Input Size Limits:** Resource files exceeding the configured agent's context window will
-be truncated with a notification to the human specifying which file was truncated and how
-much was lost. ThoughtForge does not chunk or summarize oversized inputs GÇö truncation is
-the only strategy in v1. The human can split large files manually. Maximum individual file
-sizes and total input budget are deferred to build spec configuration.
-
----
-
-CHANGE 10 GÇö Add initialization error handling rows to Phase 1 Error Handling table
-
-Add the following three rows to the end of the Phase 1 Error Handling table:
-
-| Project directory creation failure (permissions, disk space) | Halt immediately with error message. No project created, no state files written. |
-| Git repo initialization failure | Halt immediately with error message. Clean up any partially created project directory. |
-| Vibe Kanban card creation failure (VK enabled) | Log the failure, notify the human, proceed without Kanban visualization. Project runs in VK-disabled mode for this project. |
-
-=============================================================================
-FILE: docs/thoughtforge-execution-plan.md
-=============================================================================
-
-CHANGE 11 GÇö Add Task 1b to Build Stage 1 table
-
-Add the following row to the Build Stage 1 table, immediately after the Task 1a row:
-
-| 1b | Implement `config.yaml` Zod schema validation: validate all keys on startup, exit with descriptive per-key error on failure, no partial loading | GÇö | Task 1 | GÇö | Not Started |
-
----
-
-CHANGE 12 GÇö Add Task 59 to Build Stage 8 table
-
-Add the following row to the Build Stage 8 table, after Task 58:
-
-| 59 | Integration tests: chat interface (WebSocket connection, message streaming, button actions, project switching, file upload to `/resources/`) | GÇö | Task 7, Task 7g, Task 7h, Task 10 | GÇö | Not Started |
-
----
-
-CHANGE 13 GÇö Add chat interface integration test to Completion Checklist
-
-Add the following line to the Completion Checklist, after the "Unit tests pass for all
-core modules" line:
-
-- [ ] Chat interface integration tests pass (WebSocket, streaming, buttons, file upload)
-
-=============================================================================
-FILE: docs/thoughtforge-build-spec.md
-=============================================================================
-
-CHANGE 14 GÇö Update `status.json` schema to include `locked_docs` field
-
-In the `status.json` schema TypeScript interface, add the following field after
-`halted_reason`:
-
-  locked_docs: string[];       // Documents locked after phase completion (e.g., ["intent.md", "spec.md", "constraints.md"])
-
-=============================================================================
-AFTER ALL CHANGES
-=============================================================================
-
-Run:
-  git add docs/thoughtforge-design-specification.md docs/thoughtforge-execution-plan.md docs/thoughtforge-build-spec.md
-  git commit -m "Apply plan review findings GÇö clarity fixes, missing content, new tasks"
-  git push
+Run: git add docs/thoughtforge-requirements-brief.md docs/thoughtforge-design-specification.md docs/thoughtforge-build-spec.md docs/thoughtforge-execution-plan.md
+Run: git commit -m "Apply plan review findings: 1 critical, 4 major, 5 minor across all four plan documents"
+Run: git push
 ```
 
 ---
 
-I also attempted to write this to `results.md` but file write permissions were denied. Let me know if you'd like me to try again or save it elsewhere.
+**Summary: 10 findings total** Î“Ã‡Ã¶ 1 Critical, 4 Major, 5 Minor
+
+| Severity | Count | Key Issues |
+|----------|-------|------------|
+| Critical | 1 | EP-M1: No test coverage specified for the chat interface (primary human interaction surface) |
+| Major | 4 | Phase 2 conversation mechanics unspecified; Plan mode stuck signal ambiguous; No config validation task; Manual edit behavior of locked files undefined |
+| Minor | 5 | Vague timeout language; Fabrication guard cold-start; Stagnation guard direction; Parallel execution config ref; Prompt draft ownership |
