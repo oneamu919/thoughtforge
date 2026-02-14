@@ -77,7 +77,7 @@ Everything between touchpoints 3 and 4 is fully autonomous.
 | Human touchpoints per project | Count of required human interactions | 3-4 max |
 | Polish loop convergence | Error counts after autonomous run | 0 critical, <3 medium, <5 minor |
 | Manual labor replaced | Hours of iterative review saved | ~12 hours per project |
-| Parallel execution | Concurrent projects running | Up to 3 (configurable) |
+| Parallel execution | Concurrent projects running | Up to 3 (configurable via `config.yaml` `concurrency.max_parallel_runs`) |
 | Plan mode safety | Code execution during plan mode | Zero — hard blocked |
 
 ---

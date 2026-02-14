@@ -55,7 +55,7 @@ Handlebars templates define the OPA skeleton — fixed section headings with OPA
 
 **Primary Flow:**
 
-0. **Project Initialization:** Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project" command or button). ThoughtForge generates a unique project ID, creates the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories), initializes a git repo, writes an initial `status.json` with phase `brain_dump` and `project_name` as empty string, and opens a new chat thread. After Phase 1 distillation locks `intent.md`, the project name is extracted from the `intent.md` title and written to `status.json`. If Vibe Kanban is enabled, the card name is updated at the same time. If Vibe Kanban integration is enabled, a corresponding card is created at this point.
+0. **Project Initialization:** Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project" command or button). ThoughtForge generates a unique project ID, creates the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories), initializes a git repo, writes an initial `status.json` with phase `brain_dump` and `project_name` as empty string, and opens a new chat thread. After Phase 1 distillation locks `intent.md`, the project name is set to the first heading (H1) of `intent.md`. If `intent.md` has no H1 heading, the AI generates a short descriptive name (2-4 words) from the brain dump content and uses that as both the `intent.md` title and the project name. The project name is written to `status.json`. If Vibe Kanban is enabled, the card name is updated at the same time. If Vibe Kanban integration is enabled, a corresponding card is created at this point.
 
 **Agent Assignment:** The agent specified in `config.yaml` `agents.default` is assigned to the project at initialization and stored in `status.json` as the `agent` field. This determines which AI agent is used for all pipeline phases. Per-project agent override is deferred — not a current build dependency.
 
@@ -109,9 +109,14 @@ Vibe Kanban columns mirror these `status.json` values directly.
 4. AI derives 5-10 acceptance criteria from the objective, assumptions, and constraints in `intent.md`
 5. Human confirms or overrides specific decisions
 6. Human reviews acceptance criteria — adds/removes as needed
+
+**Phase 2 Conversation Mechanics:** The AI presents each proposed element (deliverable structure, key decisions, resolved unknowns, acceptance criteria) as a structured message in chat. The human responds with natural language corrections or overrides — same chat-based correction model as Phase 1. The AI revises and re-presents the updated element. There is no "realign from here" in Phase 2 — the scope of each element is small enough that targeted corrections suffice. The Confirm button advances to Phase 3 only after the validation gate in step 7 passes.
+
 7. Before advancement: AI validates that all Unknowns and Open Questions from `intent.md` have been resolved (either by AI decision in `spec.md` or by human input during Phase 2 chat). If unresolved items remain, the Confirm button is blocked and the AI presents the remaining items to the human.
 8. Human clicks **Confirm** → advances to Phase 3
 9. Outputs: `spec.md` and `constraints.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline.
+
+**Manual Edit Behavior:** "Locked" means the AI pipeline will not modify these files after their creation phase. However, the pipeline re-reads `constraints.md` at the start of each Phase 4 iteration, so manual human edits to acceptance criteria or review rules are picked up automatically. `spec.md` and `intent.md` are read at Phase 3 start and not re-read — manual edits to these files after their respective phases require restarting from that phase (not currently supported; project must be recreated). The pipeline does not detect or warn about manual edits.
 
 **Phase 2 Error Handling:**
 
@@ -119,7 +124,7 @@ Vibe Kanban columns mirror these `status.json` values directly.
 |---|---|
 | AI cannot resolve an Unknown from `intent.md` through reasoning | AI presents the Unknown to the human in the Phase 2 chat for decision. No unresolved Unknowns may carry into `spec.md`. |
 | Agent failure during Phase 2 conversation (timeout, crash, empty response) | Same retry behavior as agent communication layer: retry once, halt and notify on second failure. Chat resumes from last recorded message in `chat_history.json`. |
-| Human has not responded to a Phase 2 question for an extended period | No automatic action. Project remains in `spec_building` state. Notification sent as a reminder (configurable — deferred, not a current build dependency). |
+| Human has not responded to a Phase 2 question | No automatic action. Project remains in `spec_building` state. No timeout — the project stays open indefinitely until the human acts. Reminder notification is deferred (not a current build dependency). |
 
 **Plan Mode behavior:** Proposes plan structure following OPA Framework — every major section gets its own OPA table. Challenges decisions per Phase 2 step 2 behavior.
 
@@ -177,7 +182,7 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 
 | Mode | Stuck Condition | Action |
 |---|---|---|
-| Plan | AI signals stuck status via a structured flag in its JSON output — not freeform text. The Phase 3 plan builder prompt requires this structured signal. Exact JSON schema in build spec. | Notify and wait |
+| Plan | AI returns a JSON response containing a `stuck` boolean, an optional `reason` string (required when stuck), and a `content` string (the drafted document content when not stuck). The orchestrator parses this JSON to detect stuck status. Schema in build spec (`PlanBuilderResponse`). | Notify and wait |
 | Code | Build agent returns non-zero exit after 2 consecutive retries on the same task, OR test suite fails on the same tests for 3 consecutive fix attempts | Notify and wait |
 
 **Phase 3 Stuck Recovery:**

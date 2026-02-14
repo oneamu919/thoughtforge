@@ -22,7 +22,7 @@
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
-| 1 | Initialize Node.js project, folder structure, `config.yaml` loader | — | — | — | Not Started |
+| 1 | Initialize Node.js project, folder structure, `config.yaml` loader with Zod schema validation (exit with descriptive error on missing file, invalid YAML, or schema violations) | — | — | — | Not Started |
 | 1a | Implement application entry point: Node.js server startup, config initialization, local web server for chat interface | — | Task 1 | — | Not Started |
 | 2 | Implement project initialization: unique ID generation, `/projects/{id}/` directory scaffolding (including `/docs/` and `/resources/`), git repo init, initial `status.json` write, Vibe Kanban card creation (if enabled), and new chat thread creation | — | Task 1 | — | Not Started |
 | 2a | Implement git commit at pipeline milestones: `intent.md` lock (end of Phase 1), `spec.md` and `constraints.md` lock (end of Phase 2), Phase 3 build completion. Phase 4 per-iteration commits are handled separately in Task 40. | — | Task 2 | — | Not Started |
@@ -51,7 +51,7 @@
 | 7e | Implement Google Drive connector — authenticate via service account or OAuth, pull document content as text/Markdown, save to `/resources/` | — | Task 7c | — | Not Started |
 | 7f | Draft `/prompts/spec-building.md` prompt text | — | Task 7a | — | Not Started |
 | 8 | Implement Phase 1: brain dump intake, resource reading, distillation prompt (loaded from `/prompts/brain-dump-intake.md`) | — | Task 6a, Task 7, Task 7a, Task 7c, Tasks 41–42 | — | Not Started |
-| 9 | Implement correction loop (chat-based revisions, "realign from here") | — | Task 8 | — | Not Started |
+| 9 | Implement correction loop: chat-based revisions with AI re-presentation, and "realign from here" command (discard post-correction AI revisions, re-distill from brain dump + corrections up to baseline message) | — | Task 8 | — | Not Started |
 | 9a | Implement `chat_history.json` persistence: append after each chat message, clear on phase advancement confirmation, resume from last recorded message on crash | — | Task 3, Task 7 | — | Not Started |
 | 10 | Implement action buttons: Distill (Phase 1 intake trigger) and Confirm (phase advancement mechanism) | — | Task 7 | — | Not Started |
 | 11 | Implement `intent.md` generation and locking | — | Task 9, Task 2a | — | Not Started |
@@ -142,6 +142,9 @@
 | 56 | Test parallel execution (3 concurrent projects, different agents) | — | Task 29 | — | Not Started |
 | 57 | Test VK-disabled fallback (full pipeline without Vibe Kanban) | — | Task 29a | — | Not Started |
 | 58 | Unit tests: prompt editor (list prompt files, read content, save edits, handle missing/corrupt files) | — | Task 7b | — | Not Started |
+| 58a | Unit tests: chat interface (WebSocket message delivery, AI response streaming, phase-labeled messages, project thread switching) | — | Task 7, Task 7g | — | Not Started |
+| 58b | Unit tests: action buttons (Distill triggers distillation, Confirm advances phase, button state disabled during processing, Phase 4 halt recovery buttons) | — | Task 10, Task 40a | — | Not Started |
+| 58c | Unit tests: file/resource dropping (upload to `/resources/`, unsupported file handling, concurrent uploads) | — | Task 7h | — | Not Started |
 
 ---
 
@@ -206,6 +209,7 @@
 - [ ] `config.yaml` controls all configurable values
 - [ ] Prompt editor: list, view, edit, and save prompt files via Settings UI
 - [ ] Retrospective / lessons learned captured
+- [ ] Chat interface tests pass (WebSocket, streaming, buttons, file drop, project switching)
 
 ---
 

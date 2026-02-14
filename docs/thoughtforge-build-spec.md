@@ -72,7 +72,7 @@ Rules:
 **Used by:** Task 12 (Phase 2 spec building)
 **Called via:** Agent invocation layer (Tasks 41–42)
 
-**Status:** Prompt text to be drafted before Task 12 begins.
+**Status:** To be drafted by the AI coder as the first step of the task that depends on this prompt (see "Used by" reference above). The human reviews and edits via the Settings UI after initial draft.
 
 ---
 
@@ -82,7 +82,7 @@ Rules:
 **Used by:** Task 30 (polish loop orchestrator, Plan mode)
 **Called via:** Agent invocation layer (Tasks 41–42)
 
-**Status:** Prompt text to be drafted before Task 30 begins.
+**Status:** To be drafted by the AI coder as the first step of the task that depends on this prompt (see "Used by" reference above). The human reviews and edits via the Settings UI after initial draft.
 
 ---
 
@@ -92,7 +92,7 @@ Rules:
 **Used by:** Task 30 (polish loop orchestrator, Code mode)
 **Called via:** Agent invocation layer (Tasks 41–42)
 
-**Status:** Prompt text to be drafted before Task 30 begins.
+**Status:** To be drafted by the AI coder as the first step of the task that depends on this prompt (see "Used by" reference above). The human reviews and edits via the Settings UI after initial draft.
 
 ---
 
@@ -102,7 +102,7 @@ Rules:
 **Used by:** Task 30 (polish loop orchestrator, Plan mode)
 **Called via:** Agent invocation layer (Tasks 41–42)
 
-**Status:** Prompt text to be drafted before Task 30 begins.
+**Status:** To be drafted by the AI coder as the first step of the task that depends on this prompt (see "Used by" reference above). The human reviews and edits via the Settings UI after initial draft.
 
 ---
 
@@ -112,7 +112,7 @@ Rules:
 **Used by:** Task 30 (polish loop orchestrator, Code mode)
 **Called via:** Agent invocation layer (Tasks 41–42)
 
-**Status:** Prompt text to be drafted before Task 30 begins.
+**Status:** To be drafted by the AI coder as the first step of the task that depends on this prompt (see "Used by" reference above). The human reviews and edits via the Settings UI after initial draft.
 
 ---
 
@@ -122,7 +122,7 @@ Rules:
 **Used by:** Task 19 (Plan Completeness Gate)
 **Called via:** Agent invocation layer (Tasks 41–42)
 
-**Status:** Prompt text to be drafted before Task 19 begins.
+**Status:** To be drafted by the AI coder as the first step of the task that depends on this prompt (see "Used by" reference above). The human reviews and edits via the Settings UI after initial draft.
 
 ---
 
@@ -132,7 +132,7 @@ Rules:
 **Used by:** Task 15 (plan builder)
 **Called via:** Agent invocation layer (Tasks 41–42)
 
-**Status:** Prompt text to be drafted before Task 15 begins.
+**Status:** To be drafted by the AI coder as the first step of the task that depends on this prompt (see "Used by" reference above). The human reviews and edits via the Settings UI after initial draft.
 
 ---
 
@@ -142,7 +142,7 @@ Rules:
 **Used by:** Task 21 (code builder)
 **Called via:** Agent invocation layer (Tasks 41–42)
 
-**Status:** Prompt text to be drafted before Task 21 begins.
+**Status:** To be drafted by the AI coder as the first step of the task that depends on this prompt (see "Used by" reference above). The human reviews and edits via the Settings UI after initial draft.
 
 ---
 
@@ -265,7 +265,7 @@ The orchestrator ignores top-level count fields (`critical`, `medium`, `minor`) 
 ### Stagnation Guard
 
 - **Plateau window:** Same total error count for 3+ consecutive iterations (configurable via `config.yaml` `polish.stagnation_limit`)
-- **Issue rotation detection:** Fewer than 70% of issues in the current iteration match an issue from the prior iteration
+- **Issue rotation detection:** Fewer than 70% of issues in the current iteration have a matching issue in the prior iteration (i.e., for each current issue, check if any prior issue has Levenshtein similarity ≥ 0.8 on the `description` field — if fewer than 70% of current issues find a match, rotation is detected)
 - **Match definition:** Two issues "match" when their `description` fields have Levenshtein similarity ≥ 0.8
 - Trigger: plateau AND rotation both true → done (success)
 
@@ -273,7 +273,7 @@ The orchestrator ignores top-level count fields (`critical`, `medium`, `minor`) 
 
 Two conditions must both be true:
 
-1. **Category spike:** Any single severity category count exceeds its trailing 3-iteration average by more than 50%, with a minimum absolute increase of 2
+1. **Category spike:** Any single severity category count exceeds its trailing 3-iteration average by more than 50%, with a minimum absolute increase of 2. If fewer than 3 prior iterations exist, use the available iterations for the average. The fabrication guard cannot trigger before iteration 4 (need at least 3 data points for a meaningful trailing average).
 2. **Prior near-convergence:** In at least one prior iteration, the system reached within 2× of the termination thresholds (≤0 critical, ≤6 medium, ≤10 minor). This prevents false positives early in the loop when counts are still volatile.
 
 Trigger: both conditions true → halt
