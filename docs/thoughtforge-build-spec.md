@@ -119,7 +119,7 @@ Rules:
 ## Plan Completeness Gate Prompt
 
 **File:** `/prompts/completeness-gate.md`
-**Used by:** Task 19 (Plan Completeness Gate)
+**Used by:** Task 6d (Plan Completeness Gate)
 **Called via:** Agent invocation layer (Tasks 41–42)
 
 **Status:** To be drafted by the AI coder as the first step of the task that depends on this prompt (see "Used by" reference above). The human reviews and edits via the Settings UI after initial draft.
@@ -148,7 +148,7 @@ Rules:
 
 ## Plugin Folder Structure
 
-**Used by:** Task 6 (plugin loader), Tasks 14–19 (plan plugin), Tasks 20–25 (code plugin)
+**Used by:** Task 6 (plugin loader), Tasks 14–18 (plan plugin), Tasks 20–25 (code plugin)
 
 ```
 /plugins/
