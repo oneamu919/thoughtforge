@@ -1,218 +1,195 @@
-﻿Now I have all four documents. Let me proceed with the review. The requirements brief gives me context; the other three are the scrutiny targets.
+﻿I've now read all four documents in full. Let me produce the review.
 
 ---
 
-# Plan Review — ThoughtForge Pipeline Tool
+# Plan Review — ThoughtForge Design Specification, Build Spec, and Execution Plan
 
-**Documents reviewed:** Design Specification, Build Spec, Execution Plan
-**Context document:** Requirements Brief
+Reviewed against: `thoughtforge-requirements-brief.md` (context), `thoughtforge-design-specification.md`, `thoughtforge-build-spec.md`, `thoughtforge-execution-plan.md`
 
 ---
 
 ## 1. Writing That's Unclear
 
-**[Minor] Design Spec — Phase 4 Stagnation Guard: "Issue rotation" phrasing is inverted**
+**[Major] Fix Regression guard description contradicts between design spec and execution plan Task 33a.**
 
-The design spec line 388 says: *"(2) Issue rotation: Fewer than 70% of current-iteration issues match any issue in the immediately prior iteration"*
+The design spec (Phase 4 Convergence Guards table) describes Fix Regression as comparing "the current iteration's total error count against the previous iteration's total error count" — meaning it compares review-to-review across iterations. The execution plan Task 33a says "compare post-fix error count to pre-fix review count" — meaning it compares within the same iteration. These are two different comparisons. The design spec's description is the authoritative one based on the surrounding explanation ("iteration N's review reveals the error state after iteration N-1's fix"). Task 33a must match.
 
-The term "issue rotation" suggests issues are rotating (new ones replacing old ones), but "fewer than 70% match" means "more than 30% are new." The description is correct but the label is confusing — "rotation" and the matching threshold work in opposite directions without bridging language.
+**Replacement text for Task 33a:**
+> Implement convergence guard: fix regression (per-iteration check — compare current iteration's review error count to prior iteration's review error count, warn on single increase, halt on 2 consecutive increases). Evaluated after each review step, before other convergence guards.
+
+---
+
+**[Major] Critical path chain includes Task 15 between Task 13 and Task 6c, but Task 6c's declared dependency is on Tasks 5, 6a, and 7 — not Task 15 or Task 13.**
+
+The critical path section states "Task 13 → Task 15 → Task 6c" and adds a parenthetical justification, but the explanation conflates functional exercisability with dependency. If this is meant to represent the functional critical path for testing (not the code dependency chain), the writing is unclear. A builder following the task table will not see this link.
 
 **Replacement text:**
-> (2) **Issue rotation:** More than 30% of current-iteration issues are new — i.e., fewer than 70% of current-iteration issues match any issue in the immediately prior iteration (match = Levenshtein similarity >= 0.8 on `description`). When both conditions are true, the reviewer is cycling cosmetic issues rather than finding genuine regressions.
+> The functional critical path extends beyond the declared code dependencies. While Task 6c's code dependencies are Tasks 5, 6a, and 7, the Phase 3→4 transition cannot be end-to-end exercised without Phase 2 outputs (Task 13: `spec.md`, `constraints.md`) and a Phase 3 builder (Task 15 for Plan mode, Task 21 for Code mode). The exercisable critical path is therefore: Task 1 → [Task 41 → Task 42 | Task 2 → Task 3 | Task 6] → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 30 → Tasks 33–37 → Task 51. Task 6c is on this chain implicitly — its code can be built after Task 6a, but cannot be validated until Task 15 produces deliverables.
 
 ---
 
-**[Minor] Design Spec — Fix Regression guard: "Evaluation timing note" contradicts Guard Evaluation Order**
+**[Major] Concurrency limit: design spec says `halted` is not terminal and counts toward the limit, but also says `done` is the only way to free a slot. The `status.json` schema table says `done` "Does not count toward concurrency limit" — implying `done` frees a slot. But the design spec concurrency section says "The only way to free a concurrency slot is for the project to reach `done` status or for the operator to manually delete the project directory." This means `human_terminated` projects (which use `halted` state) permanently consume a concurrency slot until manually deleted.**
 
-Design spec line 392 says: *"Fix Regression is evaluated immediately after each fix step (before other guards)."* But the build spec Guard Evaluation Order (line 283-285) says Fix Regression is *"checked after each review step produces error counts"* — not after the fix step. These describe different timing.
+This is a design decision, but the consequence is unstated and will surprise the builder. A terminated project that is functionally finished still blocks a concurrency slot.
 
-The build spec version is correct (the review step reveals whether the *previous* fix regressed), but the design spec says "after each fix step."
-
-**Replacement text (design spec line 392):**
-> **Evaluation timing note:** Fix Regression is evaluated after each review step produces error counts (the review reveals the error state *after* the prior iteration's fix). It is checked before the other convergence guards. All other guards are evaluated after the full iteration cycle (review + fix) completes. See build spec Guard Evaluation Order for the complete sequence.
+**Add this clarification to the design spec concurrency section, after "Halted projects and concurrency":**
+> **Terminated projects and concurrency:** Projects terminated by the human (`halt_reason: "human_terminated"`) are functionally finished but use the `halted` state, which counts toward the concurrency limit. To free the slot, the operator must manually delete the project directory. There is no "archive" or "close" action in v1 that moves a terminated project to a non-counting state.
 
 ---
 
-**[Minor] Design Spec — "Two consecutive regressions" definition is ambiguous**
+**[Minor] Design spec Phase 2 step 4 says "The validation gate enforces a minimum of 1 criterion; the target range of 5–10 is guidance for the AI prompt, not an enforced threshold." But the `constraints.md` structure table in the same document says "At least 1, target 5–10 statements." The build spec `constraints.md` structure says "5–10 statements of what the deliverable must contain or do" with no mention of the minimum-1 enforcement.**
 
-Design spec line 381 says: *"Two consecutive regressions means iterations N and N+1 both show higher counts than their respective predecessors (N-1 and N)."*
+The build spec template should match the design spec's clarified language.
 
-This is correct but the table entry at line 386 says *"If the two most recent iterations both show increased total error counts compared to their respective prior iterations."* The subtle issue: "compared to their respective prior iterations" could be read as "compared to the iteration before them" or "compared to some other baseline." The parenthetical at 381 clarifies, but the table entry itself is ambiguous.
-
-**Replacement text for the table entry (line 386):**
-> If the current iteration and the immediately preceding iteration both show a total error count higher than the iteration before each of them (i.e., iteration N > iteration N-1 AND iteration N-1 > iteration N-2), halt and notify.
+**Replacement text for the build spec `constraints.md` Structure, Acceptance Criteria line:**
+> `{At least 1 (enforced at creation), target 5–10 statements of what the deliverable must contain or do}`
 
 ---
 
-**[Minor] Design Spec — "Halted" projects and terminal state language is inconsistent**
+**[Minor] Execution plan parallelism note says "After Tasks 41–42: All prompt drafting tasks (7a, 7f, 6e, 15a, 21a, 30a, 30b) — depend only on Task 7a."**
 
-Line 602 says halted projects count toward the active project limit *"until the human either resumes them (returning to active pipeline state) or terminates them (setting them to terminal state)."* But line 634 says terminated projects use the same `halted` state: *"Terminated projects (`halt_reason: 'human_terminated'`) are functionally finished but use the same `halted` state."*
-
-So "terminates them (setting them to terminal state)" is misleading — `halted` is not a terminal state. `done` is the only terminal state. A terminated project stays `halted` and continues counting toward the limit. The only way to free the slot is for the operator to delete the project directory.
-
-**Replacement text (line 602):**
-> Halted projects and concurrency: Projects with `halted` status count toward the active project limit. This includes both recoverable halts and human-terminated projects (which also use the `halted` state). The only way to free a concurrency slot is for the project to reach `done` status or for the operator to manually delete the project directory. This prevents the operator from creating unlimited projects while ignoring halted ones.
-
----
-
-**[Minor] Execution Plan — Critical path listing omits agent layer tasks that actually gate it**
-
-Line 199 lists the critical path as: *"Task 1 → Task 41 → Task 42 → Task 6a → Task 8..."* but Task 6a depends on Task 2 (project init), Task 3 (state module), and Task 6 (plugin loader) — none of which appear in the chain. These are parallel with 41-42 but still required before 6a can start.
+Task 7a depends on Task 1, not Tasks 41–42. The prompt drafting tasks can begin after Task 1 (via Task 7a), not after Tasks 41–42. The "After Tasks 41–42" grouping is misleading.
 
 **Replacement text:**
-> **Task 1 → [Task 41 → Task 42 | Task 2 → Task 3 | Task 6] → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 6c → Task 30 → Tasks 33–37 → Task 51**
->
-> Tasks in brackets are parallel branches that must all complete before Task 6a can begin. The longest of these branches (41 → 42) determines the critical path duration.
+> - **After Task 1 (via Task 7a):** All prompt drafting tasks (7f, 6e, 15a, 21a, 30a, 30b) — depend only on Task 7a, which depends on Task 1. These can be parallelized with Stage 7.
 
 ---
 
-**[Minor] Build Spec — `constraints.md` truncation says "middle sections removed in reverse order" but doesn't specify reverse of what**
+**[Minor] Build spec `config.yaml` template comments say `concurrency.max_parallel_runs` is "managed by Vibe Kanban," but the design spec explicitly states "Enforcement is at the ThoughtForge orchestrator level, not delegated to Vibe Kanban."**
 
-Line 934 says: *"middle sections (Priorities, Exclusions, Severity Definitions, Scope) are removed in reverse order until the total fits."*
-
-Reverse of what — the order listed? Alphabetical? Document order? The listed order appears to be document order, but "reverse order" applied to that list means Scope is removed first, then Severity Definitions, etc.
-
-**Replacement text:**
-> middle sections are removed one at a time starting from the bottom of the document (Scope first, then Severity Definitions, then Exclusions, then Priorities) until the total fits.
+**Replacement text for the config.yaml template comment:**
+```yaml
+# Parallel execution (enforced by ThoughtForge orchestrator)
+concurrency:
+  max_parallel_runs: 3
+```
 
 ---
 
-**[Minor] Design Spec — "constraints.md — unvalidated after creation" paragraph is hard to parse**
+**[Minor] Design spec says the Telegram notification channel is in the config template, but there is no plan-level mention of implementing a Telegram channel. The build spec config template includes `telegram` with `bot_token` and `chat_id` fields. No task in the execution plan covers Telegram implementation.**
 
-Line 67-68: The sentence *"If the human restructures the file (missing sections, reordered content, added sections), ThoughtForge passes it to the AI reviewer as-is without schema validation"* is followed by *"If the human empties the Acceptance Criteria section, the reviewer proceeds with whatever criteria remain (which may be none)."*
+If Telegram is v1 scope, it needs a task. If it's a config placeholder for future use, say so.
 
-The parenthetical "(which may be none)" is redundant with "empties" and makes the reader re-read to confirm. The real point — that the pipeline will not enforce criteria presence post-creation — gets buried.
-
-**Replacement text:**
-> **`constraints.md` — unvalidated after creation:** After initial creation, ThoughtForge does not validate `constraints.md` against any schema. If the human restructures the file, removes sections, or empties content, ThoughtForge passes the file to the AI reviewer as-is. This includes emptying the Acceptance Criteria section — the reviewer proceeds with zero criteria. This is treated as an intentional human override.
+**Replacement text (add to config.yaml template, telegram section):**
+```yaml
+    telegram:
+      enabled: false   # Reserved for future implementation — not built in v1
+      bot_token: ""
+      chat_id: ""
+```
 
 ---
 
 ## 2. Genuinely Missing Plan-Level Content
 
-**[Major] No error budget or quality gate for AI-drafted prompts**
+**[Critical] No definition of what Code mode `safety-rules.js` allows and blocks.**
 
-The execution plan's "Prompt Validation Strategy" (lines 242-244) says prompts are validated only via e2e tests. If an e2e test fails due to poor AI output quality, the prompt is revised. But there is no definition of what "acceptable deliverable" means in e2e test terms. The plan has convergence thresholds for the polish loop but no acceptance criteria for the prompts themselves.
+Plan mode safety rules are exhaustively defined: no shell exec, no source files, no package installs, no test exec. Code mode has Task 23 ("Implement `safety-rules.js` — Code mode permissions") but the design spec says only "Code mode permissions" with no specification of what operations are allowed or blocked. The Operation Type Taxonomy in the build spec lists all operation types, and the design spec defines Plan mode's rules against that taxonomy, but Code mode's rules are absent. The builder cannot implement Task 23 without knowing the policy.
 
-This matters because multiple build tasks depend on prompts that don't exist yet ("To be drafted"), and the execution plan treats prompt iteration as expected during Stage 8. Without criteria for when a prompt is "good enough," this iteration could become unbounded.
-
-**Proposed content to add (Execution Plan, after "Prompt Validation Strategy" section):**
-
-> ### Prompt Acceptance Criteria
+**Proposed content (add to design spec, after Plan Mode Safety Guardrails section):**
+> #### Code Mode Safety Rules
 >
-> Each pipeline prompt is considered accepted when:
-> 1. The e2e test using the prompt produces a deliverable that reaches Phase 4 convergence (termination or stagnation success) within the configured `max_iterations` (default 50).
-> 2. The AI's structured outputs (review JSON, `PlanBuilderResponse`) pass Zod validation on the first attempt at least 80% of iterations (prompt is producing schema-compliant output reliably).
-> 3. No more than 3 prompt revision cycles are needed per prompt. If a prompt requires more than 3 revisions to pass e2e, the prompt's behavioral requirements (from the design spec) should be re-examined for feasibility before further iteration.
+> Code mode permits all operations in the Operation Type Taxonomy: `shell_exec`, `file_create_source`, `file_create_doc`, `file_create_state`, `agent_invoke`, `package_install`, `test_exec`, `git_commit`. The `safety-rules.js` for Code mode returns `{ allowed: true }` for all operation types. The safety rules module exists to maintain the uniform plugin interface contract — the orchestrator calls `validate()` for every Phase 3/4 action regardless of mode. Future restrictions (e.g., blocking operations outside the project directory) can be added to Code mode's `safety-rules.js` without changing the orchestrator.
 
 ---
 
-**[Major] No handling defined for `task_queue.json` corruption or absence during Code mode Phase 3 crash recovery**
+**[Major] No specification of how the code builder's `task_queue.json` is structured.**
 
-The build spec (line 206-207) says the code builder persists `task_queue.json` for crash recovery and re-reads it on resume. But neither the design spec nor build spec defines what happens if `task_queue.json` is unreadable, missing, or invalid on crash recovery — unlike `status.json`, `polish_state.json`, and `chat_history.json`, which all have explicit corruption handling (halt and notify).
+The design spec mentions task decomposition and persisting to `task_queue.json`. The build spec mentions "Code Builder Task Queue" briefly. But there is no schema for `task_queue.json` — unlike `status.json`, `polish_state.json`, and `chat_history.json`, which all have TypeScript interface definitions. The builder needs to know the structure.
 
-**Proposed content to add (Design Spec, Phase 3 Error Handling table):**
+**Proposed content (add to build spec, after the Code Builder Task Queue paragraph):**
+```typescript
+interface TaskQueueEntry {
+  id: string;           // Unique task identifier (e.g., "task_1", "task_2")
+  description: string;  // What this task builds (derived from spec.md)
+  status: "pending" | "in_progress" | "completed" | "failed";
+  attempts: number;     // Consecutive failure count for stuck detection
+}
 
-> | `task_queue.json` unreadable, missing, or invalid at Phase 3 resume | Halt and notify the operator with the file path and the specific error (parse failure, missing file, invalid schema). Same behavior as `status.json` and `chat_history.json` corruption handling. Do not attempt recovery or re-derivation from `spec.md` — the operator must fix or recreate the file. |
-
----
-
-**[Major] No logging or audit trail for safety-rules.js enforcement actions**
-
-The design spec (line 463-465) defines the safety enforcement mechanism — every Phase 3/4 action is classified and validated against `safety-rules.js`. But there is no mention of logging blocked operations. If a blocked operation is attempted (especially in Plan mode), this should be logged for debugging. The operational logging module (Task 3a) logs agent calls, phase transitions, guard evaluations, errors, and halts — but not safety rule enforcement.
-
-**Proposed content to add (Design Spec, Plan Mode Safety Guardrails section, after "Enforcement" paragraph):**
-
-> **Safety enforcement logging:** Every `validate()` call is logged to `thoughtforge.log` with the operation type, the result (`allowed`/`blocked`), and the reason if blocked. Blocked operations are logged at `warn` level. This provides an audit trail for debugging unexpected pipeline behavior and verifying that Plan mode safety rules are enforced correctly.
-
-**Corresponding addition to build spec Operation Type Taxonomy section:**
-
-> The orchestrator logs every `validate()` call to the operational log: operation type, plugin type, and result. Blocked operations include the reason from the `validate()` return value.
+type TaskQueue = TaskQueueEntry[];
+```
 
 ---
 
-**[Minor] No defined behavior for what happens when the operator manually deletes `polish_state.json` during an active Phase 4 run**
+**[Major] No specification for how Code mode Phase 3→4 transition validates "at least one test file" when `code_require_tests` is true.**
 
-The design spec covers `polish_state.json` being unreadable/missing at Phase 4 *resume* (line 432), but not during an *active* run. If the file is deleted between iterations while the loop is running, the next iteration's write would recreate it, but the convergence guards that depend on trajectory history would have incomplete data.
+The config has `phase3_completeness.code_require_tests: true` and the design spec says Code mode checks for "at least one test file." But what constitutes a "test file" is unspecified. The builder needs a detection heuristic (file naming convention, directory convention, or `package.json` test script existence).
 
-**Proposed content to add (Design Spec, Phase 4 Error Handling table):**
-
-> | `polish_state.json` missing during active Phase 4 iteration (deleted externally between iterations) | The orchestrator writes `polish_state.json` at each iteration boundary. If the file is missing when the orchestrator attempts to read convergence trajectory for guard evaluation, halt and notify the operator: "polish_state.json missing during active polish loop. File may have been deleted externally." Same behavior as Phase 4 resume corruption handling. |
-
----
-
-**[Minor] No specification for how the Levenshtein similarity library/implementation is sourced**
-
-The stagnation guard depends on Levenshtein similarity computation. The plan specifies the formula (build spec lines 305) but doesn't identify whether this is a dependency to install (e.g., an npm package) or implemented inline. The Initial Dependencies section doesn't include a Levenshtein package.
-
-**Proposed content to add (Build Spec, Initial Dependencies section — as a note):**
-
-> **Stagnation guard dependency:** Levenshtein distance computation for the stagnation guard's issue rotation detection. Either install a lightweight npm package (e.g., `fastest-levenshtein`, MIT, ~500 weekly downloads) or implement inline — the algorithm is ~15 lines.
+**Proposed content (add to design spec, Phase 3→4 Transition section, or build spec):**
+> **Code mode test file detection:** A test file is identified by any of: filename contains `.test.` or `.spec.` (e.g., `app.test.ts`, `utils.spec.js`), or the file resides in a directory named `test/`, `tests/`, or `__tests__/`. The check scans the project directory recursively. If no files match and `code_require_tests` is true, the transition halts.
 
 ---
 
-**[Minor] No specification for the `phase` field value in `ChatMessage` during Phase 1 sub-states**
+**[Major] No plan for how `tsx` (the TypeScript execution tool) is installed or managed.**
 
-The `chat_history.json` schema (build spec line 692) includes `phase` values that mirror `status.json` phases. But Phase 1 has three sub-states (`brain_dump`, `distilling`, `human_review`). It's unclear whether chat messages during Phase 1 use the specific sub-state or a generic Phase 1 value. The schema includes all three sub-states in the enum, suggesting sub-states — but this is implicit, not explicit.
+The execution plan Design Decisions section says "ThoughtForge runs via `tsx` (or `ts-node`) during development." But `tsx` is not in the Initial Dependencies list in the build spec. Neither is `ts-node`. The builder will hit this gap immediately at Task 1.
 
-**Proposed content to add (Build Spec, `chat_history.json` Schema, after the interface definition):**
+**Proposed content (add `tsx` to build spec Initial Dependencies, devDependencies):**
+```json
+"devDependencies": {
+    "typescript": "^5.x",
+    "vitest": "^1.x",
+    "tsx": "^4.x"
+}
+```
 
-> The `phase` field records the `status.json` phase value at the time the message was sent. During Phase 1, this means messages will carry `brain_dump`, `distilling`, or `human_review` as appropriate — these are the actual `status.json` values, not a collapsed "phase_1" label.
+---
+
+**[Minor] No specification of git commit message format for pipeline milestone commits and Phase 4 iteration commits.**
+
+Task 2a implements milestone commits and Task 40 implements per-iteration commits. Neither the design spec nor build spec specifies what the commit messages should contain. Consistent commit messages are important for the rollback strategy to be usable (the human needs to identify which commit corresponds to which pipeline event).
+
+**Proposed content (add to build spec, after the Git Commit Strategy mention, or as a new section):**
+> **Git Commit Message Format:**
+> - Phase 1 lock: `"ThoughtForge: intent.md locked"`
+> - Phase 2 lock: `"ThoughtForge: spec.md and constraints.md locked"`
+> - Phase 3 complete: `"ThoughtForge: Phase 3 build complete"`
+> - Phase 4 review: `"ThoughtForge: Phase 4 iteration {N} — review ({critical}c/{medium}m/{minor}i)"`
+> - Phase 4 fix: `"ThoughtForge: Phase 4 iteration {N} — fix applied"`
+> - Phase 4 resume: `"ThoughtForge: Phase 4 resumed at iteration {N}"`
+
+---
+
+**[Minor] No plan-level guidance on what happens when the Levenshtein dependency decision (install package vs. implement inline) is made.**
+
+The build spec says "Either install a lightweight npm package (e.g., `fastest-levenshtein`) or implement inline." This is a decision for the builder, but it's unresolved. Since the plan calls for a pre-build decision on the test framework, this small dependency decision should also be flagged.
+
+**Proposed content (add to execution plan Design Decisions section):**
+> **Pre-build decision: Levenshtein implementation.** Decide before Task 35 whether to install `fastest-levenshtein` (add to dependencies) or implement the ~15-line algorithm inline in the stagnation guard module. Inline is recommended to avoid an external dependency for a trivial algorithm.
+
+---
+
+**[Minor] Missing unit test task for `task_queue.json` persistence and crash recovery in Code mode.**
+
+Build Stage 8 has unit tests for `status.json`, `polish_state.json`, and `chat_history.json` crash recovery, but no test task for `task_queue.json` crash recovery (which the design spec explicitly calls out: "On crash recovery, the builder re-reads `task_queue.json`").
+
+**Proposed content (add to Build Stage 8):**
+> | 58n | Unit tests: Code mode task queue (`task_queue.json` persistence, crash recovery resumes from correct task, completed tasks not re-executed, corrupted file halts with notification) | — | Task 21 | — | Not Started |
 
 ---
 
 ## 3. Build Spec Material That Should Be Extracted
 
-**[Minor] Design Spec — Project Initialization Sequence detail (lines 87-93)**
+**[Minor] Design spec "Phase 1 System Prompt — Brain Dump Intake" inline prompt text (lines 38–65 of the build spec).**
 
-The design spec says: *"Project initialization creates the project directory structure, initializes version control, writes the initial project state, optionally registers on the Kanban board, and opens the chat interface. The full initialization sequence — including collision retry, field assignments, and error handling — is in the build spec."*
+The full prompt text is already correctly placed in the build spec. However, the design spec section "Brain Dump Intake Prompt Behavior" (line 128) summarizes the prompt's rules — this summary is fine for a design spec. No extraction needed here; the current split is correct. Noting this as a false positive I considered and rejected.
 
-This is properly delegated. However, two sentences later: *"The project ID is used as the directory name and as `project_id` in notifications — not stored in `status.json` since it is always derivable from the project directory path."*
+**[Minor] Design spec "Template Context Window Overflow" paragraph (lines 239 of the design spec) contains the specific truncation strategy: "passes only the current section's OPA table slot, the `spec.md` context for that section, and the immediately preceding section."**
 
-The decision that project ID is not stored in `status.json` is a design decision and belongs here. But the reasoning about derivability from the directory path is an implementation detail — the build spec already covers the `status.json` schema which excludes `project_id`. This sentence is fine as-is (borderline), but flagging for awareness.
+This level of context assembly detail — which specific pieces are included and excluded during truncation — is implementation guidance that belongs in the build spec alongside the existing `constraints.md` Truncation Strategy section.
 
-**Verdict:** No extraction needed — the reasoning is brief enough to stay.
-
----
-
-**[Minor] Design Spec — WebSocket reconnection parameters (line 623)**
-
-The design spec says: *"Detailed reconnection behavior is in the build spec."* This is correctly delegated. No extraction needed.
+**Recommendation:** Move this paragraph to the build spec as a new section "Plan Builder Context Window Truncation Strategy" and replace it in the design spec with: "If the partially-filled template exceeds the agent's context window, the builder truncates context to fit. Truncation strategy is defined in the build spec."
 
 ---
 
-**[Minor] Design Spec — HTTP API route table embedded in build spec is appropriate**
+**[Minor] Design spec "Code mode review context" paragraph (line 374) specifies the exact context assembly strategy: "full source for small codebases, file manifest plus git diff for larger codebases."**
 
-The build spec's HTTP API Surface (lines 599-616) is correctly placed as implementation reference. The design spec does not duplicate this. No issue.
+This is context assembly implementation detail — the same category of information as the Fix Agent Context Assembly and `constraints.md` Truncation Strategy sections already in the build spec.
 
----
-
-**[Major] Design Spec — Plan mode fix output validation contains implementation thresholds (lines 358-359)**
-
-The design spec states: *"the orchestrator validates that the returned content is non-empty and does not have fewer characters than 50% of the pre-fix plan document"* and *"If 2 consecutive iterations produce rejected fix output, the pipeline halts."*
-
-The 50% threshold and the 2-consecutive-rejections limit are implementation-level tuning parameters. The *behavior* (validate fix output, reject bad output, preserve pre-fix state, halt on repeated failure) belongs in the design spec. The specific numeric thresholds belong in the build spec (and ideally in `config.yaml`).
-
-**Recommendation:** Keep the behavioral description in the design spec. Move the numeric parameters to the build spec:
-
-**Design spec replacement:**
-> After the fix agent returns the updated plan document, the orchestrator validates that the returned content is non-empty and does not represent a significant reduction from the pre-fix document. If the check fails, the fix is rejected: the pre-fix plan document is preserved, a warning is logged, and the iteration proceeds using the pre-fix state. If consecutive iterations produce rejected fix output (exceeding the threshold defined in the build spec), the pipeline halts and notifies the human.
-
-**Build spec addition (new section "Plan Mode Fix Output Validation Parameters"):**
-> - **Minimum size ratio:** Fix output must be at least 50% of the pre-fix document's character count.
-> - **Consecutive rejection limit:** 2 consecutive rejected fix outputs trigger a halt.
+**Recommendation:** Move this to the build spec as a new section "Code Mode Review Context Assembly Strategy" and replace in the design spec with: "The review prompt includes `constraints.md`, test results, and codebase content. Context assembly strategy (full source vs. diff-based) is defined in the build spec."
 
 ---
 
-**[Minor] Design Spec — Stagnation guard Levenshtein similarity formula (lines 396)**
+**[Minor] Build spec HTTP API Surface table (lines 609-624) is in the build spec, which is correct. But the build spec itself says "Route structure is a build-time implementation detail — the above is guidance, not a rigid contract." This disclaimer is fine — the table belongs in the build spec, not the design spec. No action needed.**
 
-The formula `1 - (levenshtein_distance(a, b) / max(a.length, b.length))` and the `>=0.8` threshold are specified in both the design spec (line 388, 396) and the build spec (lines 303-305). The design spec should describe the *intent* (issues are considered matching when their descriptions are substantially similar). The formula and exact threshold are build spec material.
-
-The build spec already contains this, so the duplication is the issue — not a missing extraction. The design spec's Stagnation Guard Detail paragraph could be simplified.
-
-**Design spec replacement for the detail paragraph:**
-> **Stagnation Guard Detail:** Stagnation compares total error count only (sum of critical + medium + minor), not per-severity breakdowns. Issue rotation is detected when a significant proportion of current-iteration issues do not match any issue in the prior iteration — i.e., the reviewer is flagging new cosmetic issues each cycle rather than persisting the same findings. Match definition and thresholds are specified in the build spec. When both conditions are true, the deliverable has reached a quality plateau. This is treated as a successful convergence outcome.
-
----
-
-That concludes the review. Three lists, findings sorted by severity within each, each with specific proposed text.
+This was a false positive I reviewed and rejected. The API surface is appropriately placed.
