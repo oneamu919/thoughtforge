@@ -196,7 +196,9 @@
 
 The longest dependency chain determines the minimum build duration regardless of parallelism:
 
-**Task 1 → Task 41 → Task 42 → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 6c → Task 30 → Tasks 33–37 → Task 51**
+**Task 1 → [Task 41 → Task 42 | Task 2 → Task 3 | Task 6] → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 6c → Task 30 → Tasks 33–37 → Task 51**
+
+Tasks in brackets are parallel branches that must all complete before Task 6a can begin. The longest of these branches (41 → 42) determines the critical path duration.
 
 The functional critical path includes Task 13 → Task 15 → Task 6c even though Task 6c's code dependency is on Task 6a, because Phase 3→4 transition cannot be exercised without Phase 2 outputs (spec.md, constraints.md) and a Phase 3 builder producing deliverables.
 
@@ -242,6 +244,13 @@ Each "To be drafted" prompt must:
 ### Prompt Validation Strategy
 
 Each pipeline prompt ("To be drafted" prompts in build spec) is validated during the end-to-end tests (Tasks 51–53). The e2e tests serve as the primary prompt quality gate — if the pipeline produces acceptable deliverables end-to-end, the prompts are working. If an e2e test fails due to poor AI output quality (rather than code bugs), the prompt is revised and the test re-run. Prompt iteration is expected during Build Stage 8 and is not a sign of implementation failure.
+
+### Prompt Acceptance Criteria
+
+Each pipeline prompt is considered accepted when:
+1. The e2e test using the prompt produces a deliverable that reaches Phase 4 convergence (termination or stagnation success) within the configured `max_iterations` (default 50).
+2. The AI's structured outputs (review JSON, `PlanBuilderResponse`) pass Zod validation on the first attempt at least 80% of iterations (prompt is producing schema-compliant output reliably).
+3. No more than 3 prompt revision cycles are needed per prompt. If a prompt requires more than 3 revisions to pass e2e, the prompt's behavioral requirements (from the design spec) should be re-examined for feasibility before further iteration.
 
 ---
 

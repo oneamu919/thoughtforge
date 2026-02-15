@@ -221,6 +221,8 @@ Every orchestrator action in Phase 3/4 is classified into one of these operation
 | `test_exec` | Execute a test suite | Run `npm test`, `pytest` |
 | `git_commit` | Create a git commit | Milestone commit, iteration commit |
 
+The orchestrator logs every `validate()` call to the operational log: operation type, plugin type, and result. Blocked operations include the reason from the `validate()` return value.
+
 ---
 
 ## Zod Review Schemas
@@ -435,6 +437,13 @@ Phase 3 plan builder responses must conform to the `PlanBuilderResponse` schema.
 **Used by:** Task 30 (polish loop orchestrator — fix step context assembly)
 
 Location fields in the issue JSON are parsed as relative paths from the project root. Line numbers (if present) are stripped before file lookup. The fix agent receives the full content of each referenced file alongside the issue list.
+
+---
+
+## Plan Mode Fix Output Validation Parameters
+
+- **Minimum size ratio:** Fix output must be at least 50% of the pre-fix document's character count.
+- **Consecutive rejection limit:** 2 consecutive rejected fix outputs trigger a halt.
 
 ---
 
@@ -696,6 +705,8 @@ interface ChatMessage {
 type ChatHistory = ChatMessage[];
 ```
 
+The `phase` field records the `status.json` phase value at the time the message was sent. During Phase 1, this means messages will carry `brain_dump`, `distilling`, or `human_review` as appropriate — these are the actual `status.json` values, not a collapsed "phase_1" label.
+
 On crash, chat resumes from last recorded message. Cleared after Phase 1→Phase 2 and Phase 2→Phase 3 confirmation button presses only. Phase 3→Phase 4 transition is automatic and does NOT clear chat history — Phase 3 stuck recovery messages persist into Phase 4.
 
 ---
@@ -774,6 +785,8 @@ Each iteration is appended as a Markdown section:
 ```
 
 Use `package-lock.json` for deterministic installs. Pin major versions. Run `npm audit` before v1 release.
+
+**Stagnation guard dependency:** Levenshtein distance computation for the stagnation guard's issue rotation detection. Either install a lightweight npm package (e.g., `fastest-levenshtein`, MIT, ~500 weekly downloads) or implement inline — the algorithm is ~15 lines.
 
 ---
 
@@ -931,7 +944,7 @@ Specific error messages on validation failure:
 
 **Used by:** Task 30 (polish loop orchestrator — review context assembly)
 
-If `constraints.md` combined with other review context (deliverable content, test results, and the review prompt) exceeds the agent's `context_window_tokens` as estimated by `character_count / 4`, `constraints.md` is truncated from the middle — the Context and Deliverable Type sections (top) and the Acceptance Criteria section (bottom) are preserved, and middle sections (Priorities, Exclusions, Severity Definitions, Scope) are removed in reverse order until the total fits. A warning is logged identifying which sections were removed.
+If `constraints.md` combined with other review context (deliverable content, test results, and the review prompt) exceeds the agent's `context_window_tokens` as estimated by `character_count / 4`, `constraints.md` is truncated from the middle — the Context and Deliverable Type sections (top) and the Acceptance Criteria section (bottom) are preserved, and middle sections are removed one at a time starting from the bottom of the document (Scope first, then Severity Definitions, then Exclusions, then Priorities) until the total fits. A warning is logged identifying which sections were removed.
 
 ---
 
