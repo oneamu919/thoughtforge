@@ -1,204 +1,186 @@
-# Apply Review Findings
+# Apply Review Findings from results.md
 
-Apply every change listed below to the source files. Each change includes the target file, the location, and the exact replacement or addition. Do not interpret or improvise — apply as written.
+Apply every change listed below to the source files. Each change is either a **replacement** (swap existing text for new text), an **addition** (insert new content at a specified location), or an **extraction** (move content from one file to another). Do not interpret or improvise — apply as written.
 
 **Do NOT modify files in `docs.backup/`.** Only modify the primary files in `docs/`.
 
 ---
 
-## Source files
+## Source Files
 
-- **Design spec:** `docs/thoughtforge-design-specification.md`
-- **Build spec:** `docs/thoughtforge-build-spec.md`
-- **Execution plan:** `docs/thoughtforge-execution-plan.md`
+- **Design Spec:** `docs/thoughtforge-design-specification.md`
+- **Build Spec:** `docs/thoughtforge-build-spec.md`
+- **Execution Plan:** `docs/thoughtforge-execution-plan.md`
 
 Read ALL three files in full before making any edits.
 
 ---
 
-## Changes to Apply
+## Section 1: Replacements — Unclear Writing
 
-### 1. [Minor] Design spec — Move "Locked File Behavior" block before Phase 1
+### 1.1 — Phase 4 Stagnation Guard: "Issue rotation" phrasing (Design Spec, ~line 388)
 
-**File:** `docs/thoughtforge-design-specification.md`
+**Find** the text describing issue rotation that reads approximately:
+> (2) Issue rotation: Fewer than 70% of current-iteration issues match any issue in the immediately prior iteration
 
-**Action:** Find the full "Locked File Behavior" block (currently under Phase 2, approximately lines 171–193). Cut it and move it to a standalone section under "Behavior" BEFORE Phase 1, titled "Locked File Behavior." Then find both inline references to locked file behavior (one in Phase 1 around line 98, one in Phase 2 around line 169) and replace each with:
-
-> "Locked" means the AI pipeline will not modify these files after their creation phase — see Locked File Behavior above.
-
----
-
-### 2. [Minor] Design spec — Clarify "test-fix cycle" vs "build iteration" in Phase 3 Code Mode
-
-**File:** `docs/thoughtforge-design-specification.md`
-
-**Action:** Find the paragraph around line 263 in Phase 3 Code Mode that mentions "a single invocation or multi-turn session, depending on how Vibe Kanban executes." Replace it with:
-
-> The agent is responsible for scaffolding, implementation, and initial test writing. This initial build is either a single agent invocation (VK disabled) or a multi-turn VK-managed session (VK enabled). After the initial build invocation completes, the code builder enters the test-fix cycle described below.
+**Replace with:**
+> (2) **Issue rotation:** More than 30% of current-iteration issues are new — i.e., fewer than 70% of current-iteration issues match any issue in the immediately prior iteration (match = Levenshtein similarity >= 0.8 on `description`). When both conditions are true, the reviewer is cycling cosmetic issues rather than finding genuine regressions.
 
 ---
 
-### 3. [Minor] Design spec — Fix Stagnation Guard notification example
+### 1.2 — Fix Regression guard: evaluation timing note (Design Spec, ~line 392)
 
-**File:** `docs/thoughtforge-design-specification.md`
+**Find** the evaluation timing note that reads approximately:
+> Fix Regression is evaluated immediately after each fix step (before other guards).
 
-**Action:** Find the notification example around line 588 that says `"polish sufficient"`. Replace that notification example string with:
-
-> `"Project 'CLI Tool' — stagnation convergence. Error count stable at {N} for {M} iterations with issue rotation. Treated as converged. Ready for final review."`
-
----
-
-### 4. [Minor] Execution plan — Clarify Task 12 dependency on Task 25
-
-**File:** `docs/thoughtforge-execution-plan.md`
-
-**Action:** Find Task 12's "Depends On" column (around line 77). Replace its dependency list with:
-
-> `Task 6a, Task 10, Task 11, Task 7a, Task 7f, Tasks 41–42; Task 25 (Code mode only — Plan mode can proceed without it)`
+**Replace with:**
+> **Evaluation timing note:** Fix Regression is evaluated after each review step produces error counts (the review reveals the error state *after* the prior iteration's fix). It is checked before the other convergence guards. All other guards are evaluated after the full iteration cycle (review + fix) completes. See build spec Guard Evaluation Order for the complete sequence.
 
 ---
 
-### 5. [Minor] Build spec — Define `constraints.md` truncation strategy
+### 1.3 — "Two consecutive regressions" table entry (Design Spec, ~line 386)
 
-**File:** `docs/thoughtforge-build-spec.md`
+**Find** the table entry that reads approximately:
+> If the two most recent iterations both show increased total error counts compared to their respective prior iterations.
 
-**Action:** Find the sentence around line 926 that says "exceeds the available context budget when combined with other review context." Replace the surrounding paragraph/sentence describing the truncation strategy with:
-
-> If `constraints.md` combined with other review context (deliverable content, test results, and the review prompt) exceeds the agent's `context_window_tokens` as estimated by `character_count / 4`, `constraints.md` is truncated from the middle — the Context and Deliverable Type sections (top) and the Acceptance Criteria section (bottom) are preserved, and middle sections (Priorities, Exclusions, Severity Definitions, Scope) are removed in reverse order until the total fits. A warning is logged identifying which sections were removed.
-
----
-
-### 6. [Minor] Design spec + Build spec — Fix Regression guard wording
-
-**File:** `docs/thoughtforge-design-specification.md`
-
-**Action:** Find the Fix Regression guard table entry around line 386. Replace its description with:
-
-> **Fix Regression (per-iteration):** Evaluated at the start of each iteration (after the review step produces error counts), comparing the current iteration's total error count against the previous iteration's total error count. If the current count is higher than the previous, the most recent fix step made things worse. **Single occurrence:** Log a warning but continue. **Consecutive occurrences:** If the two most recent iterations both show increased total error counts compared to their respective prior iterations, halt and notify.
-
-**File:** `docs/thoughtforge-build-spec.md`
-
-**Action:** Find the corresponding Fix Regression description around lines 285-286. Replace it with:
-
-> **Fix Regression** (per-iteration) — checked after each review step produces error counts. Compares current iteration's total error count to the prior iteration's total error count. If the current count is higher, the prior iteration's fix step introduced more issues than it resolved. If 2 consecutive iterations show increases, halt and notify.
+**Replace with:**
+> If the current iteration and the immediately preceding iteration both show a total error count higher than the iteration before each of them (i.e., iteration N > iteration N-1 AND iteration N-1 > iteration N-2), halt and notify.
 
 ---
 
-### 7. [Minor] Design spec — Remove redundant button description block
+### 1.4 — "Halted" projects and terminal state language (Design Spec, ~line 602)
 
-**File:** `docs/thoughtforge-design-specification.md`
+**Find** the paragraph about halted projects counting toward the active project limit that mentions "terminates them (setting them to terminal state)."
 
-**Action:** Find and delete the "Phase 1 has two action buttons" block (around lines 78-81) entirely. The interaction model paragraph (around line 71) and the confirmation model paragraph (around line 112) already cover this content.
-
----
-
-### 8. [Critical] Design spec — Add Fix Regression guard evaluation mechanism
-
-**File:** `docs/thoughtforge-design-specification.md`
-
-**Action:** In the Phase 4 Convergence Guards section, add the following new paragraph BEFORE the guard table:
-
-> **Fix Regression evaluation mechanism:** The Fix Regression guard does not run a second review within the same iteration. Instead, it compares consecutive iterations: iteration N's review reveals the error state after iteration N-1's fix. If iteration N's total error count exceeds iteration N-1's total error count, the prior fix introduced more issues than it resolved. "Two consecutive regressions" means iterations N and N+1 both show higher counts than their respective predecessors (N-1 and N).
+**Replace the entire paragraph with:**
+> Halted projects and concurrency: Projects with `halted` status count toward the active project limit. This includes both recoverable halts and human-terminated projects (which also use the `halted` state). The only way to free a concurrency slot is for the project to reach `done` status or for the operator to manually delete the project directory. This prevents the operator from creating unlimited projects while ignoring halted ones.
 
 ---
 
-### 9. [Major] Execution plan — Add Phase 3 test-fix cycle stuck detection task
+### 1.5 — Critical path listing (Execution Plan, ~line 199)
 
-**File:** `docs/thoughtforge-execution-plan.md`
+**Find** the critical path listing that reads approximately:
+> Task 1 → Task 41 → Task 42 → Task 6a → Task 8...
 
-**Action:** Add a new task row after Task 21 in Build Stage 4:
-
-> | 21b | Implement Code mode Phase 3 test-fix cycle: run tests → pass failures to agent → fix → retest loop. Including stuck detection: halt after 2 consecutive non-zero exits on same task, or 3 consecutive identical failing test sets (exact string match on test names). | — | Task 21, Task 24 | — | Not Started |
-
----
-
-### 10. [Major] Design spec — Add `polish_state.json` initial state specification
-
-**File:** `docs/thoughtforge-design-specification.md`
-
-**Action:** In the Phase 4 Loop State Persistence section, after the existing description of `polish_state.json` (around line 402), add:
-
-> **Initial state:** When Phase 4 begins (Phase 3→4 transition), `polish_state.json` does not exist yet. The orchestrator initializes it after the first iteration completes. Before the first iteration, the orchestrator operates with `iteration: 0` and empty `convergence_trajectory`. If the pipeline halts or crashes during the first iteration (before `polish_state.json` is written), the orchestrator creates the file with the initial state on resume and re-attempts the first iteration.
+**Replace with:**
+> **Task 1 → [Task 41 → Task 42 | Task 2 → Task 3 | Task 6] → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 6c → Task 30 → Tasks 33–37 → Task 51**
+>
+> Tasks in brackets are parallel branches that must all complete before Task 6a can begin. The longest of these branches (41 → 42) determines the critical path duration.
 
 ---
 
-### 11. [Major] Execution plan — Add Phase 2 validation gate details to Task 12
+### 1.6 — `constraints.md` truncation wording (Build Spec, ~line 934)
 
-**File:** `docs/thoughtforge-execution-plan.md`
+**Find** the text that reads approximately:
+> middle sections (Priorities, Exclusions, Severity Definitions, Scope) are removed in reverse order until the total fits.
 
-**Action:** Find Task 12's description. Append to it:
-
-> Including: Unknown resolution validation gate (block Confirm if unresolved Unknowns or Open Questions remain, present remaining items to human), Acceptance Criteria validation gate (block Confirm if Acceptance Criteria section is empty or missing, re-invoke AI once if section heading absent, halt on second failure).
-
----
-
-### 12. [Minor] Design spec — Add Phase 3/4 live status display specification
-
-**File:** `docs/thoughtforge-design-specification.md`
-
-**Action:** Find the line around 325 that says "The human can view the project's chat history and current status." Add the following after it:
-
-> During Phase 4, the chat panel displays a live status summary updated after each iteration: current iteration number, error counts (critical/medium/minor/total), convergence trajectory direction (improving/stable/worsening), and the most recent guard evaluation result. During Phase 3, the chat panel displays the current build step (e.g., "Building section 3 of 7" for Plan mode, or "Test-fix cycle, iteration 2" for Code mode). These are read from `polish_state.json` (Phase 4) and builder progress (Phase 3) respectively.
+**Replace with:**
+> middle sections are removed one at a time starting from the bottom of the document (Scope first, then Severity Definitions, then Exclusions, then Priorities) until the total fits.
 
 ---
 
-### 13. [Minor] Design spec — Add Code builder task decomposition strategy
+### 1.7 — `constraints.md` — unvalidated after creation paragraph (Design Spec, ~lines 67-68)
 
-**File:** `docs/thoughtforge-design-specification.md`
+**Find** the paragraph about `constraints.md` being unvalidated after creation (contains "If the human restructures the file" and "If the human empties the Acceptance Criteria section").
 
-**Action:** In Phase 3 Code Mode, after the paragraph you replaced in Change 2 above, add:
-
-> **Code builder task decomposition:** The code builder derives an ordered task list from `spec.md`'s Deliverable Structure section. Each major architectural component or feature becomes a build task. The task list is persisted to `task_queue.json` at derivation time for crash recovery (see build spec Code Builder Task Queue). The coding agent receives the full `spec.md` as context for each task but is instructed to focus on the current task. Task granularity is determined by the code builder, not prescribed — it depends on the architecture complexity described in `spec.md`.
-
----
-
-### 14. [Minor] Execution plan — Add Phase 3/4 live status display task
-
-**File:** `docs/thoughtforge-execution-plan.md`
-
-**Action:** Add a new task row to Build Stage 6, after Task 40a:
-
-> | 40b | Implement Phase 3/4 live status display in chat panel: Phase 4 shows iteration number, error counts, trajectory direction, guard result after each iteration; Phase 3 shows current build step. Read from `polish_state.json` and builder progress. Update via WebSocket push after each iteration/step completes. | — | Task 7, Task 30, Task 38 | — | Not Started |
+**Replace with:**
+> **`constraints.md` — unvalidated after creation:** After initial creation, ThoughtForge does not validate `constraints.md` against any schema. If the human restructures the file, removes sections, or empties content, ThoughtForge passes the file to the AI reviewer as-is. This includes emptying the Acceptance Criteria section — the reviewer proceeds with zero criteria. This is treated as an intentional human override.
 
 ---
 
-### 15. [Minor] Design spec + Build spec — Extract fix agent context assembly detail
+## Section 2: Additions — Missing Plan-Level Content
 
-**File:** `docs/thoughtforge-design-specification.md`
+### 2.1 — Prompt Acceptance Criteria (Execution Plan)
 
-**Action:** Find the paragraph around lines 355-356 starting "The fix agent receives the JSON issue list..." Locate the fragment `"parsed as relative paths from project root; line numbers are stripped before file lookup"`. Remove that fragment and replace the surrounding sentence with:
+**Location:** Immediately after the existing "Prompt Validation Strategy" section.
 
-> The fix agent receives the issue list and the content of files referenced in each issue's location field.
+**Insert:**
 
-**File:** `docs/thoughtforge-build-spec.md`
-
-**Action:** Add a new subsection "Fix Agent Context Assembly" near the fix prompt section:
-
-> **Fix Agent Context Assembly:** Location fields in the issue JSON are parsed as relative paths from the project root. Line numbers (if present) are stripped before file lookup. The fix agent receives the full content of each referenced file alongside the issue list.
-
----
-
-### 16. [Minor] Design spec — Add template content escaping cross-reference
-
-**File:** `docs/thoughtforge-design-specification.md`
-
-**Action:** Find the line around 246 in Phase 3 Plan Mode that says "AI-generated content must not break template rendering." Append to it:
-
-> Template content escaping strategy is defined in the build spec.
+> ### Prompt Acceptance Criteria
+>
+> Each pipeline prompt is considered accepted when:
+> 1. The e2e test using the prompt produces a deliverable that reaches Phase 4 convergence (termination or stagnation success) within the configured `max_iterations` (default 50).
+> 2. The AI's structured outputs (review JSON, `PlanBuilderResponse`) pass Zod validation on the first attempt at least 80% of iterations (prompt is producing schema-compliant output reliably).
+> 3. No more than 3 prompt revision cycles are needed per prompt. If a prompt requires more than 3 revisions to pass e2e, the prompt's behavioral requirements (from the design spec) should be re-examined for feasibility before further iteration.
 
 ---
 
-### 17. [Minor] Design spec + Build spec — Extract notification examples
+### 2.2 — `task_queue.json` corruption handling (Design Spec)
 
-**File:** `docs/thoughtforge-design-specification.md`
+**Location:** Add a new row to the Phase 3 Error Handling table.
 
-**Action:** Find the notification example messages block (around lines 586-594, containing ~9 example notification strings). Keep only 2-3 representative examples. Remove the rest and add after the remaining examples:
+**Insert row:**
 
-> Full notification message templates are in the build spec.
+> | `task_queue.json` unreadable, missing, or invalid at Phase 3 resume | Halt and notify the operator with the file path and the specific error (parse failure, missing file, invalid schema). Same behavior as `status.json` and `chat_history.json` corruption handling. Do not attempt recovery or re-derivation from `spec.md` — the operator must fix or recreate the file. |
 
-**File:** `docs/thoughtforge-build-spec.md`
+---
 
-**Action:** Find the `NotificationPayload` schema (around line 1050). Immediately after it, add a new subsection "Notification Message Templates" containing ALL the notification example strings that were removed from the design spec.
+### 2.3 — Safety enforcement logging (TWO files)
+
+**Addition 1 — Design Spec:** Insert after the "Enforcement" paragraph in the Plan Mode Safety Guardrails section:
+
+> **Safety enforcement logging:** Every `validate()` call is logged to `thoughtforge.log` with the operation type, the result (`allowed`/`blocked`), and the reason if blocked. Blocked operations are logged at `warn` level. This provides an audit trail for debugging unexpected pipeline behavior and verifying that Plan mode safety rules are enforced correctly.
+
+**Addition 2 — Build Spec:** Insert in the Operation Type Taxonomy section:
+
+> The orchestrator logs every `validate()` call to the operational log: operation type, plugin type, and result. Blocked operations include the reason from the `validate()` return value.
+
+---
+
+### 2.4 — `polish_state.json` missing during active run (Design Spec)
+
+**Location:** Add a new row to the Phase 4 Error Handling table.
+
+**Insert row:**
+
+> | `polish_state.json` missing during active Phase 4 iteration (deleted externally between iterations) | The orchestrator writes `polish_state.json` at each iteration boundary. If the file is missing when the orchestrator attempts to read convergence trajectory for guard evaluation, halt and notify the operator: "polish_state.json missing during active polish loop. File may have been deleted externally." Same behavior as Phase 4 resume corruption handling. |
+
+---
+
+### 2.5 — Levenshtein dependency note (Build Spec)
+
+**Location:** Add to the Initial Dependencies section.
+
+**Insert:**
+
+> **Stagnation guard dependency:** Levenshtein distance computation for the stagnation guard's issue rotation detection. Either install a lightweight npm package (e.g., `fastest-levenshtein`, MIT, ~500 weekly downloads) or implement inline — the algorithm is ~15 lines.
+
+---
+
+### 2.6 — `ChatMessage` phase field clarification (Build Spec)
+
+**Location:** Insert after the `ChatMessage` interface definition in the `chat_history.json` Schema section.
+
+**Insert:**
+
+> The `phase` field records the `status.json` phase value at the time the message was sent. During Phase 1, this means messages will carry `brain_dump`, `distilling`, or `human_review` as appropriate — these are the actual `status.json` values, not a collapsed "phase_1" label.
+
+---
+
+## Section 3: Extractions — Move Content Between Files
+
+### 3.1 — Plan mode fix output validation thresholds (Design Spec → Build Spec)
+
+**In Design Spec (~lines 358-359)**, find the text about fix output validation that mentions "50% of the pre-fix plan document" and "If 2 consecutive iterations produce rejected fix output."
+
+**Replace with:**
+> After the fix agent returns the updated plan document, the orchestrator validates that the returned content is non-empty and does not represent a significant reduction from the pre-fix document. If the check fails, the fix is rejected: the pre-fix plan document is preserved, a warning is logged, and the iteration proceeds using the pre-fix state. If consecutive iterations produce rejected fix output (exceeding the threshold defined in the build spec), the pipeline halts and notifies the human.
+
+**Add to Build Spec (new section "Plan Mode Fix Output Validation Parameters"):**
+
+> ### Plan Mode Fix Output Validation Parameters
+>
+> - **Minimum size ratio:** Fix output must be at least 50% of the pre-fix document's character count.
+> - **Consecutive rejection limit:** 2 consecutive rejected fix outputs trigger a halt.
+
+---
+
+### 3.2 — Stagnation guard Levenshtein formula duplication (Design Spec — simplify)
+
+**In Design Spec**, find the Stagnation Guard Detail paragraph that contains the Levenshtein formula `1 - (levenshtein_distance(a, b) / max(a.length, b.length))` and the `>=0.8` threshold.
+
+**Replace the entire detail paragraph with:**
+> **Stagnation Guard Detail:** Stagnation compares total error count only (sum of critical + medium + minor), not per-severity breakdowns. Issue rotation is detected when a significant proportion of current-iteration issues do not match any issue in the prior iteration — i.e., the reviewer is flagging new cosmetic issues each cycle rather than persisting the same findings. Match definition and thresholds are specified in the build spec. When both conditions are true, the deliverable has reached a quality plateau. This is treated as a successful convergence outcome.
 
 ---
 
