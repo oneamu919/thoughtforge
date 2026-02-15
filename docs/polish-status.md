@@ -1,5 +1,5 @@
 ﻿# Polish Status
-Running: iteration 6/50
+Running: iteration 7/50
 
 ## Progress
 Iteration 1: Critical: 1, Major: 4, Minor: 14 (8m 16s) (Review: 1m 55s, Check: 2m 22s, Apply: 3m 58s)
@@ -7,7 +7,8 @@ Iteration 2: Critical: 0, Major: 0, Minor: 0 (7m 16s) (Review: 1m 27s, Check: 1m
 Iteration 4: Critical: 0, Major: 2, Minor: 8 (7m 19s) (Review: 1m 40s, Check: 2m 11s, Apply: 3m 27s)
 Iteration 5: Critical: 1, Major: 4, Minor: 12 (11m 54s) (Review: 2m 00s, Check: 2m 07s, Apply: 7m 46s)
 Iteration 6: Critical: 0, Major: 3, Minor: 11 (30m 13s) (Review: 19m 09s, Check: 2m 49s, Apply: 8m 14s)
+Iteration 7: Critical: 0, Major: 2, Minor: 12 (8m 37s) (Review: 1m 38s, Check: 2m 38s, Apply: 4m 19s)
 
 ## Totals
-Elapsed: 64m 57s (Review: 26m 12s, Check: 11m 30s, Apply: 27m 15s)
+Elapsed: 73m 35s (Review: 27m 51s, Check: 14m 09s, Apply: 31m 34s)
 
