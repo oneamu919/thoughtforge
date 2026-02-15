@@ -2,7 +2,7 @@
 
 You are an AI coder. Apply every change listed below to the source files. Each change is taken directly from the review findings in `docs/results.md`. Do not interpret or improvise — apply the replacements, additions, and extractions exactly as specified.
 
-Read all three target files before editing. After all changes are applied, git commit and sync to remote.
+Read all target files before editing. After all changes are applied, git commit and sync to remote.
 
 ---
 
@@ -18,202 +18,165 @@ Read all three files before making any edits.
 
 ## Changes to Design Spec (`docs/thoughtforge-design-specification.md`)
 
-### Change 1 — Phase 1 step 11b, deliverable_type derivation (Minor)
+### Change 1 — Phase 1 step 9: "realign from here" trigger mechanism (Minor)
 
-**Find:**
-> The `deliverable_type` field in `status.json` is set to `"plan"` or `"code"`, derived from the Deliverable Type section of the confirmed `intent.md`.
-
-**Replace with:**
-> The `deliverable_type` field in `status.json` is set to `"plan"` or `"code"` by parsing the Deliverable Type section of the confirmed `intent.md`. The AI's distillation always states exactly one of 'Plan' or 'Code' as the first word of this section. The orchestrator string-matches that word to set the field.
-
----
-
-### Change 2 — Phase 4 Stagnation guard description (Minor)
-
-**Find:**
-> Same total error count persisting for a number of consecutive iterations equal to or greater than the configured stagnation limit AND issue replacement detected (rotation threshold and similarity measure defined in build spec). This indicates the reviewer is finding new issues to replace resolved ones, producing a plateau rather than genuine progress.
+**Find** the existing text describing the "realign from here" behavior in Phase 1, step 9.
 
 **Replace with:**
-> Same total error count for a configured number of consecutive iterations (stagnation limit) AND issue rotation detected (old issues resolved, new issues introduced at the same rate — rotation threshold and similarity measure defined in build spec). This combination indicates the deliverable has reached a quality plateau where the reviewer is cycling through cosmetic or subjective issues rather than finding genuine regressions. Treated as converged.
+
+> Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons to prevent misinterpretation), "realign from here" is a chat-parsed command because it does not advance the pipeline — it re-processes within the current phase. The AI rolls back to the most recent substantive correction and re-distills from the original brain dump plus all corrections up to that point. If no corrections exist yet, the command is ignored with a prompt to provide a correction first. Implementation algorithm in build spec.
 
 ---
 
-### Change 3 — Fabrication guard wording (Minor)
+### Change 2 — Phase 2 step 3: AI resolves Unknowns escalation criteria (Minor)
 
-**Find:**
-> the system had previously reached counts no greater than a configured multiplier of the convergence thresholds in at least one prior iteration
+**Find** the existing Phase 2 step 3 text about AI resolving Unknowns and Open Questions (the text that references `spec-building.md` governing when the AI should decide autonomously vs. escalate).
 
 **Replace with:**
-> in at least one prior iteration, every severity category was at or below 2x its convergence threshold (e.g., critical ≤0, medium ≤6, minor ≤10) — indicating the deliverable was near-converged
+
+> AI resolves Unknowns and Open Questions from `intent.md` — either by making a reasoned decision (stated in `spec.md`) or by asking the human during the Phase 2 chat. The governing principle: the AI decides autonomously when the decision is low-risk, reversible, or has a clearly dominant option based on the constraints — and escalates to the human when the decision is high-impact, preference-dependent, or has multiple viable options with material trade-offs. The Phase 2 prompt (`spec-building.md`) operationalizes this principle. No unresolved unknowns may carry into `spec.md`.
 
 ---
 
-### Change 4 — Locked File Behavior for constraints.md (Minor)
+### Change 3 — Phase 3 Code Mode: test-fix cycle iteration limit (Minor)
 
-**Find the single paragraph that starts with:**
-> `constraints.md` (hot-reloaded): The pipeline re-reads `constraints.md` at the start of each Phase 4 iteration...
+**Find** the existing code builder paragraph in Phase 3 that describes the test-fix cycle (the one mentioning "test-fix cycle: run tests, pass failures back to the agent, agent fixes, re-run tests").
 
-**Replace that entire paragraph with these two sub-bullets:**
+**Append** the following text to the end of that paragraph:
 
-- **`constraints.md` — hot-reloaded:** The pipeline re-reads `constraints.md` at the start of each Phase 4 iteration. Manual human edits to acceptance criteria or review rules are picked up automatically. If `constraints.md` is unreadable or missing at the start of a Phase 4 iteration, the iteration halts and the human is notified.
-- **`constraints.md` — unvalidated after creation:** If the human restructures the file (missing sections, reordered content, added sections), ThoughtForge passes it to the AI reviewer as-is without schema validation. If the human empties the Acceptance Criteria section, the reviewer proceeds with whatever criteria remain (which may be none). This is treated as an intentional human override — the pipeline does not validate criteria presence after the initial Phase 2 write.
+> The Phase 3 test-fix cycle does not have its own iteration cap — it terminates only via stuck detection (3 consecutive identical test failures or 2 consecutive non-zero exits on the same task). Since each cycle produces different failing tests, the stuck detector will not trigger on rotating failures. In practice, the code builder's test-fix cycle is bounded by the agent timeout and the human's ability to terminate via the Phase 3 stuck recovery buttons. A hard cap on Phase 3 test-fix cycles is deferred — not a current build dependency.
 
 ---
 
-### Change 5 — Phase 2 acceptance criteria clarification (Minor)
+### Change 4 — Stagnation guard: "same total error count" clarification (Minor)
 
-**Find:**
-> AI derives 5–10 acceptance criteria from the objective, assumptions, and constraints in `intent.md`
+**Find** the existing stagnation guard text that says "Same total error count for a configured number of consecutive iterations."
 
 **Replace with:**
-> AI derives 5–10 acceptance criteria from the objective, assumptions, and constraints in `intent.md`. For Plan mode, criteria assess document completeness, logical coherence, and actionability. For Code mode, criteria assess functional requirements that map to testable acceptance tests in Phase 3.
+
+> **Stagnation:** Same total error count (sum of critical + medium + minor) for a configured number of consecutive iterations (stagnation limit) AND issue rotation detected. The comparison uses total count only, not per-severity breakdown — a shift in severity composition at the same total is still treated as stagnation if the rotation threshold is also met.
 
 ---
 
-### Change 6 — Chat UI Frontend clarification (Minor)
+### Change 5 — Locked File Behavior: restart recovery for spec.md and intent.md (Minor)
 
-**Find:**
-> Server-rendered HTML + vanilla JavaScript
+**Find** the existing paragraph about `spec.md` and `intent.md` being "read once at Phase 3 start and not re-read during later phases."
+
+**Append** the following text to the end of that paragraph:
+
+> On server restart, the in-memory copies are lost. When the human resumes a halted Phase 4 project, the orchestrator re-reads `spec.md` and `intent.md` from disk to reconstruct working context. If the human manually edited these files while the project was halted, the resumed pipeline will use the edited versions. This is an acceptable side effect of the restart recovery model.
+
+---
+
+### Change 6 — Phase 4: Review and Fix agent assignment (Major)
+
+**Location:** In Phase 4, after the "Each Iteration — Two Steps" section.
+
+**Add this new content:**
+
+> **Agent assignment for review and fix steps:** Both the review and fix steps use the same agent assigned to the project (from `status.json` `agent` field). The review prompt instructs the agent to produce a JSON error report only — no fixes. The fix prompt instructs the agent to apply fixes from the provided issue list only — no new review. Prompt separation enforces the behavioral boundary. Using separate agents for review vs. fix is deferred — not a current build dependency.
+
+---
+
+### Change 7 — Phase 3 Code Mode: code builder context assembly (Major)
+
+**Location:** In the Phase 3 Code Mode section, after step 1.
+
+**Add this new content:**
+
+> **Code builder context assembly:** The code builder passes the following files to the coding agent as build context: `spec.md` (architecture, decisions, dependencies), `constraints.md` (acceptance criteria, scope, priorities), and optionally the plan document from `/resources/` if one was identified by the Plan Completeness Gate. `intent.md` is not passed — its content is already distilled into `spec.md`. Resource files from `/resources/` (other than a chained plan document) are not passed to the code builder — they were consumed during Phase 1 distillation.
+
+---
+
+### Change 8 — Phase 4: fix agent context assembly (Major)
+
+**Location:** In Phase 4, after the Step 2 (Fix) description.
+
+**Add this new content:**
+
+> **Fix agent context assembly:** The fix agent receives the JSON issue list and the relevant deliverable context. For Plan mode: the current plan document. For Code mode: the current codebase files referenced in the issue `location` fields, plus `constraints.md` for scope awareness. The fix agent does not receive the prior review JSON from previous iterations — only the current iteration's issue list. Full context assembly is specified in the fix prompts (`plan-fix.md`, `code-fix.md`).
+
+---
+
+### Change 9 — Phase 4 Code Mode: review context assembly (Major)
+
+**Location:** In the Phase 4 Code Mode Iteration Cycle section.
+
+**Add this new content:**
+
+> **Code mode review context:** The review prompt includes `constraints.md`, test results, and a representation of the codebase. For codebases that fit within the agent's context window, the full source is included. For larger codebases, the reviewer receives a file manifest (list of all source files with sizes) plus the content of files that changed since the last iteration (identified via `git diff`). The review prompt (`code-review.md`) specifies the context assembly strategy. If the codebase exceeds the agent's context window even with diff-only strategy, the orchestrator logs a warning and proceeds with truncated context.
+
+---
+
+### Change 10 — Phase 4 Error Handling: fix commit failure after review committed (Minor)
+
+**Location:** In the Phase 4 Error Handling table.
+
+**Add this new row:**
+
+> | Fix step git commit fails after review step committed successfully | Halt and notify human. The review commit is preserved. Un-committed fix changes remain in the working tree. On resume, the orchestrator does NOT re-run the review step — it re-attempts only the fix commit. If the commit succeeds on retry, the iteration proceeds normally. If the working tree has been manually modified by the human during the halt, the orchestrator commits whatever is present (the human is responsible for the state they left). |
+
+---
+
+### Change 11 — Chat history truncation: brain dump identification (Minor)
+
+**Find** the existing truncation sentence that says "retaining the most recent messages and always retaining the original brain dump."
+
+**Append** the following text after that sentence:
+
+> The original brain dump messages are identified as all human messages before the first Distill button press in the chat history. During truncation, these messages are always retained at the beginning of the context, followed by the most recent messages that fit within the remaining window. Messages between the brain dump and the retained recent messages are dropped.
+
+---
+
+### Change 12 — Phase 1 step 11b: Extract deliverable type parsing to build spec (Minor)
+
+**Find** the implementation-level parsing detail in Phase 1 step 11b — the sentence "The AI's distillation always states exactly one of 'Plan' or 'Code' as the first word of this section. The orchestrator string-matches that word to set the field."
 
 **Replace with:**
-> Server-rendered initial HTML page with vanilla JavaScript for dynamic UI updates. The chat interface is a single page — navigation between projects and settings is handled client-side via JavaScript DOM manipulation. No full-page reloads after initial load.
+
+> The deliverable type is derived from the confirmed intent and set in `status.json`.
+
+Ensure the parsing algorithm (first-word string match) is present in the build spec. If it is already there, no build spec change needed. If not, add it to the relevant section of the build spec.
 
 ---
 
-### Change 7 — Add Structured Response Validation section (CRITICAL)
+### Change 13 — Phase 1 step 9: Realign algorithm overlap (Minor)
 
-**Location:** In the Agent Communication section, after the existing "Failure handling" subsection.
-
-**Add this new subsection:**
-
-**Structured Response Validation (Non-Review):**
-Phase 3 plan builder responses must conform to the `PlanBuilderResponse` schema. The orchestrator validates the response after each builder invocation. On parse failure: retry once. On second failure: halt and notify human. Phase 1 distillation and Phase 2 spec-building responses are natural language (not structured JSON) and do not require schema validation — the AI's output is presented directly in chat for human review and correction.
+After applying Change 1 above, verify that the design spec states only the *behavior* of realign (human can request re-distillation from a prior correction point) and defers the mechanism to the build spec. The partial algorithm description should live only in the build spec, not in both documents. Change 1's text includes "Implementation algorithm in build spec" — confirm this is the only reference to the algorithm in the design spec. If any duplicate algorithmic detail remains elsewhere in the design spec, remove it.
 
 ---
 
-### Change 8 — Add Git Initialization Failure behavior (Major)
+### Change 14 — Button Debounce: Extract implementation details to build spec (Minor)
 
-**Location:** In Phase 1, after the "Project Initialization" step (step 0).
-
-**Add:**
-
-**Git Initialization Failure:** If `git init` fails during project creation (permissions error, disk space, git not installed), project creation is aborted. The partially created directory is deleted. The human is notified: "Project creation failed: git initialization error. Verify git is installed and the projects directory is writable." No project state files are written.
-
----
-
-### Change 9 — Add Ambiguous Deliverable Type behavior (Minor)
-
-**Location:** In Phase 1, after step 6 (or in the brain dump intake prompt section).
-
-**Add:**
-
-**Ambiguous Deliverable Type:** If the brain dump contains signals for both Plan and Code, the AI defaults to Plan and flags the ambiguity in the Open Questions section: "Brain dump describes both planning and implementation. Classified as Plan — confirm or change to Code." The human resolves during the correction cycle.
-
----
-
-### Change 10 — Add Manual Project Deletion behavior (Minor)
-
-**Location:** In the "Project Lifecycle After Completion" section.
-
-**Add:**
-
-**Manual Project Deletion (Active Project):** If a project directory is deleted while the server is running and the project is in a non-terminal state, the server will encounter file system errors on the next operation for that project. These are handled by the existing cross-cutting file system error handling: halt and notify. The project list sidebar will show the project until the server is restarted (server restart scans `/projects/` and removes stale entries). Graceful handling of mid-run directory deletion is deferred — not a current build dependency.
-
----
-
-### Change 11 — Shorten "realign from here" to behavior-level only (Minor)
-
-**Find:**
-> Human can type 'realign from here' in chat. The AI resets to the most recent substantive correction, excluding all subsequent conversation from the working context (retained in `chat_history.json` for audit trail), and re-distills from the original brain dump plus all corrections up to and including that baseline correction. If no corrections exist yet, the command is ignored with a prompt to provide a correction first. Implementation algorithm in build spec.
+**Find** the detailed button debounce paragraph that says: "Once an action button is pressed, it is immediately disabled in the UI and remains disabled until the triggered operation completes or fails. A second click on a disabled button has no effect. If the server receives a duplicate action request for a button that has already been processed (e.g., due to a race condition between client and server), the server ignores the duplicate and returns the current project state."
 
 **Replace with:**
-> Human can type 'realign from here' in chat. The AI rolls back to the most recent substantive correction and re-distills from the original brain dump plus all corrections up to that point. If no corrections exist yet, the command is ignored with a prompt to provide a correction first. Implementation algorithm in build spec.
 
----
+> Buttons prevent duplicate actions. Once pressed, a button cannot trigger a second action until the first completes or fails. Server-side deduplication handles race conditions.
 
-### Change 12 — Move Notification JSON example to build spec (Minor)
-
-**Find the JSON example object in the Notification Content section** (the one containing `project_id: "{id}", project_name: "Wedding Plan"` etc.)
-
-**Remove it from the design spec.** Keep only the summary-string examples in the design spec. The JSON example will be added to the build spec in Change 15 below.
-
----
-
-## Changes to Build Spec (`docs/thoughtforge-build-spec.md`)
-
-### Change 13 — Add AgentResponse interface (Major)
-
-**Location:** In the Agent Communication section, after the "Output Normalization" subsection.
-
-**Add:**
-
-**Normalized Agent Response:**
-```typescript
-interface AgentResponse {
-  success: boolean;      // true if agent exited 0 and produced non-empty output
-  output: string;        // Cleaned agent stdout — wrapper text and metadata stripped
-  exitCode: number;      // Raw process exit code
-  timedOut: boolean;     // true if killed by timeout
-}
-```
-All agent adapters return this structure. The orchestrator and plugins consume only `AgentResponse`, never raw subprocess output.
-
----
-
-### Change 14 — Add ThoughtForge Build Toolchain section (Major)
-
-**Location:** Before the Task Breakdown section, or as a new section titled "Build Toolchain."
-
-**Add:**
-
-**ThoughtForge Build Toolchain:**
-- Test framework: Vitest (or Jest — decide before build starts)
-- Test execution: `npm test` runs all unit tests; `npm run test:e2e` runs end-to-end tests
-- E2E tests require at least one configured agent CLI on PATH
-- All unit tests use mocked dependencies (no real agent calls, no real file I/O for state tests)
-
----
-
-### Change 15 — Add Notification JSON example (moved from design spec)
-
-**Location:** In the "Notification Payload Schema" section, near the `NotificationPayload` TypeScript interface.
-
-**Add the JSON example object that was removed from the design spec in Change 12.** Paste it as-is alongside the interface definition.
+Move the full implementation details (client-side disable timing, server-side dedup handling, race condition resolution) to the build spec if not already present there.
 
 ---
 
 ## Changes to Execution Plan (`docs/thoughtforge-execution-plan.md`)
 
-### Change 16 — Replace language dependency row with design decision (Minor)
+### Change 15 — Critical Path: secondary chain correction (Minor)
 
-**Find in the Dependencies & Blockers table the row:**
-> Language: TypeScript | Dependency | ... | Implied by Zod schemas and interface definitions in build spec. Confirm or document as JavaScript-only with JSDoc types.
+**Find** the existing secondary critical chain text in the Critical Path section.
 
-**Remove that row from the table.** Add the following as a design decision (in the Technical Design section, or at the top of the execution plan if no such section exists):
+**Replace with:**
 
-**Implementation language:** The codebase uses TypeScript. Zod schemas and interface definitions in the build spec use TypeScript syntax. The build toolchain includes `tsc` compilation. (If JavaScript-only is preferred, replace TypeScript interfaces with JSDoc type annotations and use Zod's runtime-only validation.)
-
----
-
-### Change 17 — Add VK CLI verification task to Build Stage 5 (Major)
-
-**Location:** Build Stage 5's task table, insert as the first task.
-
-**Add this row:**
-
-| # | Task | Owner | Depends On | Estimate | Status |
-|---|------|-------|------------|----------|--------|
-| 25a | Verify Vibe Kanban CLI interface: confirm actual commands, flags, and output format match assumed interface in build spec. Update build spec if discrepancies found. | — | — | — | Not Started |
+> **Secondary critical chain (Code mode):** Task 1 → Task 41 → Task 42 (parallel with Task 26 → Task 27) → Task 6a → Task 21 → Task 30c → Task 52. The agent layer (41–42) and VK adapter (26–27) are parallel branches that both feed into Task 21.
 
 ---
 
-### Change 18 — Add parallelism note to Critical Path section (Minor)
+### Change 16 — Task Acceptance Criteria: "To be drafted" prompt handling (Minor)
 
-**Location:** In the Critical Path section, after the secondary critical chain description.
+**Find** the Task Acceptance Criteria section.
 
-**Add:**
+**Add** the following as a new numbered item:
 
-**Parallelism note:** Tasks 41-42 (agent invocation layer) gate every task that calls an AI agent. These should be prioritized immediately after Task 1 completes, as they are the single biggest bottleneck across both critical paths. All Build Stage 1 foundation tasks (2-6a) and Stage 7 tasks (41-44) can run in parallel once Task 1 is done.
+> 5. For tasks that depend on a "To be drafted" prompt (identified in the build spec by "Used by" references): the AI coder drafts the prompt text as the first step of the task, writes it to the `/prompts/` directory, and the human reviews and edits via the Settings UI before the task proceeds to implementation. The prompt text is committed alongside the task's implementation code.
 
 ---
 
