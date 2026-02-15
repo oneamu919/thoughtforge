@@ -26,7 +26,7 @@
 | 1a | Implement application entry point: Node.js server startup, config initialization, local web server for chat interface | — | Task 1 | — | Not Started |
 | 1b | Implement first-run setup: `config.yaml.example` copied to `config.yaml` on first run if missing (with comment guidance), prerequisite check (Node.js version, agent CLIs on PATH), startup validation summary | — | Task 1 | — | Not Started |
 | 2 | Implement project initialization: unique ID generation, `/projects/{id}/` directory scaffolding (including `/docs/` and `/resources/`), git repo init, initial `status.json` write, Vibe Kanban card creation (if enabled), and new chat thread creation | — | Task 1 | — | Not Started |
-| 2a | Implement git commit at pipeline milestones: `intent.md` lock (end of Phase 1), `spec.md` and `constraints.md` lock (end of Phase 2), Phase 3 build completion. Phase 4 per-iteration commits are handled separately in Task 40. | — | Task 2 | — | Not Started |
+| 2a | Implement git commit at pipeline milestones: `intent.md` lock (end of Phase 1), `spec.md` and `constraints.md` lock (end of Phase 2), Phase 3 build completion (including the Phase 3→4 transition commit). Phase 4 per-iteration commits (after each review step and after each fix step) are handled in Task 40. | — | Task 2 | — | Not Started |
 | 3 | Implement project state module (`status.json`, `polish_state.json` read/write) with atomic write default (write to temp file, rename to target) for all state files. Include `status.json` error handling: halt and notify on unreadable, missing, or invalid status.json (parse failure, missing file, invalid phase value) — no recovery or partial loading | — | Task 1 | — | Not Started |
 | 3a | Implement operational logging module (per-project `thoughtforge.log`, structured entries for agent calls, phase transitions, guard evaluations, halts, errors, config/plugin loading). All tasks that produce loggable events (Tasks 1, 6, 6a, 33–37, 41) must call this module — logging integration is the responsibility of each event-producing task, not a separate wiring task. | — | Task 1 | — | Not Started |
 | 4 | Implement notification abstraction layer + ntfy.sh channel | — | Task 1 | — | Not Started |
@@ -148,6 +148,7 @@
 | 51 | End-to-end test: Plan mode pipeline (brain dump → polished plan) | — | All above | — | Not Started |
 | 52 | End-to-end test: Code mode pipeline (brain dump → polished code) | — | All above | — | Not Started |
 | 53 | End-to-end test: Plan → Code chaining (finished plan as Code mode input) | — | Task 51, Task 52 | — | Not Started |
+| 53a | End-to-end test: Plan Completeness Gate (pass with complete plan, fail with incomplete plan, Override proceeds to build, Terminate halts project) | — | Task 6d, Task 53 | — | Not Started |
 | 54 | Test all convergence guards with synthetic edge cases | — | Tasks 33–37 | — | Not Started |
 | 55 | Test crash recovery (kill mid-loop, verify resume) | — | Task 38 | — | Not Started |
 | 56 | Test parallel execution (3 concurrent projects, different agents) | — | Task 29 | — | Not Started |

@@ -439,6 +439,40 @@ Each connector module in `/connectors/` implements:
 
 ---
 
+## Project Initialization Sequence
+
+**Used by:** Task 2 (project initialization)
+
+The following operations execute in order when a new project is created:
+
+1. Generate a unique project ID (format: `{timestamp}-{random}`, e.g., `20260214-a3f2`)
+2. Create the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories)
+3. Initialize a git repo in the project directory
+4. Write an initial `status.json` with phase `brain_dump` and `project_name` as empty string
+5. If Vibe Kanban integration is enabled, create a corresponding Kanban card
+6. Open a new chat thread for the project
+
+---
+
+## Project Name Derivation
+
+**Used by:** Task 11 (intent.md generation and locking)
+
+The AI uses the first heading (H1) of the distilled `intent.md` document as the project name. If no H1 heading is present, the AI generates a short descriptive name (2–4 words) from the brain dump content and includes it as the H1 heading. When `intent.md` is written and locked, the project name is extracted from its H1 heading and written to `status.json`. If Vibe Kanban is enabled, the card name is updated at the same time.
+
+---
+
+## WebSocket Reconnection Parameters
+
+**Used by:** Task 7 (chat interface WebSocket implementation)
+
+- **Initial backoff:** 1 second
+- **Maximum backoff:** 30 seconds (cap)
+- **Maximum retries:** Unlimited (no maximum retry limit)
+- **Backoff strategy:** Exponential
+
+---
+
 ## `status.json` Schema
 
 **Used by:** Task 3 (project state module)
@@ -462,7 +496,7 @@ interface ProjectStatus {
   agent: string;
   created_at: string;   // ISO8601
   updated_at: string;   // ISO8601
-  halt_reason: string | null;  // Known values: "plan_incomplete", "guard_hallucination", "guard_fabrication", "guard_max_iterations", "human_terminated", "agent_failure", "file_system_error", "phase3_output_missing", "phase3_output_incomplete"
+  halt_reason: string | null;  // Known values: "plan_incomplete", "guard_hallucination", "guard_fabrication", "guard_max_iterations", "human_terminated", "agent_failure", "file_system_error", "phase3_output_missing", "phase3_output_incomplete", "server_restart"
 }
 ```
 
