@@ -481,6 +481,10 @@ Each connector module in `/connectors/` implements:
 | Override (Gate) | Plan Completeness Gate failure | Phase set to `building` (resumes Code mode build) | Confirmation dialog: "Proceed with Code mode despite incomplete plan?" On confirm: chat shows "Override accepted. Build starting." | Yes — single confirmation step. |
 | Terminate (Gate) | Plan Completeness Gate failure | Phase set to `halted`, `halt_reason: "human_terminated"` | Confirmation dialog: "This will permanently stop the project. Confirm?" On confirm: chat shows "Project terminated." Buttons removed. | Yes — single confirmation step. |
 
+### Button Debounce Implementation
+
+Once an action button is pressed, it is immediately disabled in the UI and remains disabled until the triggered operation completes or fails. A second click on a disabled button has no effect. If the server receives a duplicate action request for a button that has already been processed (e.g., due to a race condition between client and server), the server ignores the duplicate and returns the current project state.
+
 ---
 
 ## Project Initialization Sequence
@@ -505,6 +509,10 @@ If Vibe Kanban card creation fails during initialization, log a warning and cont
 **Used by:** Task 11 (intent.md generation and locking)
 
 The AI uses the first heading (H1) of the distilled `intent.md` document as the project name. If no H1 heading is present, the AI generates a short descriptive name (2–4 words) from the brain dump content and includes it as the H1 heading. When `intent.md` is written and locked, the project name is extracted from its H1 heading and written to `status.json`. If Vibe Kanban is enabled, the card name is updated at the same time.
+
+### Deliverable Type Parsing
+
+The `deliverable_type` field in `status.json` is set by parsing the Deliverable Type section of the confirmed `intent.md`. The AI's distillation always states exactly one of "Plan" or "Code" as the first word of this section. The orchestrator string-matches that first word (case-insensitive) to set the field to `"plan"` or `"code"`.
 
 ---
 

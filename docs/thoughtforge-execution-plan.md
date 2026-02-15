@@ -189,7 +189,7 @@ The longest dependency chain determines the minimum build duration regardless of
 
 This chain runs from foundation through agent layer, human interaction, plan plugin, polish loop, to plan-mode e2e validation.
 
-**Secondary critical chain (Code mode):** Task 1 → Task 26 → Task 27 → Task 21 → Task 30c → Task 52
+**Secondary critical chain (Code mode):** Task 1 → Task 41 → Task 42 (parallel with Task 26 → Task 27) → Task 6a → Task 21 → Task 30c → Task 52. The agent layer (41–42) and VK adapter (26–27) are parallel branches that both feed into Task 21.
 
 Build schedule and parallelism decisions should optimize for keeping the critical path unblocked.
 
@@ -204,6 +204,7 @@ Each task is complete when:
 2. The task's own unit tests (if a corresponding test task exists in Build Stage 8) pass with mocked dependencies
 3. Any logging events produced by the task are routed through the operational logging module (Task 3a)
 4. The implementation follows the interface contracts defined in the build spec (plugin interface, connector interface, notification payload, state file schemas)
+5. For tasks that depend on a "To be drafted" prompt (identified in the build spec by "Used by" references): the AI coder drafts the prompt text as the first step of the task, writes it to the `/prompts/` directory, and the human reviews and edits via the Settings UI before the task proceeds to implementation. The prompt text is committed alongside the task's implementation code.
 
 AI coders should reference the "Used by" annotations in the build spec to identify the authoritative specification for each task.
 
