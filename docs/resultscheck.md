@@ -1,7 +1,7 @@
-﻿**result: true** — still needs updates
+﻿Done.
 
-- Critical: 0
-- Major: 3 (package.json dependencies, context window definition, graceful shutdown for concurrent projects)
-- Minor: 11 (guard evaluation order, Phase 2 steps clarity, stagnation guard precision, task queue persistence contradiction, Phase 3 completeness wording, critical path correction, HTTP API surface, CORS/static serving, plan plugin discovery.js, halt_reason fix_regression, brain dump prompt extraction + button behavior annotation)
+- **result: true** — still needs updates
+- **Critical: 0, Major: 2, Minor: 12**
+- The 12 minor findings exceed the convergence threshold of fewer than 5, so updates are still needed.
 
-The review exceeds convergence thresholds on both major (3, threshold is <3) and minor (11, threshold is <5) findings. `apply-prompt.md` has been written with all 14 changes mapped to specific files and locations.
+`apply-prompt.md` has been written with explicit instructions for all 11 actionable findings (6 replacements + 5 additions), mapped to their target files with exact replacement/addition text. The 3 "no action" findings from Section 3 are noted as requiring no changes.
