@@ -1,5 +1,7 @@
-﻿- **result: true** — still needs updates
-- Critical: 0, Major: 4, Minor: 12
-- The review exceeds convergence thresholds on both major findings (4, need <3) and minor findings (12, need <5), so further updates are required.
+﻿**result: true** — updates are still needed.
 
-`apply-prompt.md` has been written with 16 explicit changes mapped to their target files.
+- Critical: 0
+- Major: 6 (3 unclear writing + 3 missing content)
+- Minor: 16 (8 unclear writing + 4 missing content + 4 extraction recommendations)
+
+The review exceeds convergence thresholds on both major findings (6, threshold is <3) and minor findings (16, threshold is <5). `apply-prompt.md` has been written with 22 explicit changes mapped to their target files.
