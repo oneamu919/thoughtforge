@@ -34,12 +34,31 @@ if (-not (Test-Path "results.md")) {
     exit 1
 }
 
+# Capture apply-prompt.md timestamp before check runs
+$applyPromptBefore = $null
+if (Test-Path "apply-prompt.md") {
+    $applyPromptBefore = (Get-Item "apply-prompt.md").LastWriteTime
+}
+
 Send-Notify "[CHECK] Checking results.md..."
 $result = Get-Content "check-prompt.md" -Raw -Encoding UTF8 | claude -p - --dangerously-skip-permissions --output-format text
 
 if ($LASTEXITCODE -ne 0) {
     Send-Notify "[CHECK] Claude failed with exit code $LASTEXITCODE"
     exit 1
+}
+
+# If still needs updates, verify apply-prompt.md was actually refreshed
+if ($result -match 'result:\s*true') {
+    if (-not (Test-Path "apply-prompt.md")) {
+        Send-Notify "[CHECK] FAILED: apply-prompt.md not found. CC2 output: $result"
+        exit 1
+    }
+    $applyPromptAfter = (Get-Item "apply-prompt.md").LastWriteTime
+    if ($applyPromptBefore -and $applyPromptAfter -le $applyPromptBefore) {
+        Send-Notify "[CHECK] FAILED: apply-prompt.md was not updated. CC2 output: $result"
+        exit 1
+    }
 }
 
 $result | Set-Content -Path "resultscheck.md" -Encoding UTF8

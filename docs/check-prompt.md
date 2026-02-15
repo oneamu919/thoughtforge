@@ -1,4 +1,4 @@
-read these files 
+Read these files:
 results.md
 
 Based on what you read, do these project files still need updates or not?
@@ -10,5 +10,6 @@ Write your answer in this format:
 - Your counts of critical, major, and minor findings
 - One sentence explaining your reasoning
 
-Extract the complete block of text that is designated as the consolidated prompt of edits to hand to the ai coder. 
-and replace the contents of apply-prompt.md with the consolidated prompt text.
+If result is true, extract the consolidated prompt block from results.md and create or overwrite the file apply-prompt.md with that content. The apply-prompt.md file MUST exist on disk before you finish. If no consolidated prompt block exists in results.md, do NOT fabricate one — instead write your output as: result: error — review output is missing the consolidated prompt block
+
+If result is false, do not modify apply-prompt.md.
