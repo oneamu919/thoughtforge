@@ -1,185 +1,163 @@
-﻿Now I have all four documents. Let me produce the review.
+﻿Now I have full context. This is review iteration 10. Let me perform a thorough, fresh review of all three documents (design spec, build spec, execution plan) against the requirements brief, looking for genuine issues the previous reviews may have missed or that still remain.
 
 ---
 
 # Plan Review — ThoughtForge Design Specification, Build Spec, and Execution Plan
 
+**Review Iteration:** 10
+
 ---
 
 ## 1. Writing That's Unclear
 
-**[Minor]** Design Specification, Phase 4, Stagnation Guard (line 299):
+**[Major]** Design Specification, Phase 2 Conversation Mechanics (line 141):
 
-> "Same total error count for 3+ consecutive iterations AND issue rotation detected — fewer than 70% of current issues match issues from the immediately prior iteration by description similarity."
+> "The 'realign from here' command is not supported in Phase 2. If issued, it is ignored."
 
-The phrase "issue rotation detected" is defined inline but the term "rotation" is non-standard and counterintuitive — "rotation" sounds like issues are cycling, but the guard is really detecting that issues are being *replaced* while the total count stays flat. A builder reading this will have to re-read it to understand the intent.
+This is buried mid-paragraph and doesn't explain *why* it's unsupported in Phase 2 when it's a core Phase 1 feature. A builder will wonder whether this is intentional or an omission. The lack of rationale invites re-litigation during build.
 
 **Replacement:**
-> "Same total error count for 3+ consecutive iterations AND issue replacement detected — fewer than 70% of current issues have a matching issue in the immediately prior iteration by description similarity. This indicates the reviewer is finding new issues to replace resolved ones, producing a plateau rather than genuine progress."
+> "The 'realign from here' command is not supported in Phase 2. If issued, it is ignored. Targeted corrections via chat handle all Phase 2 revisions."
 
 ---
 
-**[Minor]** Design Specification, Phase 4, Fabrication Guard (line 300):
+**[Minor]** Design Specification, Phase 3 Code Mode (line 214):
 
-> "A severity category spikes significantly above its trailing 3-iteration average, AND the system had previously reached within 2× of convergence thresholds in at least one prior iteration — suggesting the reviewer is manufacturing issues because nothing real remains"
+> "The code builder then enters a test-fix cycle: run tests, pass failures back to the agent, agent fixes, re-run tests — repeating until all tests pass or stuck detection triggers."
 
-The phrase "within 2× of convergence thresholds" is ambiguous. Does it mean the counts were at most 2× the threshold values? The build spec (line 312) clarifies this as "≤0 critical, ≤6 medium, ≤10 minor" but the design spec should be self-consistent.
+The term "test-fix cycle" is introduced here but isn't used anywhere else in the document. Phase 4 Code Mode uses "iteration cycle" (line 283). A builder may wonder whether the Phase 3 test-fix cycle has the same two-commit pattern as Phase 4 iterations. It doesn't — Phase 3 commits once at completion (line 254). This should be made explicit.
 
 **Replacement:**
-> "A severity category spikes significantly above its trailing 3-iteration average, AND the system had previously reached counts within 2× of the termination thresholds (i.e., critical ≤ 0, medium ≤ 6, minor ≤ 10) in at least one prior iteration — suggesting the reviewer is manufacturing issues because nothing real remains"
+> "The code builder then enters a test-fix cycle: run tests, pass failures back to the agent, agent fixes, re-run tests — repeating until all tests pass or stuck detection triggers. Unlike Phase 4 iterations, the Phase 3 test-fix cycle does not commit after each cycle — a single git commit is written when Phase 3 completes successfully."
 
 ---
 
-**[Minor]** Design Specification, Phase 1 step 3 (lines 79-80):
+**[Minor]** Build Spec, Code Builder Task Queue (lines 206–208):
 
-> "ThoughtForge pulls the content and saves it to `/resources/` as local files. Connectors are optional — if none are configured, this step is skipped."
+> "On crash recovery, the code builder re-derives the task list from `spec.md` and the current project file state."
 
-Immediately followed by a "Connector URL identification" paragraph that is dense and reads as a continuation of step 3 but is formatted as a separate block. It's unclear whether this is still part of step 3 or a standalone specification element.
+"Current project file state" is vague. Does this mean the files on disk in the project directory? The contents of `status.json`? Both? A builder implementing crash recovery needs to know what to inspect.
 
-**Replacement:** Indent the "Connector URL identification" paragraph under step 3, or prefix it explicitly:
-
-> **Step 3 Detail — Connector URL Identification:** The AI identifies connector URLs in chat messages by matching against known URL patterns...
+**Replacement:**
+> "On crash recovery, the code builder re-derives the task list from `spec.md` and the current state of files in the project directory (e.g., which source files and test files already exist)."
 
 ---
 
-**[Minor]** Design Specification, Locked File Behavior (line 147):
+**[Minor]** Execution Plan, Build Stage 8 note about Tasks 32, 38, 39 (line 110):
 
-> "If the file is readable but has modified structure, ThoughtForge passes it to the AI reviewer without structural validation. The reviewer processes whatever content it receives — no special handling is required for structural variations."
+> "Tasks 32, 38, and 39 are implemented within the Task 30 orchestrator module, not as separate files. They are listed separately for progress tracking."
 
-The term "modified structure" is vague. Does this mean missing sections, reordered sections, or completely different content? A builder might wonder whether to validate headings.
+This is useful but the same convention should be stated for Task 31 (Zod validation flow), which is also logically part of the Task 30 orchestrator and depends on it identically. A builder may create a separate module for Task 31 unnecessarily.
 
 **Replacement:**
-> "If the file is readable but has been restructured by the human (missing sections, reordered content, added sections), ThoughtForge passes it to the AI reviewer as-is without validating that it matches the original `constraints.md` schema. The reviewer processes whatever content it receives."
+> "Tasks 31, 32, 38, and 39 are implemented within the Task 30 orchestrator module, not as separate files. They are listed separately for progress tracking."
 
 ---
 
-**[Minor]** Execution Plan, Build Stage 1, cross-stage dependency note (line 42):
+**[Minor]** Design Specification, Phase 4, Stagnation Guard (line 301):
 
-> "Agent Layer (Build Stage 7, Tasks 41–44) provides the core agent invocation mechanism used by Stages 2–6. Task 41 depends on Task 1 (foundation), so Build Stage 7 should begin as soon as Task 1 completes, overlapping with the remainder of Build Stage 1."
+> "Done (success — treated as converged plateau)."
 
-The phrase "overlapping with the remainder of Build Stage 1" is imprecise. It should state which Stage 1 tasks can proceed in parallel and which must wait.
-
-**Replacement:**
-> "Agent Layer (Build Stage 7, Tasks 41–44) provides the core agent invocation mechanism used by Stages 2–6. Task 41 depends only on Task 1 (foundation), so Build Stage 7 should begin as soon as Task 1 completes. Stage 1 Tasks 2–6e and Stage 7 Tasks 41–44 can proceed in parallel. Any task that invokes an AI agent (Tasks 8, 12, 15, 21, 30) must wait for Tasks 41–42 to complete."
-
----
-
-**[Minor]** Design Specification, Server Restart Behavior (line 404):
-
-> "Projects in autonomous states (`distilling`, `building`, `polishing`) — where the AI was actively processing without human interaction — are set to `halted` with `halt_reason: "server_restart"` and the human is notified."
-
-The `halt_reason` value `"server_restart"` is documented in the `status.json` schema in the build spec but not listed in the design spec's narrative. This is consistent but the design spec doesn't explain *why* these projects are halted rather than auto-resumed. A builder might question this decision.
+The parenthetical implies that stagnation-as-success is a design choice, but doesn't explain the rationale. A builder may question why stagnation isn't treated as a halt condition like hallucination and fabrication.
 
 **Replacement:**
-> "Projects in autonomous states (`distilling`, `building`, `polishing`) are set to `halted` with `halt_reason: "server_restart"`. These are not auto-resumed because the server cannot safely re-enter a mid-execution agent invocation or polish iteration — the prior subprocess is dead and its partial output is unknown. The human must explicitly resume."
+> "Done (success — treated as converged plateau). The reviewer is still finding the same number of issues but they are different issues each iteration, indicating the deliverable has reached a quality plateau where further iteration yields diminishing returns."
+
+Wait — re-reading the guard: stagnation triggers when the count is flat AND rotation is detected (new issues replacing old). The notification says "polish sufficient." This is already well-explained in the notification examples (line 478). The guard table itself is the only place where the rationale is thin. But this is a design decision (locked), and the behavior is clear enough. I'm below 80% confidence this is actually a problem.
+
+**Withdrawn — does not meet the 80% threshold.**
 
 ---
 
 ## 2. Genuinely Missing Plan-Level Content
 
-**[Major]** No security model for the web chat interface.
+**[Major]** No specification for how the orchestrator handles `constraints.md` hot-reload when the file has been externally modified to contain invalid or empty acceptance criteria.
 
-The design spec specifies `server.host: "127.0.0.1"` as the default bind address (localhost only), which implies a single-operator local tool with no authentication. However, the config allows changing this to `"0.0.0.0"` for network access (build spec line 722). If the operator binds to a network interface, the chat interface is fully open — anyone on the network can create projects, trigger agent invocations, drop files, and terminate projects. The plan has no mention of authentication, CORS, or access control even at the plan level.
+The design spec (line 149) states: "The pipeline re-reads `constraints.md` at the start of each Phase 4 iteration, so manual human edits to acceptance criteria or review rules are picked up automatically." It also states: "If `constraints.md` is unreadable or missing… the iteration halts." And if restructured: "ThoughtForge passes it to the AI reviewer as-is."
 
-**Proposed content to add** (Design Specification, under Technical Design → ThoughtForge Stack, after the Server entry):
+However, there's no guidance on what happens when `constraints.md` is readable and structurally present but the Acceptance Criteria section has been emptied by the human. The reviewer would receive a document with no acceptance criteria — meaning the review has no quality target. For plan mode this might produce a vacuously passing review; for code mode the acceptance tests (which still exist from Phase 3) would have no corresponding criteria to validate against.
 
-> **Access Control:** When bound to localhost (`127.0.0.1`), no authentication is required — only the local operator can access the interface. If the operator changes the bind address to allow network access (`0.0.0.0` or a specific network interface), a warning is logged at startup: "Server bound to network interface. No authentication is configured — any network client can access ThoughtForge." Authentication and access control are deferred — not a current build dependency. The operator assumes responsibility for network security when binding to non-localhost addresses.
+**Proposed content to add** (Design Specification, Locked File Behavior, after the `constraints.md` hot-reload paragraph):
 
----
-
-**[Major]** No error handling for connector URL identification in chat (Phase 1 step 3).
-
-The design spec describes URL pattern matching (line 80) but doesn't address what happens when a URL matches a connector pattern but the connector is *enabled* and authentication fails mid-conversation (as opposed to at startup). The Phase 1 error handling table covers "Connector authentication failure" and "Connector target not found" but doesn't specify what happens to the *chat flow* — does the Distill button remain available? Does the human need to re-click Distill after a connector failure?
-
-This is already partially addressed: "proceed with distillation using available inputs" in the error handling table. But the interaction with the Distill button is ambiguous. If the human clicks Distill and a connector fails, does the distillation still proceed automatically, or does it wait for human re-confirmation?
-
-**Proposed content to add** (Design Specification, Phase 1 Error Handling table, as a clarifying note below the table):
-
-> **Connector failure during distillation:** If a connector fails after the human clicks Distill, the distillation proceeds automatically using all successfully retrieved inputs. The human is notified of the connector failure in chat but does not need to re-click Distill. The failed connector resources are simply absent from the distillation context.
+> If the human empties or removes the Acceptance Criteria section from `constraints.md`, the reviewer proceeds with whatever criteria remain (which may be none). This is treated as an intentional human override — the pipeline does not validate that acceptance criteria are present after the initial Phase 2 write. The human accepts responsibility for review quality when manually editing `constraints.md`.
 
 ---
 
-**[Minor]** No plan-level statement about browser compatibility requirements for the chat UI.
+**[Major]** No specification for what happens when the Vibe Kanban card creation fails during project initialization.
 
-The design specifies "Server-rendered HTML + vanilla JavaScript" (line 388) but doesn't state minimum browser requirements. A builder will need to decide whether to use modern JS features (ES modules, `fetch`, WebSocket) or polyfill for older browsers.
+The design spec (line 438) covers VK CLI failure handling for visualization-only calls ("failure is logged as a warning and the pipeline continues") and for agent execution calls ("treated as an agent failure"). Project initialization (line 65) includes "registers the project on the Kanban board." But initialization happens *before* the pipeline starts — it's not a "visualization-only call" in the sense of a mid-pipeline status update, nor is it an agent execution call. The build spec's initialization sequence (line 483) says "If Vibe Kanban integration is enabled, create a corresponding Kanban card" without specifying failure behavior.
 
-**Proposed content to add** (Design Specification, under UI → ThoughtForge Chat):
+A builder will need to decide: does VK card creation failure during init block the project or continue without a card?
 
-> **Browser Compatibility:** The chat interface targets modern evergreen browsers (Chrome, Firefox, Edge, Safari — current and previous major version). No IE11 or legacy browser support. ES6+ JavaScript features and native WebSocket API are assumed available.
+**Proposed content to add** (Build Spec, Project Initialization Sequence, after step 5):
 
----
-
-**[Minor]** No specification for how the Settings/prompt editor handles concurrent edits.
-
-If the operator has two browser tabs open and edits the same prompt file in both, the last save wins with no warning. For a single-operator tool this is acceptable, but it should be stated explicitly.
-
-**Proposed content to add** (Design Specification, under UI → Prompt Management):
-
-> **Concurrent edit handling:** The prompt editor uses a last-write-wins model with no conflict detection. Since this is a single-operator tool, concurrent tab edits are the operator's responsibility.
+> If Vibe Kanban card creation fails during initialization, log a warning and continue. The project proceeds without a Kanban card. Subsequent VK status update calls for this project will also fail (card does not exist) and will be logged and ignored per standard VK failure handling. The pipeline is fully functional without VK visualization.
 
 ---
 
-**[Minor]** No mention of log rotation or size management for `thoughtforge.log`.
+**[Minor]** No specification for the `chat_history.json` behavior when Phase 4 terminates successfully (convergence or stagnation).
 
-The operational log (design spec line 399) writes structured JSON lines continuously. Over many projects and iterations, this file will grow unbounded. For a v1 single-operator tool this is acceptable, but it should be explicitly acknowledged alongside the existing disk management statement.
+The design spec (line 503) specifies when `chat_history.json` is cleared: "Cleared after each phase advancement confirmation (Phase 1 → Phase 2 and Phase 2 → Phase 3)." It also specifies that Phase 3→4 does NOT clear it. But it doesn't specify whether anything happens to chat history when the pipeline reaches `done`. This matters for the project's post-completion state — if someone opens the project chat after completion, do they see the Phase 3/4 recovery messages?
 
-**Proposed content to add** (Design Specification, under Functional Design → Phase 1 → Disk management paragraph, append):
+**Proposed content to add** (Design Specification, Project State Files, `chat_history.json` row):
 
-> Operational logs (`thoughtforge.log`) also accumulate without rotation or size limits in v1. The operator is responsible for manual log management. Automated log rotation is deferred — not a current build dependency.
+> Chat history is never cleared on pipeline completion (`done`) or halt. The full Phase 3 and Phase 4 chat history (including any recovery conversations) persists in the completed project for human reference.
+
+---
+
+**[Minor]** No specification for resource file path validation on upload.
+
+The design spec (line 34 in Inputs table) says resources are dropped into `/projects/{id}/resources/`. The build spec's Action Button Behavior doesn't cover file drops. The execution plan Task 7h says "Implement file/resource dropping in chat interface (upload to `/resources/`)." But there's no specification for path traversal prevention — if the upload mechanism allows arbitrary filenames, a malformed filename could write outside `/resources/`.
+
+**Proposed content to add** (Execution Plan, Task 7h):
+
+Current: "Implement file/resource dropping in chat interface (upload to `/resources/`)"
+
+**Replacement:**
+> "Implement file/resource dropping in chat interface (upload to `/resources/`). Validate that resolved file paths stay within the project's `/resources/` directory — reject uploads with path traversal components (`..`, absolute paths)."
+
+---
+
+**[Minor]** Execution Plan has no task for testing the operational logging module (`thoughtforge.log`).
+
+Build Stage 8 has unit tests for: project state (Task 45), plugin loader (Task 46), convergence guards (Task 47), agent adapters (Task 48), resource connectors (Task 49), notification layer (Task 50), config loader (Task 50a), first-run setup (Task 50b), prompt editor (Task 58), chat interface (Task 58a), action buttons (Task 58b), file drop (Task 58c), realign (Task 58d), stuck recovery (Task 58e), WebSocket reconnection (Task 58f), concurrency (Task 58g), server restart (Task 58h), resource file processing (Task 58i).
+
+Missing: unit tests for the operational logging module (Task 3a). This module is called by every event-producing task. If it silently fails (e.g., file write error, malformed JSON), debugging becomes impossible.
+
+**Proposed content to add** (Execution Plan, Build Stage 8 table, new row):
+
+> | 50c | Unit tests: operational logging module (log file creation, structured JSON format, log levels, event types, file append failure handling) | — | Task 3a | — | Not Started |
 
 ---
 
 ## 3. Build Spec Material That Should Be Extracted
 
-**[Minor]** Design Specification, Phase 1 step 9 (line 90):
+**[Minor]** Design Specification, Phase 1 step 3, Connector URL Identification (line 80):
 
-> "Implementation algorithm in build spec."
+> "The AI identifies connector URLs in chat messages by matching against known URL patterns for each enabled connector (e.g., `notion.so/` or `notion.site/` for Notion, `docs.google.com/` or `drive.google.com/` for Google Drive). URLs matching an enabled connector pattern are pulled automatically. URLs matching a disabled connector pattern are ignored. Unrecognized URLs are treated as regular brain dump text."
 
-This is fine — it correctly points to the build spec. However, the design spec also contains this paragraph in Phase 1:
+The specific URL patterns (`notion.so/`, `notion.site/`, `docs.google.com/`, `drive.google.com/`) are implementation details. The design spec should state the *behavior* (AI identifies connector URLs by pattern matching), and the build spec should define the actual patterns. The build spec's Resource Connector Interface section (lines 419–438) already describes each connector but doesn't list the URL patterns, meaning these patterns exist only in the design spec — the wrong document.
 
-> "Human can type 'realign from here' in chat. The AI resets to the most recent substantive correction, excluding subsequent conversation from the working context (retained in `chat_history.json` for audit trail), and re-distills from the original brain dump plus all corrections up to that point."
+**Recommendation:** Move the URL pattern list to the build spec's Resource Connector Interface section. Replace the design spec text with:
 
-This is plan-level behavior description and belongs here. **No extraction needed.** The build spec's Realign Algorithm section correctly contains the step-by-step implementation algorithm. This pairing is appropriate.
+> "The AI identifies connector URLs in chat messages by matching against known URL patterns for each enabled connector. Pattern definitions are in the build spec. URLs matching an enabled connector pattern are pulled automatically. URLs matching a disabled connector pattern are ignored. Unrecognized URLs are treated as regular brain dump text."
 
----
+And add to the build spec under each connector:
 
-**[Minor]** Design Specification, Phase 4, Stagnation Guard (line 299):
-
-> "Levenshtein similarity ≥ 0.8 on the `description` field"
-
-This algorithmic parameter (Levenshtein threshold) appears in the design spec. The design spec says "Algorithmic parameters... are defined in the build spec" and the build spec does repeat these. However, the Levenshtein threshold value appears in *both* documents. This creates a dual-source-of-truth risk — if one is updated and the other isn't, a builder will be confused about which is authoritative.
-
-**Recommendation:** Remove the specific threshold value from the design spec and leave only the behavioral description. Replace the design spec text with:
-
-> "fewer than 70% of current issues match issues from the immediately prior iteration by description similarity (match threshold defined in build spec)"
-
-The build spec (line 303-304) already has the full specification: "Levenshtein similarity ≥ 0.8 on the `description` field."
+> **Notion Connector URL patterns:** `notion.so/`, `notion.site/`
+> **Google Drive Connector URL patterns:** `docs.google.com/`, `drive.google.com/`
 
 ---
 
-**[Minor]** Design Specification, Convergence Guards table (lines 295-301):
+**[Minor]** Design Specification, Phase 4, Code Mode Iteration Cycle (lines 283–289):
 
-The design spec includes specific numeric thresholds inline: ">20% spike", "70% match", "50% category spike", "2× convergence thresholds", "3 consecutive iterations". These are all repeated in the build spec's Convergence Guard Parameters section with more precise definitions. The design spec acknowledges this: "Algorithmic parameters... defined in the build spec."
+> "1. **Test** — Orchestrator runs tests via the code plugin's `test-runner.js`..."
 
-However, having the same numbers in both documents creates maintenance risk. Since the design spec explicitly states that algorithmic parameters belong in the build spec, the design spec should describe *behavior* and the build spec should own *values*.
+The reference to `test-runner.js` as a specific filename is build-spec-level detail. The design spec already references this correctly in the Plugin Folder Structure section (line 442) as "test runner for Code" and in the Plugin Interface Contract (line 446). This Phase 4 reference to the specific module filename is minor but inconsistent with how other modules are referenced in behavioral descriptions.
 
-**Recommendation:** In the design spec's Convergence Guards table, replace specific threshold numbers with behavioral descriptions and reference the build spec for exact values. For example, the Hallucination guard:
+This is cosmetic and below the 80% threshold.
 
-Current: "Error count increases significantly (threshold defined in build spec) after a consecutive downward trend (minimum trend length defined in build spec)"
-
-This is already correctly written — it doesn't include the 20% number. The Stagnation and Fabrication guards should follow the same pattern. Replace:
-
-- "Same total error count for 3+ consecutive iterations" → "Same total error count for consecutive iterations exceeding the configured stagnation limit"
-- "fewer than 70% of current issues match" → "issue replacement detected (rotation threshold and similarity measure defined in build spec)"
-- "trailing 3-iteration average" and "within 2× of convergence thresholds" → "trailing average (window size defined in build spec)" and "within a multiplier of convergence thresholds (multiplier defined in build spec)"
-
----
-
-**[Minor]** Build Spec, `config.yaml` template (lines 633-724):
-
-The `config.yaml` template is correctly in the build spec. However, the Design Specification's Configuration table (lines 573-584) duplicates several default values (e.g., "Max parallel runs: 3", "ntfy enabled, topic 'thoughtforge'", "claude, 300s"). These default values are implementation details and should be owned by the build spec's `config.yaml` template alone.
-
-**Recommendation:** In the design spec's Configuration table, remove specific default values and replace with "See `config.yaml` template in build spec" for each row's Defaults column. Keep the "What's Configurable" column as-is — that's plan-level content describing *what* is tunable.
+**Withdrawn — does not meet the 80% threshold.**
 
 ---
 
