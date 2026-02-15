@@ -39,7 +39,7 @@
 | 6d | Implement Plan Completeness Gate: assessment prompt for Code mode Phase 3 entry (loaded from `/prompts/completeness-gate.md`), halt with `plan_incomplete` on fail, present Override and Terminate buttons in chat (Override resumes build, Terminate halts permanently) | — | Task 7a, Task 6e, Tasks 41–42 | — | Not Started |
 | 6e | Draft `/prompts/completeness-gate.md` prompt text | — | Task 7a | — | Not Started |
 
-> **Cross-stage dependency:** Agent Layer (Build Stage 7, Tasks 41–44) provides the core agent invocation mechanism used by Stages 2–6. Task 41 depends on Task 1 (foundation), so Build Stage 7 should begin as soon as Task 1 completes, overlapping with the remainder of Build Stage 1. Tasks 41–42 must be complete before any agent-invoking task begins (Tasks 8, 12, 15, 19, 21, and 30).
+> **Cross-stage dependency:** Agent Layer (Build Stage 7, Tasks 41–44) provides the core agent invocation mechanism used by Stages 2–6. Task 41 depends on Task 1 (foundation), so Build Stage 7 should begin as soon as Task 1 completes, overlapping with the remainder of Build Stage 1. Tasks 41–42 must be complete before any agent-invoking task begins (Tasks 8, 12, 15, 21, and 30).
 
 ### Build Stage 2: Human Interaction Layer (Pipeline Phases 1–2)
 
@@ -164,6 +164,7 @@
 | 58f | Unit tests: WebSocket reconnection (auto-reconnect on disconnect, state sync from `status.json` and `chat_history.json` on reconnect, connection status indicator shown during disconnect, in-flight responses not replayed, server handles invalid project ID on reconnect) | — | Task 7i | — | Not Started |
 | 58g | Unit tests: concurrency limit enforcement (block new project at max, count halted as active, re-enable on terminal state, sidebar message displayed) | — | Task 2b | — | Not Started |
 | 58h | Unit tests: server restart recovery (interactive states resume, autonomous states halted with `server_restart` reason, notifications sent for halted projects, terminal states ignored) | — | Task 1c | — | Not Started |
+| 58i | Unit tests: resource file processing (text read, PDF extraction, image vision routing, unsupported format skip, file size limit enforcement) | — | Task 8 | — | Not Started |
 | 50b | Unit tests: first-run setup (missing config creates from example, prerequisite check reports missing CLIs, valid config passes startup) | — | Task 1b | — | Not Started |
 
 ---
@@ -233,6 +234,7 @@
 - [ ] Prompt editor: list, view, edit, and save prompt files via Settings UI
 - [ ] Retrospective / lessons learned captured (manual activity — not a build task)
 - [ ] Chat interface tests pass (WebSocket, streaming, buttons, file drop, project switching)
+- [ ] Resource connectors: Notion and Google Drive pull, auth failure handling, disabled connector behavior
 
 ---
 

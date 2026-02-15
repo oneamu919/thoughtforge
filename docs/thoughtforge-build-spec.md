@@ -207,6 +207,21 @@ Return type varies by plugin:
 
 The code builder maintains an ordered list of build tasks derived from `spec.md` (e.g., implement feature X, write tests for Y). Each task has a string identifier used for stuck detection — consecutive agent invocations against the same task identifier increment the retry counter. The task list format and derivation logic are internal to the code builder and are not persisted to state files. On crash recovery, the code builder re-derives the task list from `spec.md` and the current project file state.
 
+### Operation Type Taxonomy
+
+Every orchestrator action in Phase 3/4 is classified into one of these operation types before calling `safety-rules.js` `validate()`:
+
+| Operation Type | Description | Example Actions |
+|---|---|---|
+| `shell_exec` | Execute a shell command or subprocess (excluding agent invocations) | Run build script, install package |
+| `file_create_source` | Create a source code file (`.js`, `.py`, `.ts`, `.sh`, etc.) | Scaffold project, write boilerplate |
+| `file_create_doc` | Create a documentation file (`.md`) | Write plan section, draft document |
+| `file_create_state` | Create or update a state file (`.json`) | Write `status.json`, `polish_state.json` |
+| `agent_invoke` | Invoke an AI agent for content generation | Call Claude for plan section, call Codex for code |
+| `package_install` | Install a dependency via package manager | `npm install`, `pip install` |
+| `test_exec` | Execute a test suite | Run `npm test`, `pytest` |
+| `git_commit` | Create a git commit | Milestone commit, iteration commit |
+
 ---
 
 ## Zod Review Schemas
@@ -672,12 +687,18 @@ agents:
     claude:
       command: "claude"
       flags: "--print"
+      supports_vision: true
     gemini:
       command: "gemini"
       flags: ""
+      supports_vision: true
     codex:
       command: "codex"
       flags: ""
+      supports_vision: false
+
+# The `supports_vision` field determines whether image resources are passed to
+# this agent. If `false` or absent, image files are logged as skipped.
 
 # Templates — plan mode templates live inside their plugin directory.
 # This key is reserved for future cross-plugin shared templates. Not used in current scope.

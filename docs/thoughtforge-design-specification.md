@@ -77,6 +77,8 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 1. Human brain dumps into chat — one or more messages of freeform text
 2. Human drops files/resources into `/resources/` directory (optional, can happen before or after the brain dump messages)
 3. If external resource connectors are configured (Notion, Google Drive), the human provides page URLs or document links via chat, or the URLs are pre-configured in `config.yaml` (e.g., default Notion pages that should be pulled for every project). ThoughtForge pulls the content and saves it to `/resources/` as local files. Connectors are optional — if none are configured, this step is skipped.
+**Connector URL identification:** The AI identifies connector URLs in chat messages by matching against known URL patterns for each enabled connector (e.g., `notion.so/` or `notion.site/` for Notion, `docs.google.com/` or `drive.google.com/` for Google Drive). URLs matching an enabled connector pattern are pulled automatically. URLs matching a disabled connector pattern are ignored. Unrecognized URLs are treated as regular brain dump text. Pattern definitions are in the build spec.
+
 4. Human clicks **Distill** button — signals that all inputs (brain dump text, files, connector URLs) have been provided and the AI should begin processing. This follows the same confirmation model as phase advancement: explicit button press, not chat-parsed.
 5. AI reads all resources (text, PDF, images via vision, code files) and the brain dump
 
@@ -85,7 +87,7 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 6. AI distills into structured document: Deliverable Type, Objective, Assumptions, Constraints, Unknowns, Open Questions (max 5)
 7. AI presents distillation to human in chat
 8. Human corrects via chat → AI revises and re-presents
-9. Human can type "realign from here" in chat. The AI resets to the most recent substantive correction, discarding subsequent conversation, and re-distills from the original brain dump plus all corrections up to that point. If no corrections exist yet, the command is ignored with a prompt to provide a correction first. Implementation algorithm in build spec.
+9. Human can type "realign from here" in chat. The AI resets to the most recent substantive correction, excluding subsequent conversation from the working context (retained in `chat_history.json` for audit trail), and re-distills from the original brain dump plus all corrections up to that point. If no corrections exist yet, the command is ignored with a prompt to provide a correction first. Implementation algorithm in build spec.
 10. Human clicks **Confirm** button → advances to Phase 2
 11a. Output: `intent.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline.
 
@@ -113,6 +115,7 @@ Every action button in the chat interface follows these rules: (a) specific `sta
 | `status.json` unreadable, missing, or invalid (applies to all phases, not just Phase 1) | Halt the project and notify the operator with the file path and the specific error (parse failure, missing file, invalid phase value). Do not attempt recovery or partial loading — the operator must fix or recreate the file. |
 | Brain dump text exceeds agent context window | AI processes in chunks if the configured agent supports it, otherwise truncates to the agent's maximum input size with a warning in chat: "Brain dump exceeds maximum input size. Processing first {N} characters." |
 | Resource file exceeds configurable size limit | Log a warning, skip the file, and notify the human in chat: "File '{filename}' exceeds size limit and was skipped." |
+| Human provides malformed or unparseable connector URL in chat | AI responds in chat: "Could not parse URL: '{url}'. Please provide a valid Notion page URL or Google Drive document link." Does not halt. Does not attempt to pull. |
 
 **Phase-to-State Mapping:** Phase-to-state enum mapping and transition triggers are defined in the build spec's `status.json` schema.
 
@@ -133,7 +136,7 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 5. Human confirms or overrides specific decisions
 6. Human reviews acceptance criteria — adds/removes as needed
 
-**Phase 2 Conversation Mechanics:** The AI presents each proposed element (deliverable structure, key decisions, resolved unknowns, acceptance criteria) as a structured message in chat. The human responds with natural language corrections or overrides — same chat-based correction model as Phase 1. The AI revises and re-presents the updated element. There is no "realign from here" in Phase 2 — the scope of each element is small enough that targeted corrections suffice. The Confirm button advances to Phase 3 only after the validation gate in step 7 passes.
+**Phase 2 Conversation Mechanics:** The AI presents each proposed element (deliverable structure, key decisions, resolved unknowns, acceptance criteria) as a structured message in chat. The human responds with natural language corrections or overrides — same chat-based correction model as Phase 1. The AI revises and re-presents the updated element. The "realign from here" command is not supported in Phase 2. If issued, it is ignored. Targeted corrections via chat handle all Phase 2 revisions. The Confirm button advances to Phase 3 only after the validation gate in step 7 passes.
 
 7. Before advancement: AI validates that all Unknowns and Open Questions from `intent.md` have been resolved (either by AI decision in `spec.md` or by human input during Phase 2 chat). If unresolved items remain, the Confirm button is blocked and the AI presents the remaining items to the human.
 8. Human clicks **Confirm** → advances to Phase 3
@@ -141,7 +144,7 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 
 **Locked File Behavior:** "Locked" means the AI pipeline will not modify these files after their creation phase. The human may still edit them manually outside the pipeline, with the following consequences:
 
-- **`constraints.md` (hot-reloaded):** The pipeline re-reads `constraints.md` at the start of each Phase 4 iteration, so manual human edits to acceptance criteria or review rules are picked up automatically. If `constraints.md` is unreadable or missing at the start of a Phase 4 iteration (due to manual deletion or file system error), the iteration halts and the human is notified. If the file is readable but has modified structure (missing sections, unexpected content), the AI reviewer processes it as-is — the reviewer prompt is responsible for handling structural variations. ThoughtForge does not validate `constraints.md` structure at reload time.
+- **`constraints.md` (hot-reloaded):** The pipeline re-reads `constraints.md` at the start of each Phase 4 iteration, so manual human edits to acceptance criteria or review rules are picked up automatically. If `constraints.md` is unreadable or missing at the start of a Phase 4 iteration (due to manual deletion or file system error), the iteration halts and the human is notified. If the file is readable but has modified structure, ThoughtForge passes it to the AI reviewer without structural validation. The reviewer processes whatever content it receives — no special handling is required for structural variations.
 
 - **`spec.md` and `intent.md` (static after creation):** These are read once at Phase 3 start and not re-read during later phases. If the human manually edits these files after their creation phase, the pipeline will not see those changes — it works from its in-memory copy. There is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits to any locked file.
 
@@ -209,7 +212,7 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 **Code builder interaction model:** The code builder passes the full `spec.md` (architecture, dependencies, acceptance criteria) to the coding agent as a single build prompt. The agent is responsible for scaffolding, implementation, and initial test writing in a single invocation or multi-turn session (depending on VK task execution behavior). The code builder then enters a test-fix cycle: run tests, pass failures back to the agent, agent fixes, re-run tests — repeating until all tests pass or stuck detection triggers. This is a coarser-grained interaction model than the plan builder's section-by-section approach, reflecting that coding agents (Claude Code, Codex) operate best with full project context rather than isolated function-level prompts.
 
 2. Codes the project using configured agent via Vibe Kanban (when enabled) or direct agent invocation (when disabled — see Vibe Kanban toggle behavior)
-3. Implements structured logging throughout the codebase (mandatory) — sufficient for production debugging. Logging framework and approach are determined by the Phase 2 spec.
+3. Instructs the coding agent to implement structured logging in the deliverable codebase (mandatory requirement in the build prompt). Logging approach and framework are determined by the Phase 2 spec.
 4. Writes tests: unit, integration, and acceptance (each acceptance criterion from `constraints.md` must have a corresponding test)
 5. Runs all tests, fixes failures, iterates until passing
 6. If stuck: notifies and waits
@@ -292,8 +295,8 @@ Plan mode uses the two-step cycle (Review → Fix) with no test execution.
 | Guard | Condition | Action |
 |---|---|---|
 | Termination (success) | Error counts within configured thresholds (+ all tests pass for code). Thresholds in `config.yaml`. | Done. Notify human. |
-| Hallucination | Error count spikes sharply after a sustained downward trend | Halt. Notify human: "Fix-regress cycle detected. Errors trending down then spiked. Iteration [N]: [X] total (was [Y]). Review needed." |
-| Stagnation | Same total error count for 3+ consecutive iterations AND issue rotation detected — fewer than 70% of current issues match prior iteration issues by description similarity. Algorithmic parameters (similarity threshold, window sizes) defined in build spec. | Done (success — treated as converged plateau). Notify human with final error counts and iteration summary. |
+| Hallucination | Error count increases significantly (threshold defined in build spec) after a consecutive downward trend (minimum trend length defined in build spec) | Halt. Notify human: "Fix-regress cycle detected. Errors trending down then spiked. Iteration [N]: [X] total (was [Y]). Review needed." |
+| Stagnation | Same total error count for 3+ consecutive iterations AND issue rotation detected — fewer than 70% of current issues match issues from the immediately prior iteration by description similarity. Algorithmic parameters (similarity threshold, window sizes) defined in build spec. | Done (success — treated as converged plateau). Notify human with final error counts and iteration summary. |
 | Fabrication | A severity category spikes significantly above its trailing 3-iteration average, AND the system had previously reached within 2× of convergence thresholds in at least one prior iteration — suggesting the reviewer is manufacturing issues because nothing real remains | Halt. Notify human. |
 | Max iterations | Hard ceiling reached (configurable, default 50) | Halt. Notify human: "Max [N] iterations reached. Avg flaws/iter: [X]. Lowest: [Y] at iter [Z]. Review needed." |
 
