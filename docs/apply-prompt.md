@@ -1,273 +1,197 @@
-# Apply Review Findings from results.md
+# Apply Review Findings
 
-You are applying the review findings from `docs/results.md` to the ThoughtForge project documents. Apply every change below exactly as described. Do not interpret or improvise — each change specifies the target file, location, and replacement or addition text.
-
-Read ALL target files before making any edits:
-- `docs/thoughtforge-design-specification.md`
-- `docs/thoughtforge-build-spec.md`
-- `docs/thoughtforge-execution-plan.md`
+Apply every change listed below to the source files. Each change includes the target file, the location, and the exact replacement or addition. Do not interpret or improvise — apply as written.
 
 ---
 
-## Section 1: Writing That's Unclear — Replacements (3 Major, 4 Minor)
+## Source files
 
-### 1.1 [Major] Design Spec — Stagnation Guard phrasing (line ~351)
+- **Design spec:** `docs/thoughtforge-design-specification.md`
+- **Build spec:** `docs/thoughtforge-build-spec.md`
+- **Execution plan:** `docs/thoughtforge-execution-plan.md`
 
-**File:** `docs/thoughtforge-design-specification.md`
-**Location:** Phase 4, Stagnation Guard description (around line 351)
-**Action:** Find the sentence about issue rotation detection that says "Issue rotation detected (fewer than 70% of issues in the current iteration have a Levenshtein similarity ≥ 0.8 match on `description` against the immediately prior iteration's issues)" and replace it with:
-
-> Issue rotation is detected when fewer than 70% of current-iteration issues can be matched (Levenshtein similarity ≥ 0.8 on `description`) to any issue in the immediately prior iteration — meaning more than 30% of issues are new, indicating the reviewer is cycling rather than converging.
+Read ALL three files before making any edits.
 
 ---
 
-### 1.2 [Major] Design Spec — test-fix cycle terminology (line ~251)
+## Changes to Apply
 
-**File:** `docs/thoughtforge-design-specification.md`
-**Location:** Phase 3, test-fix cycle description (around line 251)
-**Action:** Find the first sentence of the paragraph describing the Phase 3 test-fix cycle and replace it with:
+### 1. [Minor] Design spec, ~line 345 — Stagnation Guard clarity
 
-> The code builder then enters a **test-fix cycle** (distinct from Phase 4's review-fix iterations): run tests, pass failures back to the agent, agent fixes, re-run tests — repeating until all tests pass or stuck detection triggers.
+Find the Stagnation Guard condition text containing:
 
----
+> "Same total error count for a configured number of consecutive iterations (stagnation limit), AND issue rotation is detected when fewer than 70% of current-iteration issues can be matched (Levenshtein similarity ≥ 0.8 on `description`) to any issue in the immediately prior iteration — meaning more than 30% of issues are new, indicating the reviewer is cycling rather than converging."
 
-### 1.3 [Major] Design Spec — Fix Regression Guard language (line ~349)
+Replace with:
 
-**File:** `docs/thoughtforge-design-specification.md`
-**Location:** Phase 4, Fix Regression Guard (around line 349)
-**Action:** Find the clause that uses "2 back-to-back iterations" and replace the relevant clause with:
-
-> If the fix step increases total error count in 2 consecutive iterations (the two most recent fix steps both produced higher error counts than their respective review inputs), halt and notify.
+> "Two conditions must both be true: (1) **Plateau:** Total error count is identical for `stagnation_limit` consecutive iterations. (2) **Issue rotation:** Fewer than 70% of current-iteration issues match any issue in the immediately prior iteration (match = Levenshtein similarity ≥ 0.8 on `description`). When both are true, the reviewer is cycling through new cosmetic issues at the same rate old ones are resolved — a quality plateau, not genuine regression."
 
 ---
 
-### 1.4 [Minor] Design Spec — Terminology note (line ~11)
+### 2. [Minor] Design spec, ~line 242 — Phase 3 Code mode test-fix cycle restructure
 
-**File:** `docs/thoughtforge-design-specification.md`
-**Location:** Terminology note near line 11
-**Action:** Find the terminology note and replace it with:
+Find the Phase 3 Code mode test-fix cycle paragraph (approximately 15 lines of unbroken prose covering cycle behavior, stuck detection, non-triggering rotation failures, and deferred hard cap).
 
-> **Terminology convention (applies throughout all ThoughtForge documents):** "Human" and "operator" refer to the same person — the solo user. "Human" is used in pipeline flow descriptions. "Operator" is used in system administration contexts.
+Replace with the following sub-sectioned structure:
 
----
-
-### 1.5 [Minor] Design Spec — OPA acronym confusion (line ~19)
-
-**File:** `docs/thoughtforge-design-specification.md`
-**Location:** OPA Framework section (around line 19)
-**Action:** Find the first sentence of the OPA Framework section and replace it with:
-
-> Plan mode deliverables use an **OPA Table** structure — **Objective → Plan → Assessment** — for every major section. This is distinct from the requirements brief's use of "OPA" (Outcome • Purpose • Action, Tony Robbins' RPM System), which is a document organization framework, not a deliverable content structure. To avoid ambiguity: "OPA Table" always refers to the deliverable structure; "OPA Framework" in the requirements brief refers to the brief's own organization.
+> **Code builder test-fix cycle:**
+>
+> After the initial build invocation, the code builder enters a test-fix cycle: run tests → pass failures to the agent → agent fixes → re-run tests. This repeats until all tests pass or stuck detection triggers.
+>
+> **Stuck detection within the cycle:** The stuck detector fires on 3 consecutive cycles with the *identical* set of failing test names (compared by exact string match). If each cycle produces *different* failing tests (rotating failures), the stuck detector does not trigger.
+>
+> **Cycle termination:** The test-fix cycle terminates via stuck detection or human intervention (Phase 3 stuck recovery buttons). A hard cap on test-fix iterations is deferred — not a current build dependency.
+>
+> **Commit behavior:** Unlike Phase 4, the Phase 3 test-fix cycle does not commit after each cycle. A single git commit is written when Phase 3 completes successfully.
 
 ---
 
-### 1.6 [Minor] Build Spec — Task Queue crash recovery (line ~207)
+### 3. [Minor] Design spec, ~line 346 — Fabrication Guard nested parentheticals
 
-**File:** `docs/thoughtforge-build-spec.md`
-**Location:** Code Builder Task Queue section (around line 207)
-**Action:** Find the passage that says "Whether to persist is a Task 21 implementation decision — but crash recovery must produce a compatible task ordering" and replace the surrounding text with:
+Find the Fabrication Guard condition text containing:
 
-> The code builder persists the initial task list to `task_queue.json` in the project directory at derivation time. On crash recovery, the builder re-reads `task_queue.json` rather than re-deriving from `spec.md`, ensuring deterministic task ordering across restarts.
+> "...AND in at least one prior iteration, every severity category was at or below twice its convergence threshold (i.e., critical ≤ 2 × `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max`). These multipliers are derived from `config.yaml` at runtime, not hardcoded."
 
----
+Replace with:
 
-### 1.7 [Minor] Execution Plan — Critical path annotation (lines ~196-197)
-
-**File:** `docs/thoughtforge-execution-plan.md`
-**Location:** Critical path section (around lines 196-197)
-**Action:** Find the note that says "Note: Task 13 is not a declared code dependency of Task 6c, but Task 6c cannot be meaningfully tested without Phase 2 outputs" and replace it with:
-
-> The functional critical path includes Task 13 → Task 15 → Task 6c even though Task 6c's code dependency is on Task 6a, because Phase 3→4 transition cannot be exercised without Phase 2 outputs (spec.md, constraints.md) and a Phase 3 builder producing deliverables.
+> "...AND in at least one prior iteration, every severity category was at or below twice its convergence threshold — meaning critical ≤ 2 × `config.yaml` `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max`. The `2×` factor is hardcoded; the thresholds it multiplies are read from `config.yaml` at runtime."
 
 ---
 
-## Section 2: Missing Content — Additions (2 Critical, 5 Major, 3 Minor)
+### 4. [Minor] Design spec, ~lines 162-176 — Locked file behavior sub-headers
 
-### 2.1 [Critical] Design Spec — constraints.md missing at Phase 3→4 transition
+Find the locked file behavior section that switches between `constraints.md`, `spec.md`, and `intent.md` without clear visual separation.
 
-**File:** `docs/thoughtforge-design-specification.md`
-**Location:** Phase 3→4 Transition Error Handling table (near lines 293-298)
-**Action:** Add a new row to the table:
+Restructure with explicit sub-headers:
 
-> | `constraints.md` missing or unreadable at Phase 3→4 transition | Halt. Set `status.json` to `halted` with `halt_reason: "file_system_error"`. Notify human: "constraints.md missing or unreadable. Cannot start polish loop. Review project `/docs/` directory." Do not enter Phase 4. |
-
----
-
-### 2.2 [Critical] Design Spec — Graceful shutdown effect on interactive states (Phase 1-2)
-
-**File:** `docs/thoughtforge-design-specification.md`
-**Location:** After the WebSocket shutdown section (after line ~465)
-**Action:** Add the following paragraph:
-
-> **Interactive state shutdown:** For projects in human-interactive states (`brain_dump`, `human_review`, `spec_building`), no server-side processing is interrupted — the server is waiting for human input. The WebSocket close frame is sent as described above. Any chat message the human was composing but had not yet sent is lost (client-side only). The last persisted message in `chat_history.json` is the recovery point on restart.
+> **Locked File Behavior:**
+>
+> "Locked" means the AI pipeline will not modify these files after their creation phase. The human may still edit them manually outside the pipeline, with the following consequences:
+>
+> #### `constraints.md` — Hot-Reloaded
+> The pipeline re-reads `constraints.md` at the start of each Phase 4 iteration. Manual human edits to acceptance criteria or review rules are picked up automatically. [keep remainder of current constraints.md content]
+>
+> #### `spec.md` and `intent.md` — Static After Creation
+> Read at Phase 3 start and used by the Phase 3 builder. Not re-read during Phase 4 iterations... [keep remainder of current content]
 
 ---
 
-### 2.3 [Major] Design Spec — constraints.md truncation strategy (after line ~169)
+### 5. [Minor] Execution plan, ~line 74 — Task 9a duplicated sentence
 
-**File:** `docs/thoughtforge-design-specification.md`
-**Location:** After line 169 (about truncation with a warning logged)
-**Action:** Add the following paragraph:
+Find in Task 9a description:
 
-> **`constraints.md` truncation strategy:** If `constraints.md` exceeds the available context budget when combined with other review context, it is truncated from the middle — the Context and Deliverable Type sections (top) and the Acceptance Criteria section (bottom) are preserved, and middle sections (Priorities, Exclusions, Severity Definitions, Scope) are removed in reverse order until the file fits. A warning is logged identifying which sections were removed.
+> "...Include context window truncation logic per build spec Chat History Truncation Algorithm: Phase 1 retains brain dump messages, Phase 2 retains initial AI proposal, Phase 3–4 truncate from beginning with no anchor. Log a warning when truncation occurs. **Include error handling: halt and notify on unreadable, missing, or invalid `chat_history.json` (same behavior as `status.json` corruption).** Include context window truncation logic per build spec Chat History Truncation Algorithm."
 
----
+Remove the duplicated trailing sentence so it ends after the bold error handling sentence:
 
-### 2.4 [Major] Execution Plan — Add task for Fix Regression guard
-
-**File:** `docs/thoughtforge-execution-plan.md`
-**Location:** Build Stage 6 task list (near Tasks 33-37)
-**Action:** Add the following task row after Task 33:
-
-> | 33a | Implement convergence guard: fix regression (per-iteration check — compare post-fix error count to pre-fix review count, warn on single occurrence, halt on 2 consecutive regressions). Evaluated immediately after each fix step, before other guards. | — | Task 30 | — | Not Started |
-
-Also update Task 47's dependencies to include Task 33a, and add this test task row:
-
-> | 47b | Unit tests: fix regression guard (single regression logs warning, 2 consecutive regressions halt, non-consecutive regressions reset counter, first iteration has no prior to compare) | — | Task 33a | — | Not Started |
+> "...Include context window truncation logic per build spec Chat History Truncation Algorithm: Phase 1 retains brain dump messages, Phase 2 retains initial AI proposal, Phase 3–4 truncate from beginning with no anchor. Log a warning when truncation occurs. **Include error handling: halt and notify on unreadable, missing, or invalid `chat_history.json` (same behavior as `status.json` corruption).**"
 
 ---
 
-### 2.5 [Major] Design Spec — Non-Node.js project handling (after line ~310)
+### 6. [Minor] Design spec, ~line 533 — Subprocess context list scannability
 
-**File:** `docs/thoughtforge-design-specification.md`
-**Location:** Test Command Discovery section (after line ~310 mentioning `npm test`)
-**Action:** Add the following paragraph:
+Find the sentence starting with "Each invocation passes the full working context" that lists context items in a parenthetical chain spanning ~4 lines.
 
-> **Non-Node.js projects:** For deliverables in languages other than Node.js, the coding agent is instructed (via the `/prompts/code-build.md` prompt) to create a standard test entry point appropriate to the language (e.g., `Makefile` with `make test`, `pyproject.toml` with `pytest`, etc.). `test-runner.js` reads the project's `spec.md` Deliverable Structure section to determine the language and invokes the language-appropriate test command. The mapping from language to test command is a configuration in `test-runner.js`, not hardcoded to `npm test`.
+Replace with:
 
----
-
-### 2.6 [Major] Execution Plan — Amend Task 9a for chat_history.json error handling
-
-**File:** `docs/thoughtforge-execution-plan.md`
-**Location:** Task 9a description
-**Action:** Append the following to the existing Task 9a description (do not replace, append):
-
-> **Include error handling: halt and notify on unreadable, missing, or invalid `chat_history.json` (same behavior as `status.json` corruption).** Include context window truncation logic per build spec Chat History Truncation Algorithm.
+> Each invocation passes the full working context:
+> - The brain dump text and resources
+> - Current distillation (Phase 1) or spec-in-progress (Phase 2)
+> - All messages from `chat_history.json` for the current phase (subject to context window truncation)
+>
+> There is no persistent agent session — each turn is a stateless call with full context. This keeps the agent communication model uniform across all phases and avoids session management complexity.
 
 ---
 
-### 2.7 [Major] Design Spec — Hard crash (ungraceful termination) handling (after line ~466)
+### 7. [Major] Design spec — Add Plan mode fix output validation
 
-**File:** `docs/thoughtforge-design-specification.md`
-**Location:** After the graceful shutdown / WebSocket content (after line ~466)
-**Action:** Add:
+After the "Plan mode fix interaction" content (~line 320), add this new section:
 
-> **Hard crash (ungraceful termination):** If the server process terminates without sending a WebSocket close frame (kill -9, OOM, power loss), the client detects the dropped TCP connection via WebSocket `onerror` or `onclose` events. The same auto-reconnect behavior applies. The key difference from graceful shutdown: any agent subprocess that was running is killed by the OS (orphaned child process cleanup is OS-dependent). On restart, Server Restart Behavior applies — autonomous-state projects are halted. The client reconnects and syncs state normally.
+> **Plan mode fix output validation:** After the fix agent returns the updated plan document, the orchestrator validates that the returned content is non-empty and does not have fewer characters than 50% of the pre-fix plan document. If either check fails, the fix is rejected: the pre-fix plan document is preserved (no replacement), a warning is logged, and the iteration proceeds to convergence guard evaluation using the pre-fix state. If 2 consecutive iterations produce rejected fix output, the pipeline halts and notifies the human: "Fix agent returning invalid plan content. Review needed."
 
 ---
 
-### 2.8 [Minor] Build Spec — Levenshtein similarity formula (after line ~304)
+### 8. [Major] Design spec or Build spec — Add Code mode location field convention
 
-**File:** `docs/thoughtforge-build-spec.md`
-**Location:** After the Levenshtein similarity reference (near line 304)
-**Action:** Add:
+After the "Code mode fix interaction" paragraph (or in the code-fix prompt spec section of the build spec), add:
 
-> **Levenshtein similarity formula:** Similarity is computed as `1 - (levenshtein_distance(a, b) / max(a.length, b.length))`. A result of 1.0 means identical strings; 0.0 means completely different. The ≥ 0.8 threshold means two descriptions match if they differ by no more than 20% of the longer string's length.
+> **Code mode `location` field convention:** For Code mode review JSON, the `location` field must contain the relative file path from the project root, optionally followed by `:line_number` (e.g., `src/server.ts:42`). The fix prompt (`code-fix.md`) instructs the fix agent to use these paths to locate and modify the relevant files. The reviewer prompt (`code-review.md`) instructs the reviewer to produce `location` values in this format. The orchestrator does not parse or validate `location` — it is a convention enforced by prompts, not code.
 
 ---
 
-### 2.9 [Minor] Design Spec — Button display order (after line ~371)
+### 9. [Minor] Design spec — Add mid-processing human input behavior
 
-**File:** `docs/thoughtforge-design-specification.md`
-**Location:** Phase 4 halt recovery section (after line ~371)
-**Action:** Add:
+Add to the Phase 1 behavior section or the UI section:
 
-> **Button display order:** Recovery buttons are displayed left-to-right: Resume, Override, Terminate. Terminate is visually distinguished (e.g., red or separated by a divider) as the destructive option.
+> **Mid-Processing Human Input:** If the human sends a chat message while the AI is processing a prior turn (e.g., typing a correction while distillation is streaming), the message is queued in `chat_history.json` and included in the next AI invocation's context. It does not interrupt the current processing. The chat input field remains active during AI processing to allow the human to queue messages.
 
 ---
 
-### 2.10 [Minor] Execution Plan — WebSocket close frame task (amend Task 1a)
+### 10. [Minor] Execution plan — Add parallelism opportunities section
 
-**File:** `docs/thoughtforge-execution-plan.md`
-**Location:** Task 1a description
-**Action:** Append to the existing Task 1a description:
+Add after the Critical Path section:
 
-> Including graceful shutdown handler: on SIGTERM/SIGINT, send WebSocket close frame (code 1001) to all connected clients, wait for in-progress agent subprocesses (up to configured timeout), then exit.
-
----
-
-## Section 3: Extractions — Move Implementation Detail to Build Spec (3 Major, 3 Minor)
-
-### 3.1 [Major] Design Spec — Project Initialization Sequence (lines ~63-78)
-
-**File:** `docs/thoughtforge-design-specification.md`
-**Location:** Project Initialization Sequence (lines ~63-78)
-**Action:** Remove the numbered implementation steps from lines 63-78. Replace with:
-
-> Project initialization creates the project directory structure, initializes version control, writes the initial project state, optionally registers on the Kanban board, and opens the chat interface. The full initialization sequence is in the build spec.
-
-**Keep** the Project ID collision handling (line ~69) and Git Initialization Failure (line ~75) — these are behavioral decisions that belong in the design spec.
+> ## Parallelism Opportunities
+>
+> The following task groups can be executed concurrently:
+> - **After Task 1:** Stage 1 foundation (Tasks 2–6a, 3a, 4–5) and Stage 7 agent layer (Tasks 41–44) — no cross-dependencies
+> - **After Tasks 41–42:** All prompt drafting tasks (7a, 7f, 6e, 15a, 21a, 30a, 30b) — depend only on Task 7a
+> - **After Task 6:** Stage 3 (Tasks 14–18) and Stage 4 (Tasks 20, 22–25) — independent plugin implementations
+> - **After Task 26:** Task 27 (VK operations) and Task 29a (VK-disabled fallback) — independent paths
+> - **Stage 8 unit tests:** All unit test tasks within a stage are independent and can run in parallel once their source tasks complete
 
 ---
 
-### 3.2 [Major] Design Spec — Action Button Behavior (lines ~114-117)
+### 11. [Minor] Execution plan — Add module system to Design Decisions
 
-**File:** `docs/thoughtforge-design-specification.md`
-**Location:** Action Button Behavior section (lines ~114-117)
-**Action:** Replace lines 114-117 with:
+Add to the Design Decisions section:
 
-> Every action button follows the behavior contract defined in the build spec's Action Button Behavior inventory, which specifies `status.json` effects, UI feedback, and confirmation requirements for each button.
+> **Module system:** ESM (`"type": "module"` in `package.json`). All imports use ESM `import` syntax. `tsconfig.json` uses `"module": "nodenext"` and `"moduleResolution": "nodenext"`. This aligns with Vitest's native ESM support and Node.js ≥18's stable ESM implementation.
 
 ---
 
-### 3.3 [Major] Design Spec — spec.md structure duplication (lines ~194-205)
+### 12. [Minor] Design spec, ~lines 67-69 — Extract Project ID collision retry logic to build spec
 
-**File:** `docs/thoughtforge-design-specification.md`
-**Location:** `spec.md` structure table (lines ~194-205)
-**Action:** Remove the `spec.md` structure table from lines 194-205. Replace with:
+In the design spec, find the Project ID collision retry logic:
 
-> **`spec.md` structure:** See build spec `spec.md` Structure section for the full template. Contains: Deliverable Overview, Deliverable Structure, Key Decisions, Resolved Unknowns, Dependencies, and Scope Boundaries.
+> "If the generated project directory already exists... generate a new random suffix and retry. If the directory still exists after 3 retries, halt with error"
 
-**Keep** the Plan mode vs Code mode distinction sentence (line ~205).
+Replace in the design spec with a brief reference: "Project IDs must be unique; collision retry algorithm is specified in the build spec."
 
----
-
-### 3.4 [Minor] Design Spec — Zod validation flow (lines ~507-511)
-
-**File:** `docs/thoughtforge-design-specification.md`
-**Location:** Zod validation flow (lines ~507-511)
-**Action:** Replace the step-by-step Zod validation flow with:
-
-> Review JSON is validated against the Zod schema for the active deliverable type. Malformed responses are retried up to a configurable limit, then the pipeline halts and notifies the human. Validation flow and retry logic are in the build spec.
+Then add the full retry logic text (removed from the design spec) to the build spec's Project Initialization Sequence section.
 
 ---
 
-### 3.5 [Minor] Design Spec — Token estimation heuristic (line ~519)
+### 13. [Minor] Design spec, ~line 169 — Extract constraints.md truncation strategy to build spec
 
-**File:** `docs/thoughtforge-design-specification.md`
-**Location:** Token estimation heuristic (line ~519)
-**Action:** Remove the `character_count / 4` detail. Replace with:
+Find the `constraints.md` truncation strategy details (which sections to remove, in what order, to fit context window).
 
-> The token count is an approximation — the exact estimation method is in the build spec.
+Replace in the design spec with: "If `constraints.md` exceeds the context window, it is truncated with priority given to Context/Deliverable Type and Acceptance Criteria sections. Truncation order is specified in the build spec."
 
-**Also add** to the build spec's Agent Communication section:
-
-**File:** `docs/thoughtforge-build-spec.md`
-**Location:** Agent Communication section
-**Action:** Add:
-
-> ThoughtForge estimates tokens as `character_count / 4` (a standard rough heuristic).
+Move the specific removal order details to the build spec.
 
 ---
 
-### 3.6 [Minor] Build Spec — Resolve test framework choice (lines ~706-712)
+### 14. [Minor] Design spec, ~lines 523-531 — Extract token estimation and validation details to build spec
 
-**File:** `docs/thoughtforge-build-spec.md`
-**Location:** Build Toolchain section (lines ~706-712)
-**Action:** Find "Test framework: Vitest (or Jest — decide before build starts)" and replace with:
+Find the token estimation formula, `PlanBuilderResponse` validation flow (retry once, halt on second failure), and per-phase response format listing.
 
-> Test framework: Vitest
+Replace in the design spec with: "Agent responses are validated where schemas exist; phases 1–2 use natural language reviewed by the human. Validation details, retry counts, and token estimation formula are specified in the build spec."
 
-Remove the "(or Jest — decide before build starts)" equivocation.
+Move the removed implementation details to the appropriate build spec section.
 
 ---
 
 ## After All Changes Are Applied
 
 1. Re-read each modified file to verify no formatting was broken and all changes landed correctly.
-2. Run `git status -u` and `git diff --stat` to verify all modified files.
-3. Stage all modified files: `git add docs/thoughtforge-design-specification.md docs/thoughtforge-build-spec.md docs/thoughtforge-execution-plan.md`
-4. Commit with message: `Apply review findings`
-5. Push to remote: `git push`
-6. Run `git pull` to confirm sync with remote.
+2. Git commit and sync:
+
+```bash
+git status -u
+git diff --stat
+git add docs/thoughtforge-design-specification.md docs/thoughtforge-build-spec.md docs/thoughtforge-execution-plan.md
+git commit -m "Apply review findings"
+git push
+git pull
+```
