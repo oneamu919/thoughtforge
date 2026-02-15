@@ -22,11 +22,11 @@
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
-| 1 | Initialize Node.js project, folder structure, `config.yaml` loader with Zod schema validation (exit with descriptive error on missing file, invalid YAML, or schema violations) | — | — | — | Not Started |
+| 1 | Initialize Node.js project, folder structure, `config.yaml` loader with Zod schema validation (per design spec Config Validation and build spec `config.yaml` Template sections) | — | — | — | Not Started |
 | 1a | Implement application entry point: Node.js server startup, config initialization, local web server for chat interface | — | Task 1 | — | Not Started |
 | 1b | Implement first-run setup: `config.yaml.example` copied to `config.yaml` on first run if missing (with comment guidance), prerequisite check (Node.js version, agent CLIs on PATH), startup validation summary | — | Task 1 | — | Not Started |
-| 1c | Implement server restart recovery: on startup, scan `/projects/` for non-terminal projects, resume human-interactive states, halt autonomous states (`distilling`, `building`, `polishing`) with `halt_reason: "server_restart"`, notify human for each halted project | — | Task 1a, Task 3, Task 5 | — | Not Started |
-| 2 | Implement project initialization: unique ID generation, `/projects/{id}/` directory scaffolding (including `/docs/` and `/resources/`), git repo init, initial `status.json` write, Vibe Kanban card creation (if enabled), and new chat thread creation | — | Task 1 | — | Not Started |
+| 1c | Implement server restart recovery (per design spec Server Restart Behavior): resume interactive-state projects, halt autonomous-state projects, notify human for halted projects | — | Task 1a, Task 3, Task 5 | — | Not Started |
+| 2 | Implement project initialization sequence (per build spec Project Initialization Sequence): ID generation, directory scaffolding, git init, initial state, Vibe Kanban card (if enabled), chat thread creation | — | Task 1 | — | Not Started |
 | 2a | Implement git commit at pipeline milestones: `intent.md` lock (end of Phase 1), `spec.md` and `constraints.md` lock (end of Phase 2), Phase 3 build completion (including the Phase 3→4 transition commit). Phase 4 per-iteration commits (after each review step and after each fix step) are handled in Task 40. | — | Task 2 | — | Not Started |
 | 3 | Implement project state module (`status.json`, `polish_state.json` read/write) with atomic write default (write to temp file, rename to target) for all state files. Include `status.json` error handling: halt and notify on unreadable, missing, or invalid status.json (parse failure, missing file, invalid phase value) — no recovery or partial loading | — | Task 1 | — | Not Started |
 | 3a | Implement operational logging module (per-project `thoughtforge.log`, structured entries for agent calls, phase transitions, guard evaluations, halts, errors, config/plugin loading). All tasks that produce loggable events (Tasks 1, 6, 6a, 33–37, 41) must call this module — logging integration is the responsibility of each event-producing task, not a separate wiring task. | — | Task 1 | — | Not Started |
@@ -39,7 +39,7 @@
 | 6d | Implement Plan Completeness Gate: assessment prompt for Code mode Phase 3 entry (loaded from `/prompts/completeness-gate.md`), halt with `plan_incomplete` on fail, present Override and Terminate buttons in chat (Override resumes build, Terminate halts permanently) | — | Task 7a, Task 6e, Tasks 41–42 | — | Not Started |
 | 6e | Draft `/prompts/completeness-gate.md` prompt text | — | Task 7a | — | Not Started |
 
-> **Cross-stage dependency:** Agent Layer (Build Stage 7, Tasks 41–44) provides the core agent invocation mechanism used by Stages 2–6. Task 41 depends only on Task 1 (foundation), so Build Stage 7 should begin as soon as Task 1 completes. Stage 1 Tasks 2–6e and Stage 7 Tasks 41–44 can proceed in parallel. Any task that invokes an AI agent (Tasks 8, 12, 15, 21, 30) must wait for Tasks 41–42 to complete.
+> **Cross-stage dependency:** Agent Layer (Build Stage 7, Tasks 41–44) provides the core agent invocation mechanism used by Stages 2–6. Task 41 depends only on Task 1 (foundation), so Build Stage 7 should begin as soon as Task 1 completes. Stage 1 foundation tasks (2–6a) and Stage 7 tasks (41–44) can proceed in parallel. Tasks 6b–6e have dependencies into Stages 2 and 7 — see individual task "Depends On" columns. Any task that invokes an AI agent (Tasks 8, 12, 15, 21, 30) must wait for Tasks 41–42 to complete.
 
 ### Build Stage 2: Human Interaction Layer (Pipeline Phases 1–2)
 
@@ -59,7 +59,7 @@
 | 7f | Draft `/prompts/spec-building.md` prompt text | — | Task 7a | — | Not Started |
 | 7i | Implement server-side WebSocket reconnection handler: on client reconnect receive project ID, respond with current `status.json` and `chat_history.json`, handle invalid project ID by returning project list | — | Task 7, Task 3 | — | Not Started |
 | 8 | Implement Phase 1: brain dump intake (including empty/trivially-short input guard — block distillation and prompt for more detail), resource reading (log and skip unreadable files, notify human, proceed with available inputs), distillation prompt (loaded from `/prompts/brain-dump-intake.md`), Phase 1 sub-state transitions in `status.json` (`brain_dump` → `distilling` on Distill button → `human_review` on distillation complete). Connector integration (Task 7c) is optional — Phase 1 functions fully without connectors. | — | Task 6a, Task 7, Task 7a, Tasks 41–42 | — | Not Started |
-| 9 | Implement correction loop: chat-based revisions with AI re-presentation, and "realign from here" command (discard post-correction AI revisions, re-distill from brain dump + corrections up to baseline message) | — | Task 8 | — | Not Started |
+| 9 | Implement correction loop: chat-based revisions with AI re-presentation, and "realign from here" command (per build spec Realign Algorithm) | — | Task 8 | — | Not Started |
 | 9a | Implement `chat_history.json` persistence: append after each chat message, clear on Phase 1→2 and Phase 2→3 confirmation only (NOT on Phase 3→4 automatic transition), resume from last recorded message on crash | — | Task 3, Task 7 | — | Not Started |
 | 10 | Implement action buttons: Distill (Phase 1 intake trigger) and Confirm (phase advancement mechanism). Include button debounce: disable on press until operation completes, server-side duplicate request detection (ignore duplicates, return current state). | — | Task 7 | — | Not Started |
 | 11 | Implement intent.md generation and locking, project name derivation (extract from H1 or AI-generate), `deliverable_type` derivation (from Deliverable Type section of confirmed intent.md — `"plan"` or `"code"` in status.json), status.json `project_name` and `deliverable_type` update, and Vibe Kanban card name update (if enabled) | — | Task 9, Task 2a, Task 26, Tasks 41–42 | — | Not Started |
@@ -67,6 +67,8 @@
 | 13 | Implement `spec.md` and `constraints.md` generation | — | Task 12, Task 2a | — | Not Started |
 
 ### Build Stage 3: Plan Mode Plugin
+
+> **Prompt drafting tasks** (15a, 21a) depend only on Task 7a (prompt file directory), not on the surrounding stage tasks. They can begin as soon as Task 7a completes.
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
@@ -98,14 +100,14 @@
 | 26 | Build `vibekanban-adapter.js` — centralized CLI wrapper | — | Task 1 | — | Not Started |
 | 27 | Implement task create, update, run, result read operations | — | Task 26 | — | Not Started |
 | 28 | Map ThoughtForge phases to Vibe Kanban columns | — | Task 27 | — | Not Started |
-| 29 | Test parallel execution with multiple concurrent projects | — | Task 28 | — | Not Started |
+| 29 | Integration test: Vibe Kanban adapter handles concurrent card creation, status updates, and agent execution for 2+ projects without interference | — | Task 28 | — | Not Started |
 | 29a | Implement VK-disabled fallback: direct agent invocation path when `vibekanban.enabled` is false | — | Task 26, Tasks 41–42 | — | Not Started |
 
 ### Build Stage 6: Polish Loop Engine
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
-| 30 | Implement orchestrator loop: review call → parse → validate → fix call → commit. Guard evaluation in specified order (Termination → Hallucination → Fabrication → Stagnation → Max iterations; first trigger ends evaluation). | — | Task 3, Task 6a, Task 6c, Task 17, Task 22, Tasks 30a–30b, Tasks 41–42 | — | Not Started |
+| 30 | Implement orchestrator loop: review call → parse → validate → fix call → commit. Guard evaluation per build spec Guard Evaluation Order (first trigger ends evaluation). | — | Task 3, Task 6a, Task 6c, Task 17, Task 22, Tasks 30a–30b, Tasks 41–42 | — | Not Started |
 
 > **Note:** Tasks 31, 32, 38, and 39 are implemented within the Task 30 orchestrator module, not as separate files. They are listed separately for progress tracking.
 
@@ -135,7 +137,7 @@
 
 ### Build Stage 8: Integration Testing & Polish
 
-**Testing Strategy:** Unit tests (Tasks 45–50b) use mocked dependencies — no real agent CLI calls, no real file system for state tests, no real API calls for connectors. E2e tests (Tasks 51–57) run the full pipeline with real agent invocations against a test project. Synthetic convergence guard tests (Task 54) use fabricated `polish_state.json` data, not real polish loop runs.
+**Testing Strategy:** Unit tests (Tasks 45–50c, 58–58k) use mocked dependencies — no real agent CLI calls, no real file system for state tests, no real API calls for connectors. End-to-end tests (Tasks 51–57) run the full pipeline with real agent invocations against a test project. Synthetic convergence guard tests (Task 54) use fabricated `polish_state.json` data, not real polish loop runs.
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
@@ -172,11 +174,37 @@
 
 ---
 
+## Critical Path
+
+The longest dependency chain determines the minimum build duration regardless of parallelism:
+
+**Task 1 → Task 41 → Task 42 → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 16 → Task 30 → Tasks 33–37 → Task 51**
+
+This chain runs from foundation through agent layer, human interaction, plan plugin, polish loop, to plan-mode e2e validation.
+
+**Secondary critical chain (Code mode):** Task 1 → Task 26 → Task 27 → Task 21 → Task 30c → Task 52
+
+Build schedule and parallelism decisions should optimize for keeping the critical path unblocked.
+
+---
+
+## Task Acceptance Criteria
+
+Each task is complete when:
+1. The described functionality works as specified in the design specification and build spec sections referenced by the task
+2. The task's own unit tests (if a corresponding test task exists in Build Stage 8) pass with mocked dependencies
+3. Any logging events produced by the task are routed through the operational logging module (Task 3a)
+4. The implementation follows the interface contracts defined in the build spec (plugin interface, connector interface, notification payload, state file schemas)
+
+AI coders should reference the "Used by" annotations in the build spec to identify the authoritative specification for each task.
+
+---
+
 ## Milestones
 
 | Milestone | Target Date | Deliverable | Exit Criteria |
 |-----------|-------------|-------------|---------------|
-| Foundation complete | TBD | Project scaffolding, state module, config, notifications, plugin loader | All Build Stage 1 tasks done |
+| Foundation complete | TBD | Project scaffolding, state module, config, notifications, plugin loader, orchestrator core | Tasks 1–6a, 3a, and 4–5 done. Tasks 6b–6e complete after their Stage 2 dependencies. |
 | Human interaction working | TBD | Phase 1 & 2 chat flow functional | Brain dump → intent → spec → constraints flow works end-to-end |
 | Plan mode functional | TBD | Full Plan pipeline runs | Brain dump → polished plan document with OPA structure |
 | Code mode functional | TBD | Full Code pipeline runs | Brain dump → polished codebase with tests |
@@ -196,6 +224,9 @@
 | Vibe Kanban CLI interface documented | Dependency | — | — | Verify actual CLI matches assumed commands in adapter |
 | Notion API token (integration token with read access to target pages) | Dependency | — | — | Create Notion integration before connector build |
 | Google Drive API credentials (service account or OAuth client) | Dependency | — | — | Set up credentials before connector build |
+| Node.js version ≥18 LTS | Dependency | — | — | Required for native fetch, stable ES module support |
+| Package manager: npm | Dependency | — | — | Default Node.js package manager, no additional install |
+| Language: TypeScript | Dependency | — | — | Implied by Zod schemas and interface definitions in build spec. Confirm or document as JavaScript-only with JSDoc types. |
 
 ---
 
@@ -209,6 +240,15 @@
 | Handlebars templates too rigid for some plan types | Low | Low | Add new templates, adjust slot flexibility |
 | Agent CLI changes mid-build (flag deprecation, output format change) | Low | High | Agent adapters isolate changes. Pin agent CLI versions during build. Run adapter unit tests on each agent update. |
 | Cross-stage dependency chain delays (Stage 7 → Stage 2 → Stage 4) | Medium | Medium | Begin Build Stage 7 (agent layer) immediately after Task 1. Track critical path separately from stage numbering. |
+
+---
+
+## Rollback Strategy
+
+Each project's per-milestone git commits enable rollback at the project level. For ThoughtForge's own codebase during build:
+- Each completed task should be committed to the ThoughtForge repo before starting the next task
+- If a task introduces regressions (breaks previously passing tests), revert the task's commit and reattempt
+- The builder should not proceed to the next task if the current task's tests fail
 
 ---
 
