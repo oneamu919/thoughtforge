@@ -203,6 +203,10 @@ Return type varies by plugin:
 
 - `runTests(projectPath)` → `Promise<{ total: number, passed: number, failed: number, details: string }>` — Executes all tests in the project, returns structured results. The `details` field contains raw test runner output for inclusion in review context. Called by the orchestrator before each Phase 4 Code mode review step, and during Phase 3 Code mode build iteration.
 
+### Code Builder Task Queue
+
+The code builder maintains an ordered list of build tasks derived from `spec.md` (e.g., implement feature X, write tests for Y). Each task has a string identifier used for stuck detection — consecutive agent invocations against the same task identifier increment the retry counter. The task list format and derivation logic are internal to the code builder and are not persisted to state files. On crash recovery, the code builder re-derives the task list from `spec.md` and the current project file state.
+
 ---
 
 ## Zod Review Schemas

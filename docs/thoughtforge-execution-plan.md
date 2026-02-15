@@ -121,7 +121,7 @@
 | 37 | Implement max iteration ceiling | — | Task 30 | — | Not Started |
 | 38 | Implement `polish_state.json` persistence + crash recovery (resume from last iteration) — extends Task 30 orchestrator | — | Task 30 | — | Not Started |
 | 39 | Implement `polish_log.md` append after each iteration — extends Task 30 orchestrator | — | Task 30 | — | Not Started |
-| 40 | Implement git auto-commit after each review and fix step | — | Task 30 | — | Not Started |
+| 40 | Implement Phase 4 per-iteration git auto-commits: commit after each review step and after each fix step (two commits per iteration) | — | Task 30 | — | Not Started |
 | 40a | Implement Phase 4 halt recovery interaction (resume, override, terminate buttons in chat) | — | Task 30, Task 7 | — | Not Started |
 
 ### Build Stage 7: Agent Layer
@@ -157,10 +157,13 @@
 | 57 | Test VK-disabled fallback (full pipeline without Vibe Kanban) | — | Task 29a | — | Not Started |
 | 58 | Unit tests: prompt editor (list prompt files, read content, save edits, handle missing/corrupt files) | — | Task 7b | — | Not Started |
 | 58a | Unit tests: chat interface (WebSocket message delivery, AI response streaming, phase-labeled messages, project thread switching) | — | Task 7, Task 7g | — | Not Started |
-| 58b | Unit tests: action buttons (Distill triggers distillation, Confirm advances phase, button state disabled during processing, Phase 4 halt recovery buttons) | — | Task 10, Task 40a | — | Not Started |
+| 58b | Unit tests: action buttons (Distill triggers distillation, Confirm advances phase, button state disabled during processing, server-side duplicate request ignored and returns current state, Phase 4 halt recovery buttons, Phase 3 stuck recovery buttons) | — | Task 10, Task 40a | — | Not Started |
 | 58c | Unit tests: file/resource dropping (upload to `/resources/`, unsupported file handling, concurrent uploads) | — | Task 7h | — | Not Started |
 | 58d | Unit tests: "realign from here" command (identifies correct baseline message, excludes post-correction messages, re-distills with corrections, ignores command when no prior corrections exist) | — | Task 9 | — | Not Started |
 | 58e | Unit tests: Phase 3 stuck recovery (Provide Input resumes builder with human input while staying in `building` state, Terminate sets `halted`, stuck detection triggers correctly for both Plan and Code modes) | — | Task 6c | — | Not Started |
+| 58f | Unit tests: WebSocket reconnection (auto-reconnect on disconnect, state sync from `status.json` and `chat_history.json` on reconnect, connection status indicator shown during disconnect, in-flight responses not replayed, server handles invalid project ID on reconnect) | — | Task 7i | — | Not Started |
+| 58g | Unit tests: concurrency limit enforcement (block new project at max, count halted as active, re-enable on terminal state, sidebar message displayed) | — | Task 2b | — | Not Started |
+| 58h | Unit tests: server restart recovery (interactive states resume, autonomous states halted with `server_restart` reason, notifications sent for halted projects, terminal states ignored) | — | Task 1c | — | Not Started |
 | 50b | Unit tests: first-run setup (missing config creates from example, prerequisite check reports missing CLIs, valid config passes startup) | — | Task 1b | — | Not Started |
 
 ---
@@ -200,6 +203,8 @@
 | Polish loop doesn't converge on real projects | Medium | High | Test with multiple real brain dumps during Phase 8 |
 | Agent output formats change across versions | Low | Medium | Agent adapters isolate format changes |
 | Handlebars templates too rigid for some plan types | Low | Low | Add new templates, adjust slot flexibility |
+| Agent CLI changes mid-build (flag deprecation, output format change) | Low | High | Agent adapters isolate changes. Pin agent CLI versions during build. Run adapter unit tests on each agent update. |
+| Cross-stage dependency chain delays (Stage 7 → Stage 2 → Stage 4) | Medium | Medium | Begin Build Stage 7 (agent layer) immediately after Task 1. Track critical path separately from stage numbering. |
 
 ---
 
