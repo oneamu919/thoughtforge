@@ -1,187 +1,207 @@
-﻿Now I have all four documents. Let me perform a thorough review.
+﻿Now I have all four documents. Let me produce the review.
 
 ---
 
-# Plan Review Findings
+# Plan Review — Senior Dev Findings
+
+Reviewing: `thoughtforge-design-specification.md`, `thoughtforge-build-spec.md`, `thoughtforge-execution-plan.md`
+
+Reference context: `thoughtforge-requirements-brief.md`
+
+---
 
 ## 1. Writing That's Unclear
 
-**[Minor] Design Spec — Phase 1, step 11a: "locked" introduced without definition**
+**[Minor]** Design spec, Phase 1, step 11a — "locked" definition forward reference.
 
-The term "locked" first appears at Phase 1 step 11a but isn't defined until the "Locked File Behavior" section under Phase 2. A reader encounters the concept before understanding what it means.
-
-**Replacement text** — add after step 11a:
-
+The sentence at line 98 says:
 > "Locked" means the AI pipeline will not modify the file after its creation phase. See Locked File Behavior (Phase 2 section) for the full definition, including human edit consequences.
 
----
+This forward reference appears inside Phase 1 but points to a subsection under Phase 2, creating a navigation burden. The concept is used before it is defined.
 
-**[Minor] Design Spec — Phase 4 Stagnation Guard: "converged plateau" is used without prior introduction**
-
-The sentence "This is treated as a successful convergence outcome" introduces the concept that stagnation = success, but then the guard table says "Done (success — treated as converged plateau)." The phrase "converged plateau" hasn't been defined.
-
-**Replacement text** for the stagnation guard table's Action column:
-
-> Done (success). The deliverable has reached a stable quality level where the reviewer is cycling cosmetic issues rather than finding genuine regressions. Treated as converged — no further iterations will yield net improvement.
+**Replacement:** Move the full "Locked File Behavior" block (currently under Phase 2, lines 171–193) to a standalone section under "Behavior" before Phase 1, titled "Locked File Behavior." Replace both inline references (Phase 1 line 98 and Phase 2 line 169) with: `"Locked" means the AI pipeline will not modify these files after their creation phase — see Locked File Behavior above.`
 
 ---
 
-**[Minor] Design Spec — "Distill" button purpose vs. "Confirm" button purpose: potential confusion**
+**[Minor]** Design spec, Phase 3, Code Mode — "test-fix cycle" vs "build iteration" ambiguity.
 
-Phase 1 introduces two buttons (Distill and Confirm) but the distinction is explained across several paragraphs with the confirmation model explanation at the bottom of Phase 1. A reader parsing the numbered steps could confuse when each is used.
+Lines 265–273 describe the "test-fix cycle" inside Phase 3, but line 263 refers to "a single invocation or multi-turn session, depending on how Vibe Kanban executes." It's unclear whether the test-fix cycle is part of the "single invocation" or a separate phase of Phase 3 that starts after the initial build invocation completes.
 
-**Replacement text** — add a summary callout box immediately after step 3 (before step 4):
-
-> **Phase 1 has two action buttons:**
-> - **Distill** — "I'm done providing inputs. Process them." (Pressed once after brain dump + resources are provided.)
-> - **Confirm** — "The distillation looks correct. Move on." (Pressed after reviewing and correcting the AI's output.)
+**Replacement** (line 263):
+> The agent is responsible for scaffolding, implementation, and initial test writing. This initial build is either a single agent invocation (VK disabled) or a multi-turn VK-managed session (VK enabled). After the initial build invocation completes, the code builder enters the test-fix cycle described below.
 
 ---
 
-**[Minor] Design Spec — "Challenge" step in Phase 2 uses a colon-delimited label that breaks the numbered flow**
+**[Minor]** Design spec, Stagnation Guard — "done (success)" treatment could confuse implementers.
 
-Step 2 begins with "**Challenge:** AI evaluates…" This reads as a substep label rather than a continuation of the numbered flow. Steps 1, 3, 4, etc. do not use this label pattern.
+The stagnation guard description (line 388 and line 396) calls it a "successful convergence outcome" and "Done (success)," but the notification example on line 588 says `"polish sufficient"`. The word "sufficient" is not used anywhere in the design spec's convergence guard definitions.
 
-**Replacement text** for step 2:
-
-> 2. AI evaluates `intent.md` for structural issues: missing dependencies, unrealistic constraints, scope gaps, internal contradictions, and ambiguous priorities. Each flagged issue is presented to the human with specific reasoning. The AI does not rubber-stamp — it must surface concerns even if the human's intent seems clear. This step does not resolve Unknowns — it identifies new problems.
-
-(Move the "Challenge" and "Resolve" labels to a brief introductory line before the numbered list if the labels are desired for reference, e.g., "Phase 2 has two AI-driven steps: Challenge (step 2) and Resolve (step 3).")
+**Replacement** for line 588:
+> `"Project 'CLI Tool' — stagnation convergence. Error count stable at {N} for {M} iterations with issue rotation. Treated as converged. Ready for final review."`
 
 ---
 
-**[Minor] Design Spec — "Plan mode always invokes agents directly" appears in VK integration but isn't mentioned in Phase 3 Plan Mode section**
+**[Minor]** Execution plan, Task 12 dependency on Task 25.
 
-The Phase 3 Plan Mode section (steps 1-8) never mentions that Plan mode bypasses Vibe Kanban for agent execution. This is stated only in the VK Toggle Behavior table (build spec) and the VK Integration Interface paragraph. A reader of Phase 3 alone would assume VK applies to both modes.
+The cross-stage dependency note above Build Stage 2 (execution plan line 56) says Task 12 depends on Task 25 for Code mode only, but the Task 12 row (line 77) lists Task 25 as a hard dependency. An implementer working on Plan mode Phase 2 would see the dependency and wait unnecessarily.
 
-**Replacement text** — add to Phase 3 Plan Mode after step 1:
-
-> Plan mode always invokes agents directly via the agent communication layer, regardless of whether Vibe Kanban is enabled. VK provides visualization only (card status updates) for Plan mode projects. VK agent execution is used exclusively in Code mode.
+**Replacement** for Task 12's Depends On column:
+> `Task 6a, Task 10, Task 11, Task 7a, Task 7f, Tasks 41–42; Task 25 (Code mode only — Plan mode can proceed without it)`
 
 ---
 
-**[Minor] Execution Plan — Cross-stage dependency note after Stage 1 says "Stage 7 should begin as soon as Task 1 completes" but this is restated in the Parallelism note at the bottom.**
+**[Minor]** Build spec, `constraints.md` Truncation Strategy — "available context budget" undefined.
 
-The same guidance appears in two places with slightly different emphasis. Consolidate.
+Line 926 says "exceeds the available context budget when combined with other review context" but does not define what the budget is or how it is calculated relative to the agent's `context_window_tokens`.
 
-**Replacement text** — remove the cross-stage dependency callout note after Build Stage 1 and keep only the Parallelism Opportunities section at the bottom, which already captures this with the note: "Tasks 41-42 (agent invocation layer) gate every task that calls an AI agent. These should be prioritized immediately after Task 1 completes."
+**Replacement:**
+> If `constraints.md` combined with other review context (deliverable content, test results, and the review prompt) exceeds the agent's `context_window_tokens` as estimated by `character_count / 4`, `constraints.md` is truncated from the middle — the Context and Deliverable Type sections (top) and the Acceptance Criteria section (bottom) are preserved, and middle sections (Priorities, Exclusions, Severity Definitions, Scope) are removed in reverse order until the total fits. A warning is logged identifying which sections were removed.
+
+---
+
+**[Minor]** Design spec, Phase 4 — Fix Regression guard wording.
+
+Line 386 says: "Compares the post-fix total error count against the pre-fix review count for the same iteration." This is confusing because "pre-fix review count" could mean "the count from the review step that triggered the fix" or "the count from the prior iteration's review." The build spec (line 285) clarifies it means the same iteration, but the design spec should stand on its own.
+
+**Replacement** for the Fix Regression table entry:
+> Evaluated immediately after each fix step, before other guards. Compares the total error count derived from the current iteration's review JSON (before the fix was applied) against the total error count derived from a fresh review after the fix. **Single occurrence:** If the fix increased the total error count compared to its own iteration's pre-fix review, log a warning but continue.
+
+Wait — re-reading, the guard compares the post-fix count to the *same iteration's review count*. But there's no "fresh review after the fix." The fix step doesn't produce a new review. The *next* iteration's review would show the post-fix state. This is actually unclear: how does the orchestrator know the post-fix error count without running another review?
+
+**Revised replacement** — the intent is actually comparing *across* iterations (iteration N review count vs iteration N-1 review count). Re-reading line 285-286 of the build spec: "Compares the post-fix total error count against the pre-fix review count for the same iteration." But the fix step doesn't produce error counts — only the review step does. The fix step produces code changes, not a new error report. The only way to get a post-fix count is from the *next* iteration's review.
+
+Actually, re-reading more carefully: the Fix Regression guard says "If the fix increased the total error count." The mechanism must be: compare iteration N's review count to iteration N-1's review count. If N > N-1, the fix from iteration N-1 introduced more issues.
+
+**Replacement** for design spec line 386, Fix Regression:
+> **Fix Regression (per-iteration):** Evaluated at the start of each iteration (after the review step produces error counts), comparing the current iteration's total error count against the previous iteration's total error count. If the current count is higher than the previous, the most recent fix step made things worse. **Single occurrence:** Log a warning but continue. **Consecutive occurrences:** If the two most recent iterations both show increased total error counts compared to their respective prior iterations, halt and notify.
+
+And build spec line 285-286 should be updated to match:
+> **Fix Regression** (per-iteration) — checked after each review step produces error counts. Compares current iteration's total error count to the prior iteration's total error count. If the current count is higher, the prior iteration's fix step introduced more issues than it resolved. If 2 consecutive iterations show increases, halt and notify.
+
+---
+
+**[Minor]** Design spec, Phase 1 — "Distill" and "Confirm" buttons introduced across multiple paragraphs.
+
+The Phase 1 button model is described three times: once in the "Interaction model" paragraph (line 71), once in the "Phase 1 has two action buttons" block (lines 78-81), and once in the "Confirmation model" paragraph (line 112). All three say roughly the same thing.
+
+**Replacement:** Remove the "Phase 1 has two action buttons" block (lines 78-81) entirely. The interaction model paragraph (line 71) and the confirmation model paragraph (line 112) already cover the same content. The numbered steps (4 and 10) reference the buttons in context.
 
 ---
 
 ## 2. Genuinely Missing Plan-Level Content
 
-**[Critical] Design Spec — No specification of what happens when the human sends a chat message during Phase 3 or Phase 4 autonomous execution (outside of stuck/halt recovery)**
+**[Critical]** Design spec — No definition of how the fix agent gets post-fix error counts for the Fix Regression guard.
 
-Phase 1-2 describe interactive chat behavior. Phase 3 and Phase 4 describe stuck/halt recovery button interactions. But there is no specification for what happens if the human opens a project's chat thread during autonomous execution and types a message. Can they? Is the chat input disabled? Is the message queued? This will cause builder confusion.
+The Fix Regression guard (design spec line 386, build spec line 285) says it compares "post-fix total error count against the pre-fix review count for the same iteration." But within a single iteration, the sequence is Review → Fix. After the fix step, there is no second review to produce a post-fix count. The guard cannot function as described.
 
-**Proposed content** — add after "Phase 3 → Phase 4 Transition" section:
+**Proposed content** (add to Phase 4 Convergence Guards section, before the guard table):
 
-> **Human Chat During Autonomous Phases (3-4):**
->
-> During Phase 3 and Phase 4 autonomous execution, the chat input field is disabled. The human can view the project's chat history and current status but cannot send messages. Chat input is re-enabled only when the pipeline enters a stuck or halt state that requires human interaction (Phase 3 stuck recovery, Phase 4 halt recovery). The human can always edit the deliverable files directly outside the pipeline — see "Deliverable Edits During Phase 4."
+> **Fix Regression evaluation mechanism:** The Fix Regression guard does not run a second review within the same iteration. Instead, it compares consecutive iterations: iteration N's review reveals the error state after iteration N-1's fix. If iteration N's total error count exceeds iteration N-1's total error count, the prior fix introduced more issues than it resolved. "Two consecutive regressions" means iterations N and N+1 both show higher counts than their respective predecessors (N-1 and N).
 
 ---
 
-**[Major] Design Spec — No specification for how the fix agent receives codebase context in Code mode Phase 4**
+**[Major]** Execution plan — No task for Phase 3 Code mode test-fix cycle stuck detection.
 
-The design spec says: "The fix agent receives the JSON issue list and the relevant deliverable context. For Code mode: the current codebase files referenced in the issue `location` fields, plus `constraints.md` for scope awareness." But there's no specification for how this context is assembled — unlike the review step which has a full context assembly paragraph (diff-based for large codebases, full source for small). Does the fix agent get the full source? Only the referenced files? What if `location` references don't parse?
+The design spec (lines 267-271) defines two stuck conditions for the Code mode test-fix cycle: (1) same build task fails after 2 consecutive retries, (2) identical test failures for 3 consecutive cycles. The execution plan has Task 21 (code builder) but no explicit task or acceptance criterion covering the stuck detection logic within the test-fix cycle.
 
-**Proposed content** — add to "Fix agent context assembly" paragraph:
+**Proposed content** (add after Task 21 in Build Stage 4):
 
-> For Code mode: the fix agent receives the issue list and the content of each file referenced in the issues' `location` fields (parsed as relative paths from project root; line numbers are stripped before file lookup). If a referenced file does not exist, the issue is included in the context with a note: "Referenced file not found." If the total referenced file content exceeds the agent's context window, files are truncated starting from the largest, with a warning logged. `constraints.md` is always included for scope awareness. Unreferenced files are not passed to the fix agent — it operates only on files identified by the reviewer.
-
----
-
-**[Major] Design Spec — No error handling for the Acceptance Criteria validation gate in Phase 2**
-
-The design spec describes the Acceptance Criteria validation gate (before Phase 2 Confirm advances to Phase 3) but doesn't specify error handling for the case where the AI-proposed criteria cannot be parsed or the section is missing from the proposed `constraints.md`. The Unknowns validation gate has explicit handling (blocked Confirm, AI presents remaining items), but the AC gate only says "the Confirm button is blocked." What if the AI never generated an Acceptance Criteria section at all?
-
-**Proposed content** — add to the Acceptance Criteria Validation Gate paragraph:
-
-> If the proposed `constraints.md` content does not contain a recognizable Acceptance Criteria section (section heading missing entirely), the AI is re-invoked with an instruction to include acceptance criteria based on the confirmed intent and spec decisions. This follows the standard retry-once-then-halt behavior. The human is notified: "AI did not generate acceptance criteria. Retrying." If the second attempt also lacks the section, the pipeline halts and the human must provide criteria manually in chat.
+> | 21b | Implement Code mode Phase 3 test-fix cycle: run tests → pass failures to agent → fix → retest loop. Including stuck detection: halt after 2 consecutive non-zero exits on same task, or 3 consecutive identical failing test sets (exact string match on test names). | — | Task 21, Task 24 | — | Not Started |
 
 ---
 
-**[Major] Execution Plan — No task for implementing mid-processing human input queuing (Phase 1)**
+**[Major]** Design spec — No specification of what happens when `polish_state.json` is missing at Phase 4 *start* (not resume).
 
-The design spec describes (Phase 1, "Mid-Processing Human Input"): "If the human sends a chat message while the AI is processing a prior turn, the message is queued in `chat_history.json` and included in the next AI invocation's context." There is no task in the execution plan that covers implementing this queuing behavior. Task 8 covers brain dump intake and Task 9 covers the correction loop, but neither explicitly includes message queuing during AI processing.
+The design spec covers `polish_state.json` unreadable at Phase 4 *resume* (line 430) but not the case where Phase 4 starts fresh and the file doesn't exist yet. The orchestrator presumably creates it after the first iteration, but the initial state isn't specified.
 
-**Proposed content** — add to Task 8 description:
+**Proposed content** (add to Phase 4 Loop State Persistence, after line 402):
 
-> Include mid-processing human input queuing: if the human sends a chat message while the AI is processing, queue the message in `chat_history.json` and include it in the next AI invocation's context (per design spec Phase 1 Mid-Processing Human Input).
-
----
-
-**[Major] Design Spec / Execution Plan — No specification or task for the plan fix output validation (2 consecutive rejected fix outputs halts)**
-
-The design spec describes plan mode fix output validation: "If 2 consecutive iterations produce rejected fix output, the pipeline halts and notifies the human." This is specified in the design, but there is no execution plan task that explicitly covers implementing this validation logic. Task 30 covers the orchestrator loop broadly, but this is a distinct validation step with specific consecutive-failure tracking that should be called out.
-
-**Proposed content** — add to Task 30 description:
-
-> Include plan mode fix output validation per design spec: after each plan mode fix, validate the returned content is non-empty and not less than 50% of the pre-fix document size. Reject invalid fix output, preserve pre-fix document, log warning. Halt after 2 consecutive rejected fix outputs.
+> **Initial state:** When Phase 4 begins (Phase 3→4 transition), `polish_state.json` does not exist yet. The orchestrator initializes it after the first iteration completes. Before the first iteration, the orchestrator operates with `iteration: 0` and empty `convergence_trajectory`. If the pipeline halts or crashes during the first iteration (before `polish_state.json` is written), the orchestrator creates the file with the initial state on resume and re-attempts the first iteration.
 
 ---
 
-**[Minor] Design Spec — No specification for what the human sees after Phase 4 terminates successfully**
+**[Major]** Execution plan — No task for implementing the Phase 2 conversation sequencing and Unknown resolution validation gate.
 
-The design spec describes notification content for convergence success, but doesn't specify what happens in the chat UI. Is there a "Final Review" view? Does the chat show the deliverable? Does the human get a link to the file? Touchpoint 4 in the requirements brief is "Reviews finished polished output" but there's no design for how this review happens.
+The design spec (lines 159-166) describes specific Phase 2 behavior: the AI presents all elements in a single structured message, the Unknown resolution gate blocks Confirm if items remain unresolved, and the Acceptance Criteria validation gate blocks Confirm if criteria are empty. Task 12 mentions "Unknown resolution validation gate" in its description but there's no specific acceptance criterion covering the gate behavior (blocking Confirm, re-presenting unresolved items). This is a critical Phase 2 mechanism that controls data quality entering Phase 3.
 
-**Proposed content** — add after Phase 4 Convergence Guards section:
+**Proposed content** (add to Task 12 description):
 
-> **Phase 4 Completion — Human Final Review:**
->
-> When Phase 4 completes (termination or stagnation success), the chat displays a completion message with the final error counts, iteration count, and the file path to the polished deliverable. The project status shows as `done`. The human reviews the deliverable by opening the file directly — ThoughtForge does not render the deliverable inline. The chat thread remains available for reference (including all Phase 3-4 chat history) but no further pipeline actions are available.
+> Including: Unknown resolution validation gate (block Confirm if unresolved Unknowns or Open Questions remain, present remaining items to human), Acceptance Criteria validation gate (block Confirm if Acceptance Criteria section is empty or missing, re-invoke AI once if section heading absent, halt on second failure).
 
 ---
 
-**[Minor] Execution Plan — No task for implementing the `phase3_completeness` validation criteria from `config.yaml`**
+**[Minor]** Design spec — No specification of what the chat interface shows during Phase 3 and Phase 4 autonomous execution.
 
-`config.yaml` defines `phase3_completeness.plan_min_chars` and `phase3_completeness.code_require_tests`. Task 6c references "per design spec Phase 3→4 Transition Error Handling" and mentions `config.yaml` `phase3_completeness` criteria, but the actual logic for reading and applying these config values (checking character count, checking for test file existence) is not specified in any task description beyond a parenthetical reference. This is borderline covered by Task 6c's description, but the config-driven logic deserves explicit mention.
+Line 325 says "The human can view the project's chat history and current status" during autonomous phases, but doesn't specify what status information is displayed. The human needs to know iteration progress during the polish loop.
 
-**Proposed content** — add to Task 6c description:
+**Proposed content** (add after line 325):
 
-> Implement `phase3_completeness` config-driven validation: Plan mode checks deliverable character count against `config.yaml` `phase3_completeness.plan_min_chars`. Code mode checks for at least one test file when `phase3_completeness.code_require_tests` is true. Both checks run before Phase 4 entry.
+> During Phase 4, the chat panel displays a live status summary updated after each iteration: current iteration number, error counts (critical/medium/minor/total), convergence trajectory direction (improving/stable/worsening), and the most recent guard evaluation result. During Phase 3, the chat panel displays the current build step (e.g., "Building section 3 of 7" for Plan mode, or "Test-fix cycle, iteration 2" for Code mode). These are read from `polish_state.json` (Phase 4) and builder progress (Phase 3) respectively.
+
+---
+
+**[Minor]** Design spec — No specification of the code builder's task decomposition strategy.
+
+The build spec mentions a `task_queue.json` (line 207) for the code builder, but the design spec doesn't describe how the code builder decomposes `spec.md` into individual build tasks. The plan builder has explicit section-by-section decomposition; the code builder's strategy is unspecified.
+
+**Proposed content** (add to Phase 3 Code Mode, after line 263):
+
+> **Code builder task decomposition:** The code builder derives an ordered task list from `spec.md`'s Deliverable Structure section. Each major architectural component or feature becomes a build task. The task list is persisted to `task_queue.json` at derivation time for crash recovery (see build spec Code Builder Task Queue). The coding agent receives the full `spec.md` as context for each task but is instructed to focus on the current task. Task granularity is determined by the code builder, not prescribed — it depends on the architecture complexity described in `spec.md`.
+
+---
+
+**[Minor]** Execution plan — No task for implementing the chat UI's Phase 3/4 live status display.
+
+The design spec describes what the human sees during autonomous phases, but no execution plan task covers building this UI component.
+
+**Proposed content** (add to Build Stage 6, after Task 40a):
+
+> | 40b | Implement Phase 3/4 live status display in chat panel: Phase 4 shows iteration number, error counts, trajectory direction, guard result after each iteration; Phase 3 shows current build step. Read from `polish_state.json` and builder progress. Update via WebSocket push after each iteration/step completes. | — | Task 7, Task 30, Task 38 | — | Not Started |
 
 ---
 
 ## 3. Build Spec Material That Should Be Extracted
 
-**[Minor] Design Spec — WebSocket Reconnection Parameters**
+**[Minor]** Design spec, Phase 1 — "Step 3 Detail — Connector URL Identification" (line 76).
 
-The design spec's "WebSocket Disconnection" paragraph says: "Detailed reconnection behavior is in the build spec." But the design spec then also describes in-flight response handling, operation completion during disconnect, and connection status indicator behavior (which are implementation details). These are already duplicated in the build spec. The design spec should state the behavioral requirement only ("client auto-reconnects and syncs state") and defer all parameters and edge cases to the build spec.
+> ThoughtForge matches URLs in chat messages against known URL patterns for each enabled connector and pulls content automatically. URL matching rules (enabled/disabled/unmatched behavior) are in the build spec.
 
-**Sections to extract:** The "Server-side session," "Project Status on Return," and reconnection detail paragraphs under the UI section. These describe implementation-level reconnection mechanics, not design-level behavior.
+This sentence is correctly placed as design-level intent. However, the surrounding detail about "URL patterns for each enabled connector" and the reference to matching rules is already fully specified in the build spec's URL Matching Behavior table (build spec lines 477-483). No action needed — this is properly split. Noting for completeness only.
 
----
-
-**[Minor] Design Spec — HTTP API Surface**
-
-The build spec contains the HTTP API route table. The design spec does not contain it directly, but the design spec's Technical Design section references Express.js and discusses routing architecture. This is fine as-is — no extraction needed. Noting for completeness that the boundary is clean here.
+*No extraction needed — correctly delegated.*
 
 ---
 
-**[Minor] Design Spec — Phase 1 Error Handling table entry "Brain dump text exceeds agent context window"**
+**[Minor]** Design spec, Phase 4 — Fix agent context assembly detail (lines 355-356).
 
-The entry specifies: "AI processes in chunks if the configured agent supports it, otherwise truncates to the agent's maximum input size." This is implementation-level behavior for the agent communication layer, not a design-level error handling policy. The design-level concern is "what happens if the input is too large" — the answer is "it's handled." The chunking/truncation strategy belongs in the build spec alongside the token estimation formula and context window management.
+The paragraph starting "The fix agent receives the JSON issue list..." contains implementation-level file parsing details:
 
-**Section to extract:** Move the "Brain dump text exceeds agent context window" row's implementation detail to the build spec's Agent Communication section. Replace the design spec row with:
+> "parsed as relative paths from project root; line numbers are stripped before file lookup"
 
-> | Brain dump text exceeds agent context window | Handled by the agent invocation layer's context window management (see build spec). A warning is displayed in chat if truncation occurs. |
+This is implementation detail (how to parse `location` fields) that belongs in the build spec's fix prompt section, not the design spec.
 
----
-
-**[Minor] Design Spec — `constraints.md` truncation strategy**
-
-The design spec says: "Truncation order is specified in the build spec." But it also specifies the priority sections (Context/Deliverable Type and Acceptance Criteria). The build spec then re-specifies the full truncation strategy including removal order. This is redundant — the design spec should state only that truncation preserves the most critical sections and defer the algorithm to the build spec.
-
-**Section to extract:** Remove the sentence "with priority given to Context/Deliverable Type and Acceptance Criteria sections" from the design spec. The build spec already contains the authoritative truncation strategy. Replace with:
-
-> If `constraints.md` exceeds the agent's context window when combined with other review context, it is truncated per the strategy defined in the build spec.
+**Proposed extraction:** Move the sentence fragment `"parsed as relative paths from project root; line numbers are stripped before file lookup"` to the build spec under a new "Fix Agent Context Assembly" section. Replace in the design spec with: `"The fix agent receives the issue list and the content of files referenced in each issue's location field."` The parsing rules are an implementation detail for the build spec.
 
 ---
 
-**[Minor] Design Spec — Levenshtein similarity formula in Stagnation Guard Detail**
+**[Minor]** Design spec, Phase 3, Plan Mode — Template Content Escaping (line 246).
 
-The design spec's Stagnation Guard Detail paragraph includes: "Similarity is computed as `1 - (levenshtein_distance(a, b) / max(a.length, b.length))`." This is an implementation formula. The design-level concern is "issues are compared for similarity using Levenshtein distance with a 0.8 threshold." The formula belongs in the build spec (which already has its own Stagnation Guard section with the same detail).
+The design spec says:
 
-**Section to extract:** Remove the similarity formula sentence from the design spec's Stagnation Guard Detail. Keep only: "Issue rotation is detected when fewer than 70% of current issues match any issue in the prior iteration. Match is defined as Levenshtein similarity ≥ 0.8 on the `description` field." The formula is already in the build spec's Convergence Guard Parameters section.
+> AI-generated content must not break template rendering.
+
+The build spec (line 406-408) already has a dedicated section: "Plan Builder — Template Content Escaping." The design spec line is a design intent statement (appropriate), but the mention in the design spec is the only reference — the build spec section is not cross-referenced.
+
+**Proposed fix:** Add to design spec line 246: `"Template content escaping strategy is defined in the build spec."` This aligns with the document's pattern of referencing the build spec for implementation details.
+
+---
+
+**[Minor]** Design spec, Notification Content — Example messages (lines 586-594).
+
+The 9 notification example strings are concrete message templates. They serve as specification for the notification `summary` field format. This is borderline — the design spec uses them to communicate intent, but an implementer would treat them as exact format requirements. They belong in the build spec alongside the `NotificationPayload` schema.
+
+**Proposed extraction:** Move the notification examples to the build spec, immediately after the `NotificationPayload` schema (build spec line 1050). In the design spec, keep 2-3 examples to communicate intent and add: `"Full notification message templates are in the build spec."` This reduces design spec bulk while preserving intent communication.
+
+---
+
+That concludes the review. Three lists, all findings tagged by severity, sorted within each list.
