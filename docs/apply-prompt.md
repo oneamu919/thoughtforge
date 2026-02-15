@@ -1,4 +1,4 @@
-# Apply Review Findings from results.md (Iteration 10)
+# Apply Review Findings from results.md
 
 You are an AI coder. Apply every change listed below to the source files. Each change is taken directly from the review findings in `results.md`. Do not interpret or improvise — apply the replacements, additions, and extractions exactly as specified.
 
@@ -18,123 +18,168 @@ Read all three files before making any edits.
 
 ## Changes to Apply
 
-### Change 1 — Design Spec: Phase 2 "realign from here" rationale (Major)
+### Change 1 — Design Spec: Stagnation Guard description (Minor)
 
-**Location:** Phase 2 Conversation Mechanics (~line 141)
-
-**Find:**
-> The 'realign from here' command is not supported in Phase 2. If issued, it is ignored.
-
-**Replace with:**
-> The 'realign from here' command is not supported in Phase 2. If issued, it is ignored. Targeted corrections via chat handle all Phase 2 revisions.
-
----
-
-### Change 2 — Design Spec: Phase 3 test-fix cycle clarification (Minor)
-
-**Location:** Phase 3 Code Mode (~line 214)
+**Location:** Phase 4, Stagnation Guard (~line 303)
 
 **Find:**
-> The code builder then enters a test-fix cycle: run tests, pass failures back to the agent, agent fixes, re-run tests — repeating until all tests pass or stuck detection triggers.
+> "Same total error count for consecutive iterations exceeding the configured stagnation limit AND issue replacement detected"
 
 **Replace with:**
-> The code builder then enters a test-fix cycle: run tests, pass failures back to the agent, agent fixes, re-run tests — repeating until all tests pass or stuck detection triggers. Unlike Phase 4 iterations, the Phase 3 test-fix cycle does not commit after each cycle — a single git commit is written when Phase 3 completes successfully.
+> "Same total error count persisting for a number of consecutive iterations equal to or greater than the configured stagnation limit AND issue replacement detected"
 
 ---
 
-### Change 3 — Build Spec: Crash recovery wording clarification (Minor)
+### Change 2 — Design Spec: Phase 1 Step 9 "Realign from here" (Minor)
 
-**Location:** Code Builder Task Queue (~lines 206–208)
+**Location:** Phase 1 Step 9 (~line 90)
 
 **Find:**
-> On crash recovery, the code builder re-derives the task list from `spec.md` and the current project file state.
+> "The AI resets to the most recent substantive correction, excluding subsequent conversation from the working context (retained in `chat_history.json` for audit trail), and re-distills from the original brain dump plus all corrections up to that point."
 
 **Replace with:**
-> On crash recovery, the code builder re-derives the task list from `spec.md` and the current state of files in the project directory (e.g., which source files and test files already exist).
+> "The AI resets to the most recent substantive correction, excluding all subsequent conversation from the working context (retained in `chat_history.json` for audit trail), and re-distills from the original brain dump plus all corrections up to and including that baseline correction."
 
 ---
 
-### Change 4 — Execution Plan: Add Task 31 to orchestrator module note (Minor)
+### Change 3 — Design Spec: Hallucination Guard (Minor)
 
-**Location:** Build Stage 8 note about Tasks 32, 38, 39 (~line 110)
+**Location:** Hallucination Guard (~line 302)
 
 **Find:**
-> Tasks 32, 38, and 39 are implemented within the Task 30 orchestrator module, not as separate files. They are listed separately for progress tracking.
+> "Error count increases significantly (threshold defined in build spec) after a consecutive downward trend (minimum trend length defined in build spec)"
 
 **Replace with:**
-> Tasks 31, 32, 38, and 39 are implemented within the Task 30 orchestrator module, not as separate files. They are listed separately for progress tracking.
+> "Total error count increases by more than the configured spike threshold after at least the configured minimum number of consecutive iterations with decreasing total error count"
 
 ---
 
-### Change 5 — Design Spec: Add `constraints.md` empty acceptance criteria handling (Major)
+### Change 4 — Design Spec: Fabrication Guard (Minor)
 
-**Location:** Locked File Behavior section, after the `constraints.md` hot-reload paragraph (~line 149)
-
-**Action:** Insert the following new paragraph immediately after the existing hot-reload paragraph:
-
-> If the human empties or removes the Acceptance Criteria section from `constraints.md`, the reviewer proceeds with whatever criteria remain (which may be none). This is treated as an intentional human override — the pipeline does not validate that acceptance criteria are present after the initial Phase 2 write. The human accepts responsibility for review quality when manually editing `constraints.md`.
-
----
-
-### Change 6 — Build Spec: Add VK card creation failure handling during initialization (Major)
-
-**Location:** Project Initialization Sequence, after step 5 (~line 483)
-
-**Action:** Insert the following new paragraph after the Kanban card creation step:
-
-> If Vibe Kanban card creation fails during initialization, log a warning and continue. The project proceeds without a Kanban card. Subsequent VK status update calls for this project will also fail (card does not exist) and will be logged and ignored per standard VK failure handling. The pipeline is fully functional without VK visualization.
-
----
-
-### Change 7 — Design Spec: Add `chat_history.json` completion behavior (Minor)
-
-**Location:** Project State Files section, `chat_history.json` row (~line 503)
-
-**Action:** Add the following to the `chat_history.json` description:
-
-> Chat history is never cleared on pipeline completion (`done`) or halt. The full Phase 3 and Phase 4 chat history (including any recovery conversations) persists in the completed project for human reference.
-
----
-
-### Change 8 — Execution Plan: Add path traversal validation to Task 7h (Minor)
-
-**Location:** Task 7h in the execution plan
+**Location:** Fabrication Guard (~line 304)
 
 **Find:**
-> Implement file/resource dropping in chat interface (upload to `/resources/`)
+> "the system had previously reached counts within a multiplier of convergence thresholds (multiplier defined in build spec) in at least one prior iteration — suggesting the reviewer is manufacturing issues because nothing real remains"
 
 **Replace with:**
-> Implement file/resource dropping in chat interface (upload to `/resources/`). Validate that resolved file paths stay within the project's `/resources/` directory — reject uploads with path traversal components (`..`, absolute paths).
+> "the system had previously reached counts no greater than a configured multiplier of the convergence thresholds in at least one prior iteration — indicating the deliverable was near-converged, and subsequent spikes likely represent manufactured issues"
 
 ---
 
-### Change 9 — Execution Plan: Add unit test task for operational logging module (Minor)
+### Change 5 — Design Spec: Code Builder Interaction Model (Minor)
 
-**Location:** Build Stage 8 table, after the last test task row
-
-**Action:** Add a new row to the table:
-
-> | 50c | Unit tests: operational logging module (log file creation, structured JSON format, log levels, event types, file append failure handling) | — | Task 3a | — | Not Started |
-
----
-
-### Change 10 — Extract connector URL patterns from Design Spec to Build Spec (Minor)
-
-**Part A — Design Spec** (Phase 1 step 3, Connector URL Identification, ~line 80)
+**Location:** Code Builder Interaction Model (~line 216)
 
 **Find:**
-> The AI identifies connector URLs in chat messages by matching against known URL patterns for each enabled connector (e.g., `notion.so/` or `notion.site/` for Notion, `docs.google.com/` or `drive.google.com/` for Google Drive). URLs matching an enabled connector pattern are pulled automatically. URLs matching a disabled connector pattern are ignored. Unrecognized URLs are treated as regular brain dump text.
+> "a single invocation or multi-turn session (depending on VK task execution behavior)"
 
 **Replace with:**
-> The AI identifies connector URLs in chat messages by matching against known URL patterns for each enabled connector. Pattern definitions are in the build spec. URLs matching an enabled connector pattern are pulled automatically. URLs matching a disabled connector pattern are ignored. Unrecognized URLs are treated as regular brain dump text.
+> "a single invocation or multi-turn session, depending on how Vibe Kanban executes the task (if VK is enabled) or as a single invocation (if VK is disabled)"
 
-**Part B — Build Spec** (Resource Connector Interface section, ~lines 419–438)
+---
 
-**Add under the Notion Connector subsection:**
-> **URL patterns:** `notion.so/`, `notion.site/`
+### Change 6 — Build Spec: Fix `halted` status classification (Minor)
 
-**Add under the Google Drive Connector subsection:**
-> **URL patterns:** `docs.google.com/`, `drive.google.com/`
+**Location:** Phase-to-State Mapping table (~line 524)
+
+**Action:** Change the `Terminal` row so it only includes `done`:
+
+> "| Terminal | `done` | `done`: convergence or stagnation success. |"
+
+**Add a new row after it:**
+
+> "| Non-terminal halt | `halted` | `halted`: guard trigger, human terminate, or unrecoverable error. Counts toward concurrency limit. Human must resume or terminate to free the slot. |"
+
+---
+
+### Change 7 — Design Spec: Add Phase 1-2 Chat Agent Model (Major)
+
+**Location:** Under the Agent Communication section, add a new subsection titled "Phase 1-2 Chat Agent Model"
+
+**Action:** Insert the following:
+
+> **Phase 1-2 Chat Agent Model:** Phases 1 and 2 use the same agent invocation pattern as all other phases — prompt via stdin, response via stdout, one subprocess call per turn. Each invocation passes the full working context: the brain dump, resources, current distillation (Phase 1) or spec-in-progress (Phase 2), and the relevant chat history from `chat_history.json`. There is no persistent agent session — each turn is a stateless call with full context. This keeps the agent communication model uniform across all phases and avoids session management complexity.
+
+---
+
+### Change 8 — Design Spec: Add `chat_history.json` Error Handling (Major)
+
+**Location:** Under Project State Files or Phase 1 Error Handling
+
+**Action:** Insert the following:
+
+> **`chat_history.json` Error Handling:** If `chat_history.json` is unreadable or missing, the pipeline halts and notifies the human — same behavior as `status.json` corruption. The human must fix or recreate the file. Chat history size is bounded by the phase-clearing behavior (cleared on Phase 1→2 and Phase 2→3 transitions). If a single phase's chat history grows large enough to exceed the agent's context window, the agent invocation layer truncates older messages from the beginning of the history, retaining the most recent messages and always retaining the original brain dump. A warning is logged when truncation occurs.
+
+---
+
+### Change 9 — Design Spec: Add Phase 2 Conversation Sequencing (Major)
+
+**Location:** Phase 2, after ~line 141 or as a new subsection "Phase 2 Conversation Mechanics"
+
+**Action:** Insert the following:
+
+> **Phase 2 Conversation Sequencing:** The AI presents all proposed elements in a single structured message: deliverable structure, key decisions, resolved unknowns, and acceptance criteria. The human responds with corrections to any element. The AI revises only the affected elements and re-presents the complete updated proposal. This repeats until the human is satisfied and clicks Confirm. There is no enforced ordering between elements — the human may address them in any sequence. The validation gate (all Unknowns and Open Questions resolved) is checked when Confirm is clicked, not during the correction cycle.
+
+---
+
+### Change 10 — Execution Plan: Add test task for Plan Mode Safety Guardrails (Minor)
+
+**Location:** Build Stage 8 table
+
+**Action:** Add a new row:
+
+> | 58j | Unit tests: plan mode safety guardrails (`safety-rules.js` blocks `shell_exec`, `file_create_source`, `package_install`, `test_exec` operations; allows `file_create_doc`, `file_create_state`, `agent_invoke`, `git_commit`) | — | Task 18 | — | Not Started |
+
+---
+
+### Change 11 — Design Spec: Add prompt file write failure handling (Minor)
+
+**Location:** Prompt Management section, after ~line 525
+
+**Action:** Insert the following:
+
+> **Prompt file write failure:** If the prompt editor cannot write to a file, the Settings UI displays an error message identifying the file and the error. The failed edit is not applied — the human must resolve the file system issue and retry. No partial writes — the prompt editor uses the same atomic write strategy as state files.
+
+---
+
+### Change 12 — Execution Plan: Add test task for VK adapter failure handling (Minor)
+
+**Location:** Build Stage 8 table
+
+**Action:** Add a new row:
+
+> | 58k | Unit tests: Vibe Kanban adapter failure handling (visualization-only call failures logged and pipeline continues, agent execution call failures trigger retry-once-then-halt, VK disabled skips all calls) | — | Tasks 26–29a | — | Not Started |
+
+---
+
+### Change 13 — Design Spec: Extract Stagnation Guard Levenshtein details to Build Spec (Minor)
+
+**Location:** Stagnation Guard in Design Spec (~line 303)
+
+**Find:**
+> "for each current issue, check if any prior issue has Levenshtein similarity ≥ 0.8 on the `description` field — if fewer than 70% of current issues find a match, rotation is detected"
+
+**Replace with:**
+> "issue replacement detected (rotation threshold and similarity measure defined in build spec). This indicates the reviewer is finding new issues to replace resolved ones, producing a plateau rather than genuine progress."
+
+The build spec already contains these algorithmic details at lines 302-305 — no additions needed there.
+
+---
+
+### Change 14 — Design Spec: Extract concurrency implementation reasoning to Build Spec (Minor)
+
+**Part A — Design Spec** (Concurrency section, ~line 494)
+
+**Find:**
+> "Within a single project, the pipeline is single-threaded — only one operation (phase transition, polish iteration, button action) executes at a time. This is enforced by the sequential nature of the pipeline: each phase awaits completion before the next begins, and button presses are ignored while an operation is in progress. No explicit locking is required."
+
+**Replace with:**
+> "Within a single project, the pipeline is single-threaded — only one operation (phase transition, polish iteration, button action) executes at a time."
+
+**Part B — Build Spec** (Project State or Concurrency section)
+
+**Add:**
+> **Single-project concurrency model:** The sequential nature of the pipeline enforces single-threaded operation per project: each phase awaits completion before the next begins, and button presses are ignored while an operation is in progress. No explicit locking or mutex is required. Concurrent access to a single project's state files is not supported and does not need locking.
 
 ---
 
