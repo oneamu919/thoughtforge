@@ -62,17 +62,11 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 
 0. **Project Initialization:**
 
-   Project initialization creates the project directory structure, initializes version control, writes the initial project state, optionally registers on the Kanban board, and opens the chat interface. The full initialization sequence is in the build spec.
-
-   **Project ID Collision:** Project IDs must be unique; collision retry algorithm is specified in the build spec.
+   Project initialization creates the project directory structure, initializes version control, writes the initial project state, optionally registers on the Kanban board, and opens the chat interface. The full initialization sequence — including collision retry, field assignments, and error handling — is in the build spec.
 
    The project ID is used as the directory name and as `project_id` in notifications — not stored in `status.json` since it is always derivable from the project directory path.
 
    Project name is derived later during Phase 1 — see step 11.
-
-**Git Initialization Failure:** If `git init` fails during project creation (permissions error, disk space, git not installed), project creation is aborted. The partially created directory is deleted. The human is notified: "Project creation failed: git initialization error. Verify git is installed and the projects directory is writable." No project state files are written.
-
-**Agent Assignment:** The agent specified in `config.yaml` `agents.default` is assigned to the project at initialization and stored in `status.json` as the `agent` field. This determines which AI agent is used for all pipeline phases. Per-project agent override is deferred — not a current build dependency. At project initialization, `config.yaml` `agents.default` is copied to the project's `status.json` `agent` field and used for all pipeline phases of that project.
 
 **Interaction model:** Phase 1 uses two explicit actions: a **Distill** button (signals that all inputs are provided and the AI should begin processing) and a **Confirm** button (advances to Phase 2). Both use button presses, not chat commands — see Confirmation Model below.
 
@@ -147,8 +141,11 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 
 1. AI proposes deliverable structure and key decisions based on `intent.md`
 2. **Challenge:** AI evaluates `intent.md` for structural issues: missing dependencies, unrealistic constraints, scope gaps, internal contradictions, and ambiguous priorities. Each flagged issue is presented to the human with specific reasoning. The AI does not rubber-stamp — it must surface concerns even if the human's intent seems clear. This step does not resolve Unknowns — it identifies new problems.
+
+Challenge findings that result in design changes are captured in the `spec.md` "Key Decisions" section with the original concern and resolution. Challenge findings that the human dismisses are not persisted beyond the chat history. Since chat history is cleared on Phase 2→3 transition, dismissed challenges are not available for later reference. This is acceptable — the human's decisions are captured in `spec.md`; the reasoning for rejected alternatives is not.
+
 3. **Resolve:** AI resolves Unknowns and Open Questions from `intent.md` — either by making a reasoned decision (stated in `spec.md`) or by asking the human during the Phase 2 chat. The governing principle: the AI decides autonomously when the decision is low-risk, reversible, or has a clearly dominant option based on the constraints — and escalates to the human when the decision is high-impact, preference-dependent, or has multiple viable options with material trade-offs. The Phase 2 prompt (`spec-building.md`) operationalizes this principle. No unresolved unknowns may carry into `spec.md`.
-4. AI derives acceptance criteria (at least 1, target 5–10) from the objective, assumptions, and constraints in `intent.md`. For Plan mode, criteria assess document completeness, logical coherence, and actionability. For Code mode, criteria assess functional requirements that map to testable acceptance tests in Phase 3.
+4. AI derives acceptance criteria from the objective, assumptions, and constraints in `intent.md`. The validation gate enforces a minimum of 1 criterion; the target range of 5–10 is guidance for the AI prompt, not an enforced threshold. For Plan mode, criteria assess document completeness, logical coherence, and actionability. For Code mode, criteria assess functional requirements that map to testable acceptance tests in Phase 3.
 5. Human confirms or overrides specific decisions
 6. Human reviews acceptance criteria — adds/removes as needed
 
@@ -234,6 +231,8 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 
 **Template Content Escaping:** AI-generated content must not break template rendering.
 
+**Template Slot Validation:** After each plan builder invocation, the orchestrator validates that the returned content corresponds to a valid template slot. If the AI returns content for a non-existent slot, the content is discarded with a warning logged. If a required template slot receives empty or placeholder content (containing "TBD", "TODO", or "placeholder" — case-insensitive), the builder re-invokes the AI for that slot (subject to the standard retry-once-then-halt behavior). After all invocations complete and the template is assembled, a final validation confirms all slots are filled. Any remaining empty slots halt the builder with a notification identifying the unfilled sections.
+
 6. **NEVER creates source files, runs commands, installs packages, scaffolds projects, or executes anything. Document drafting only. Enforced at orchestrator level via plugin safety rules.**
 7. If stuck on a decision requiring human input: notifies and waits
 8. Output: complete but unpolished plan document (`.md`) in `/docs/`
@@ -254,7 +253,7 @@ The plan deliverable filename is `plan.md`, written to `/projects/{id}/docs/plan
 
 After the initial build invocation, the code builder enters a test-fix cycle: run tests → pass failures to the agent → agent fixes → re-run tests. This repeats until all tests pass or stuck detection triggers.
 
-**Stuck detection within the cycle:** The stuck detector fires on 3 consecutive cycles with the *identical* set of failing test names (compared by exact string match). If each cycle produces *different* failing tests (rotating failures), the stuck detector does not trigger.
+**Stuck detection within the test-fix cycle:** Two conditions trigger stuck detection: (1) the build agent returns non-zero exit on the same build task after 2 consecutive retries, OR (2) the test suite fails on the identical set of test names for 3 consecutive fix-and-retest cycles (compared by exact string match). If each cycle produces different failing tests (rotating failures), condition (2) does not trigger.
 
 **Cycle termination:** The test-fix cycle terminates via stuck detection or human intervention (Phase 3 stuck recovery buttons). A hard cap on test-fix iterations is deferred — not a current build dependency.
 
@@ -272,7 +271,7 @@ After the initial build invocation, the code builder enters a test-fix cycle: ru
 | Mode | Stuck Condition | Action |
 |---|---|---|
 | Plan | AI includes a stuck signal in every builder response. When the AI reports stuck, the orchestrator halts and notifies with the AI's stated reason. Response schema in build spec (`PlanBuilderResponse`). | Notify and wait |
-| Code | Build agent returns non-zero exit after 2 consecutive retries on the same task, OR test suite fails on the same tests for 3 consecutive fix attempts | Notify and wait |
+| Code | See test-fix cycle stuck detection above. | Notify and wait |
 
 **Code mode stuck tracking:** "Same task" means consecutive agent invocations with the same prompt intent (e.g., "implement feature X" or "fix test Y") — tracked by the code builder's internal task queue. "Identical test failures" means the same set of test names appear in the failed list across consecutive fix-and-retest cycles, compared by exact test name string match.
 
@@ -322,6 +321,10 @@ Button behavior and `status.json` effects are specified in the build spec Action
 
 **Non-Node.js projects:** For deliverables in languages other than Node.js, the coding agent is instructed (via the `/prompts/code-build.md` prompt) to create a standard test entry point appropriate to the language (e.g., `Makefile` with `make test`, `pyproject.toml` with `pytest`, etc.). `test-runner.js` reads the project's `spec.md` Deliverable Structure section to determine the language and invokes the language-appropriate test command. The mapping from language to test command is a configuration in `test-runner.js`, not hardcoded to `npm test`.
 
+**Deliverable Edits During Phase 4:**
+
+If the human manually edits the deliverable (plan document or source code) between Phase 4 iterations, the edits are picked up by the next iteration's review step — the reviewer reads the current state of the deliverable from disk. The next fix step's git commit captures both the human's edits and the AI's fixes. The pipeline does not detect, warn about, or distinguish human edits from AI fixes. This is by design — the human has full authority to modify the deliverable at any time. The convergence trajectory may shift as a result (human edits could increase or decrease error counts). No special handling is needed.
+
 #### Phase 4 — Polish Loop (Fully Automated)
 
 **Each Iteration — Two Steps:**
@@ -363,10 +366,10 @@ Plan mode uses the two-step cycle (Review → Fix) with no test execution.
 | Guard | Condition | Action |
 |---|---|---|
 | Termination (success) | Error counts within configured thresholds (+ all tests pass for code). Thresholds in `config.yaml`. | Done. Notify human. |
-| Fix Regression (per-iteration) | After each fix step, if the total error count increases compared to the review that prompted the fix (i.e., the fix made things worse), log a warning. If the fix step increases total error count in 2 consecutive iterations (the two most recent fix steps both produced higher error counts than their respective review inputs), halt and notify: "Fix step is introducing more issues than it resolves. Review needed." This guard evaluates per-iteration, not per-trend, and fires before the trend-based guards. | Warn (single occurrence) or Halt (2 consecutive). Notify human. |
+| Fix Regression (per-iteration) | Evaluated immediately after each fix step, before other guards. Compares the post-fix total error count against the pre-fix review count for the same iteration. **Single occurrence:** If the fix increased the total error count, log a warning but continue. **Consecutive occurrences:** If the two most recent fix steps both increased their respective error counts, halt and notify: "Fix step is introducing more issues than it resolves. Review needed." | Warn (single) or Halt (2 consecutive). Notify human. |
 | Hallucination | Total error count increases by more than 20% from the prior iteration (hardcoded threshold, defined in build spec) after at least 2 consecutive iterations with decreasing total error count (hardcoded minimum trend length, defined in build spec) | Halt. Notify human: "Project '{name}' — fix-regress cycle detected. Errors decreased for {N} iterations ({trajectory}) then spiked to {X} at iteration {current}. Review needed." |
-| Stagnation | Two conditions must both be true: (1) **Plateau:** Total error count is identical for `stagnation_limit` consecutive iterations. (2) **Issue rotation:** Fewer than 70% of current-iteration issues match any issue in the immediately prior iteration (match = Levenshtein similarity ≥ 0.8 on `description`). When both are true, the reviewer is cycling through new cosmetic issues at the same rate old ones are resolved — a quality plateau, not genuine regression. Parameters in build spec. | Done (success — treated as converged plateau). Notify human with final error counts and iteration summary. |
-| Fabrication | A severity category spikes significantly above its trailing average (window size defined in build spec), AND in at least one prior iteration, every severity category was at or below twice its convergence threshold — meaning critical ≤ 2 × `config.yaml` `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max`. The `2×` factor is hardcoded; the thresholds it multiplies are read from `config.yaml` at runtime. This ensures fabrication is only flagged after the deliverable was near-converged. Parameters in build spec. | Halt. Notify human. |
+| Stagnation | **Intent:** Detect when the deliverable has reached a quality plateau — the reviewer resolves old issues but introduces equally many new cosmetic issues each iteration, producing no net improvement. Two conditions must both be true: (1) **Plateau:** Total error count is identical for `stagnation_limit` consecutive iterations. (2) **Issue rotation:** Fewer than 70% of current-iteration issues match any issue in the immediately prior iteration (match = Levenshtein similarity ≥ 0.8 on `description`). When both are true, the deliverable is converged. | Done (success — treated as converged plateau). Notify human with final error counts and iteration summary. |
+| Fabrication | Two conditions must both be true: (1) **Category spike:** A single severity category count exceeds its trailing average by more than 50% (with a minimum absolute increase of 2). Trailing window size defined in build spec. (2) **Prior near-convergence:** The system previously reached within 2× of the termination thresholds in at least one prior iteration (i.e., critical ≤ 0, medium ≤ 6, minor ≤ 10 with default config). This ensures fabrication is only flagged after the deliverable was demonstrably close to convergence — not during early volatile iterations. The `2×` multiplier is hardcoded; the base thresholds are read from `config.yaml` at runtime. Parameters in build spec. | Halt. Notify human. |
 | Max iterations | Hard ceiling reached (configurable, default 50) | Halt. Notify human: "Max [N] iterations reached. Avg flaws/iter: [X]. Lowest: [Y] at iter [Z]. Review needed." |
 
 **Evaluation timing note:** Fix Regression is evaluated immediately after each fix step (before other guards). All other guards are evaluated after the full iteration cycle (review + fix) completes. See build spec Guard Evaluation Order for the complete sequence.
@@ -375,9 +378,11 @@ Algorithmic parameters for each guard (spike thresholds, similarity measures, wi
 
 **Stagnation Guard Detail:** Stagnation compares total error count only (sum of critical + medium + minor), not per-severity breakdowns. Issue rotation is detected when old issues are resolved but new issues are introduced at the same rate — the rotation threshold and similarity measure (Levenshtein on issue descriptions) are defined in the build spec. When both conditions are true, the deliverable has reached a quality plateau where the reviewer is cycling through cosmetic issues rather than finding genuine regressions. This is treated as a successful convergence outcome.
 
-**Halt vs. Terminate:** When a convergence guard triggers a halt, the project is recoverable — the human can Resume or Override. When the human explicitly Terminates (via button), the project is permanently stopped (`halt_reason: "human_terminated"`). Both use the `halted` phase value in `status.json`; the `halt_reason` field distinguishes them. (Authoritative field values are in the build spec Action Button Behavior table.)
-
 **Loop State Persistence:** `polish_state.json` written after each iteration. Full field list in the Project State Files section under Technical Design. On crash, resumes from last completed iteration.
+
+**Halt vs. Terminate Distinction:**
+
+When a convergence guard triggers a halt, the project is recoverable — the human can Resume or Override. When the human explicitly Terminates (via button), the project is permanently stopped (`halt_reason: "human_terminated"`). Both use the `halted` phase value in `status.json`; the `halt_reason` field distinguishes them. (Authoritative field values are in the build spec Action Button Behavior table.)
 
 **Halt Recovery:**
 
@@ -504,18 +509,7 @@ Project directories are created under the path specified by `config.yaml` `proje
 
 ThoughtForge communicates with Vibe Kanban via its CLI through four operations: task creation (project initialization), status updates (every phase transition), agent work execution (Phase 3 build, Phase 4 fix steps), and result reading (after each agent execution). All integration calls centralized in `vibekanban-adapter.js`. ThoughtForge never calls Vibe Kanban directly from orchestrator logic. Exact CLI commands and flags in build spec.
 
-**Vibe Kanban toggle behavior:** The `vibekanban.enabled` config controls Kanban card creation, status updates, and dashboard visualization.
-
-| Condition | Behavior |
-|---|---|
-| VK enabled, Plan mode | Plan builder invokes agents directly via agent layer. Kanban card created and updated for visualization only. |
-| VK disabled, Plan mode | Plan builder invokes agents directly via agent layer (same as VK enabled). No Kanban card created. |
-| VK enabled, Code mode | Code builder executes agent work through Vibe Kanban (`vibekanban task run`). Kanban card tracks progress. |
-| VK disabled, Code mode | Code builder invokes agents directly via agent layer. No Kanban card. |
-
-Both modes function fully with the toggle off. The only losses are the Kanban board view and VK-managed multi-project parallel execution (the human must manually manage concurrent project execution without VK).
-
-**Toggle Change During Active Projects:** The `vibekanban.enabled` toggle is read at each operation, not cached at project creation. If VK is disabled after a project was created with VK enabled, subsequent VK status update calls will succeed (updating an existing card) but new project creation will skip card creation. If VK is enabled after a project was created without it, VK status calls will fail (no card exists) and will be logged and ignored per standard VK failure handling. Toggling VK mid-project does not halt or disrupt the pipeline — VK calls are never on the critical path.
+**Vibe Kanban toggle behavior:** The `vibekanban.enabled` config controls Kanban card creation, status updates, and dashboard visualization. Both modes function fully with VK disabled. VK provides visualization and Code mode agent execution. Plan mode always invokes agents directly. Implementation details including the toggle truth table are in the build spec.
 
 **Vibe Kanban CLI failure handling:** If a VK CLI call fails (non-zero exit, timeout, command not found), the adapter logs the error. For visualization-only calls (card creation, status updates), the failure is logged as a warning and the pipeline continues — VK is not on the critical path. For agent execution calls (`vibekanban task run` in Code mode), the failure is treated as an agent failure and follows the standard agent retry-once-then-halt behavior.
 
@@ -553,12 +547,7 @@ ThoughtForge invokes agents via CLI subprocess calls, passing prompts via file o
 **Structured Response Validation (Non-Review):**
 Agent responses are validated where schemas exist; phases 1–2 use natural language reviewed by the human. Validation details, retry counts, and token estimation formula are specified in the build spec.
 
-**Phase 1-2 Chat Agent Model:** Phases 1 and 2 use the same agent invocation pattern as all other phases — prompt via stdin, response via stdout, one subprocess call per turn. Each invocation passes the full working context:
-- The brain dump text and resources
-- Current distillation (Phase 1) or spec-in-progress (Phase 2)
-- All messages from `chat_history.json` for the current phase (subject to context window truncation)
-
-There is no persistent agent session — each turn is a stateless call with full context. This keeps the agent communication model uniform across all phases and avoids session management complexity.
+**Phase 1-2 Chat Agent Model:** Each chat turn is a stateless AI invocation with full context. There is no persistent agent session. Implementation details are in the build spec.
 
 ### Notification Content
 
@@ -606,15 +595,13 @@ Every phase transition pings the human with a status update. Every notification 
 
 ### UI
 
-**ThoughtForge Chat (Built):** Lightweight web chat interface (terminal-based alternative deferred). Primary use: Phases 1–2 (brain dump intake, spec building). Also used for Phase 3 stuck recovery (provide input, terminate) and Phase 4 halt recovery (resume, override, terminate). Per-project chat thread, file/resource dropping, AI messages labeled by phase, corrections via chat, advancement via Confirm button. During stuck and halt recovery, the chat presents the current state context and the available recovery options — no free-form AI conversation. The chat interface includes a project list sidebar showing all active projects with their current phase. The human clicks a project to open its chat thread. New projects are created from this list via a "New Project" action. The active project's chat thread occupies the main panel.
+**ThoughtForge Chat (Built):** Lightweight web chat interface. (A terminal-based alternative is deferred — not a current build dependency.) Primary use: Phases 1–2 (brain dump intake, spec building). Also used for Phase 3 stuck recovery (provide input, terminate) and Phase 4 halt recovery (resume, override, terminate). Per-project chat thread, file/resource dropping, AI messages labeled by phase, corrections via chat, advancement via Confirm button. During stuck and halt recovery, the chat presents the current state context and the available recovery options — no free-form AI conversation. The chat interface includes a project list sidebar showing all active projects with their current phase. The human clicks a project to open its chat thread. New projects are created from this list via a "New Project" action. The active project's chat thread occupies the main panel.
 
 **Mid-Stream Project Switch:** If the human switches projects while an AI response is streaming, the client stops rendering the stream for the previous project's chat. Server-side processing continues uninterrupted — the AI response completes and is persisted to `chat_history.json` regardless of client-side display state. When the human returns to the project, the completed response is visible in the chat history.
 
 **Browser Compatibility:** The chat interface targets modern evergreen browsers (Chrome, Firefox, Edge, Safari — current and previous major version). No IE11 or legacy browser support. ES6+ JavaScript features and native WebSocket API are assumed available.
 
-**WebSocket Disconnection:** If the WebSocket connection drops, the chat client automatically attempts to reconnect. On reconnect, the client fetches the current project state from `status.json` and the latest chat messages from `chat_history.json` to restore the UI to the correct state. In-flight AI responses that were streaming when the connection dropped are not replayed — the human sees the last fully-received message. If the server-side operation completed during the disconnect, the reconnect state sync picks up the updated `status.json` and chat history. If the operation did not complete server-side, the human can re-trigger the action (e.g., click Distill again). Pipeline processing continues server-side regardless of client connection state.
-
-**Reconnection behavior:** The client auto-reconnects on disconnection. During disconnection, the chat UI displays a visible connection status indicator. On successful reconnect, state is synced from the server. Reconnection parameters (backoff strategy, timing) are in the build spec.
+**WebSocket Disconnection:** The client auto-reconnects and syncs state from the server on reconnect. Detailed reconnection behavior is in the build spec.
 
 **Server-side session:** The server does not maintain persistent WebSocket session state. On reconnect, the client sends the project ID it was viewing. The server responds with the current `status.json` and latest `chat_history.json` for that project. If the project ID is invalid, the server responds with the project list.
 
@@ -698,6 +685,8 @@ Orchestrator core actions (create project, check status, read polish log, trigge
 | Prompts | Prompt directory path, individual prompt files | See `config.yaml` template in build spec |
 | Vibe Kanban | Enabled toggle | See `config.yaml` template in build spec |
 | Server | Web chat interface host and port | See `config.yaml` template in build spec |
+
+**Config reload behavior:** `config.yaml` is read once at server startup and cached in memory for the duration of the server process. Changes to `config.yaml` require a server restart to take effect. The one exception is `vibekanban.enabled`, which is read at each VK operation (already specified in VK toggle behavior). Hot-reloading of config is deferred — not a current build dependency.
 
 **Connector and Notification URL Validation:**
 

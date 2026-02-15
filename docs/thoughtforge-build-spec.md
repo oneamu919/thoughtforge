@@ -390,6 +390,15 @@ All agent adapters return this structure. The orchestrator and plugins consume o
 
 ThoughtForge estimates tokens as `character_count / 4` (a standard rough heuristic).
 
+### Phase 1-2 Chat Agent Model
+
+Phases 1 and 2 use the same agent invocation pattern as all other phases — prompt via stdin, response via stdout, one subprocess call per turn. Each invocation passes the full working context:
+- The brain dump text and resources
+- Current distillation (Phase 1) or spec-in-progress (Phase 2)
+- All messages from `chat_history.json` for the current phase (subject to context window truncation)
+
+There is no persistent agent session — each turn is a stateless call with full context. This keeps the agent communication model uniform across all phases and avoids session management complexity.
+
 ---
 
 ## Plan Builder — Template Content Escaping
@@ -563,6 +572,18 @@ If the first word of the Deliverable Type section is neither "Plan" nor "Code" (
 - **Maximum backoff:** 30 seconds (cap)
 - **Maximum retries:** Unlimited (no maximum retry limit)
 - **Backoff strategy:** Exponential
+
+### In-Flight Response Handling
+
+If the WebSocket connection drops while an AI response is streaming, the in-flight response is not replayed on reconnect — the human sees the last fully-received message. Pipeline processing continues server-side regardless of client connection state.
+
+### Operation Completion During Disconnect
+
+If the server-side operation completed during the disconnect, the reconnect state sync picks up the updated `status.json` and chat history. If the operation did not complete server-side, the human can re-trigger the action (e.g., click Distill again).
+
+### Connection Status Indicator
+
+During disconnection, the chat UI displays a visible connection status indicator. On successful reconnect, the client fetches the current project state from `status.json` and the latest chat messages from `chat_history.json` to restore the UI to the correct state.
 
 ---
 
@@ -864,6 +885,17 @@ server:
 | Read task result | `vibekanban task result {task_id}` | After each Code mode agent execution via VK |
 
 **Note:** These commands are assumed from Vibe Kanban documentation. Verify actual CLI matches before build (see Risk Register in Execution Plan).
+
+### VK Toggle Behavior
+
+| Condition | Behavior |
+|---|---|
+| VK enabled, Plan mode | Plan builder invokes agents directly via agent layer. Kanban card created and updated for visualization only. |
+| VK disabled, Plan mode | Plan builder invokes agents directly via agent layer (same as VK enabled). No Kanban card created. |
+| VK enabled, Code mode | Code builder executes agent work through Vibe Kanban (`vibekanban task run`). Kanban card tracks progress. |
+| VK disabled, Code mode | Code builder invokes agents directly via agent layer. No Kanban card. |
+
+**Toggle Change During Active Projects:** The `vibekanban.enabled` toggle is read at each operation, not cached at project creation. If VK is disabled after a project was created with VK enabled, subsequent VK status update calls will succeed (updating an existing card) but new project creation will skip card creation. If VK is enabled after a project was created without it, VK status calls will fail (no card exists) and will be logged and ignored per standard VK failure handling. Toggling VK mid-project does not halt or disrupt the pipeline — VK calls are never on the critical path.
 
 ---
 
