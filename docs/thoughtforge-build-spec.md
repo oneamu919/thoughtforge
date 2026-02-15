@@ -205,7 +205,7 @@ Return type varies by plugin:
 
 ### Code Builder Task Queue
 
-The code builder maintains an ordered list of build tasks derived from `spec.md` (e.g., implement feature X, write tests for Y). Each task has a string identifier used for stuck detection — consecutive agent invocations against the same task identifier increment the retry counter. The task list format and derivation logic are internal to the code builder and are not persisted to state files. On crash recovery, the code builder re-derives the task list from `spec.md` and the current project file state.
+The code builder maintains an ordered list of build tasks derived from `spec.md` (e.g., implement feature X, write tests for Y). Each task has a string identifier used for stuck detection — consecutive agent invocations against the same task identifier increment the retry counter. The task list format and derivation logic are internal to the code builder and are not persisted to state files. On crash recovery, the code builder re-derives the task list from `spec.md` and the current state of files in the project directory (e.g., which source files and test files already exist).
 
 ### Operation Type Taxonomy
 
@@ -428,6 +428,7 @@ Each connector module in `/connectors/` implements:
 - Accepts page URLs, extracts page IDs
 - Pulls page content as Markdown via Notion API
 - Saves as `notion_{page_id}.md` in `/resources/`
+- **URL patterns:** `notion.so/`, `notion.site/`
 
 ### Google Drive Connector (`/connectors/google_drive.js`)
 
@@ -435,6 +436,7 @@ Each connector module in `/connectors/` implements:
 - Accepts document URLs or IDs
 - Pulls document content as plain text or Markdown via Google Drive API export
 - Saves as `gdrive_{document_id}.md` in `/resources/`
+- **URL patterns:** `docs.google.com/`, `drive.google.com/`
 
 ---
 
@@ -482,6 +484,8 @@ The following operations execute in order when a new project is created:
 4. Write an initial `status.json` with phase `brain_dump` and `project_name` as empty string
 5. If Vibe Kanban integration is enabled, create a corresponding Kanban card
 6. Open a new chat thread for the project
+
+If Vibe Kanban card creation fails during initialization, log a warning and continue. The project proceeds without a Kanban card. Subsequent VK status update calls for this project will also fail (card does not exist) and will be logged and ignored per standard VK failure handling. The pipeline is fully functional without VK visualization.
 
 ---
 
