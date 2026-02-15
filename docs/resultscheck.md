@@ -1,10 +1,7 @@
-﻿The file is only 20 lines. Line 19 references "the consolidated AI coder prompt at the bottom of `results.md`" but there is no such prompt block in the file ΓÇö the file ends at line 20.
+﻿Done.
 
-**Counts:**
-- Critical: 1
-- Major: 7
-- Minor: 7
+- **result: true** ΓÇö still needs updates
+- **Critical: 1** (threshold 0), **Major: 7** (threshold <3), **Minor: 7** (threshold <5)
+- All three categories exceed their convergence thresholds, so the source files require further changes.
 
-These do **not** meet convergence criteria (requires 0 critical, <3 major, <5 minor). Updates are still needed.
-
-**result: error** ΓÇö review output is missing the consolidated prompt block. The file references a consolidated AI coder prompt "at the bottom of results.md" but the file ends at line 20 with no such block present.
+`apply-prompt.md` has been written with explicit, file-specific instructions for all 1 critical and 7 major findings, plus a note that the 7 minor findings were not individually enumerated in results.md and need itemization in the next review pass.
