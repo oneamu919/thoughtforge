@@ -14,6 +14,12 @@
 
 ---
 
+## Design Decisions
+
+**Implementation language:** The codebase uses TypeScript. Zod schemas and interface definitions in the build spec use TypeScript syntax. The build toolchain includes `tsc` compilation. (If JavaScript-only is preferred, replace TypeScript interfaces with JSDoc type annotations and use Zod's runtime-only validation.)
+
+---
+
 ## Task Breakdown
 
 > **Estimates:** Task-level time estimates and milestone target dates will be populated before build begins. Current task breakdown reflects scope and dependencies only.
@@ -97,6 +103,7 @@
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
+| 25a | Verify Vibe Kanban CLI interface: confirm actual commands, flags, and output format match assumed interface in build spec. Update build spec if discrepancies found. | — | — | — | Not Started |
 | 26 | Build `vibekanban-adapter.js` — centralized CLI wrapper | — | Task 1 | — | Not Started |
 | 27 | Implement task create, update, run, result read operations | — | Task 26 | — | Not Started |
 | 28 | Map ThoughtForge phases to Vibe Kanban columns | — | Task 27 | — | Not Started |
@@ -186,6 +193,8 @@ This chain runs from foundation through agent layer, human interaction, plan plu
 
 Build schedule and parallelism decisions should optimize for keeping the critical path unblocked.
 
+**Parallelism note:** Tasks 41-42 (agent invocation layer) gate every task that calls an AI agent. These should be prioritized immediately after Task 1 completes, as they are the single biggest bottleneck across both critical paths. All Build Stage 1 foundation tasks (2-6a) and Stage 7 tasks (41-44) can run in parallel once Task 1 is done.
+
 ---
 
 ## Task Acceptance Criteria
@@ -226,7 +235,6 @@ AI coders should reference the "Used by" annotations in the build spec to identi
 | Google Drive API credentials (service account or OAuth client) | Dependency | — | — | Set up credentials before connector build |
 | Node.js version ≥18 LTS | Dependency | — | — | Required for native fetch, stable ES module support |
 | Package manager: npm | Dependency | — | — | Default Node.js package manager, no additional install |
-| Language: TypeScript | Dependency | — | — | Implied by Zod schemas and interface definitions in build spec. Confirm or document as JavaScript-only with JSDoc types. |
 
 ---
 

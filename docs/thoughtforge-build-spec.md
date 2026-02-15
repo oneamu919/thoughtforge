@@ -368,6 +368,17 @@ Agent-specific adapters handle output format differences and normalize to Though
 - Extracting the JSON or diff payload from the raw response
 - Normalizing error/exit conditions to a standard format the orchestrator expects
 
+**Normalized Agent Response:**
+```typescript
+interface AgentResponse {
+  success: boolean;      // true if agent exited 0 and produced non-empty output
+  output: string;        // Cleaned agent stdout — wrapper text and metadata stripped
+  exitCode: number;      // Raw process exit code
+  timedOut: boolean;     // true if killed by timeout
+}
+```
+All agent adapters return this structure. The orchestrator and plugins consume only `AgentResponse`, never raw subprocess output.
+
 ### Failure Handling
 
 - Non-zero exit, timeout, or empty output → retry once
@@ -633,6 +644,16 @@ Each iteration is appended as a Markdown section:
 
 ---
 
+## Build Toolchain
+
+**ThoughtForge Build Toolchain:**
+- Test framework: Vitest (or Jest — decide before build starts)
+- Test execution: `npm test` runs all unit tests; `npm run test:e2e` runs end-to-end tests
+- E2E tests require at least one configured agent CLI on PATH
+- All unit tests use mocked dependencies (no real agent calls, no real file I/O for state tests)
+
+---
+
 ## `config.yaml` Template
 
 **Used by:** Task 1 (config loader)
@@ -877,6 +898,17 @@ interface NotificationPayload {
   phase: string;
   event_type: "convergence_success" | "guard_triggered" | "human_needed" | "milestone_complete" | "error";
   summary: string;  // One-line description with actionable context
+}
+```
+
+**Example payload:**
+```json
+{
+  "project_id": "{id}",
+  "project_name": "Wedding Plan",
+  "phase": "polishing",
+  "event_type": "convergence_success",
+  "summary": "Polish loop converged. 0 critical, 1 medium, 3 minor. Ready for final review."
 }
 ```
 
