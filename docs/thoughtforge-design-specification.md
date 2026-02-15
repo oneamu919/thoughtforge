@@ -1,12 +1,14 @@
 # ThoughtForge Pipeline Tool — Design Specification
 
-> **Companion to:** [ThoughtForge Requirements Brief](./thoughtforge-requirements-brief.md)
+> **Companion to:** [ThoughtForge Requirements Brief](./thoughtforge-requirements-brief.md) | [ThoughtForge Build Spec](./thoughtforge-build-spec.md) | [ThoughtForge Execution Plan](./thoughtforge-execution-plan.md)
 
 ---
 
 ## Overview
 
 **What is being designed:** An autonomous pipeline tool that takes a human brain dump and produces a polished deliverable (plan document or working code) through structured phases with convergence-based polish loops.
+
+**Terminology:** "Human" and "operator" are used interchangeably throughout this document to refer to the solo user operating the tool. "Human" is used in pipeline flow descriptions (brain dump, corrections, confirmation). "Operator" is used in system administration contexts (config, startup, file system).
 
 ---
 
@@ -50,6 +52,8 @@ Handlebars templates define the OPA skeleton — fixed section headings with OPA
 | `status.json` | `/projects/{id}/` | JSON — current phase and metadata |
 | `chat_history.json` | `/projects/{id}/` | JSON — per-phase chat messages for crash recovery |
 
+Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan deliverable) are written to `/docs/`. Operational state files (`polish_state.json`, `status.json`, `chat_history.json`) and logs (`polish_log.md`) are written to the project root. Code deliverables are written to the project root.
+
 ### Behavior
 
 #### Phase 1 — Brain Dump & Discovery
@@ -87,6 +91,23 @@ Handlebars templates define the OPA skeleton — fixed section headings with OPA
 
 **Confirmation model:** Chat-based corrections, button-based actions. Corrections are natural language in chat. The **Distill** button signals that all brain dump inputs are provided and the AI should begin processing. The **Confirm** button advances the pipeline to the next phase. Both use explicit button presses to eliminate misclassification. This model applies to all human action points in the pipeline.
 
+**Action Button Behavior (All Buttons):**
+
+Every action button in the chat interface follows these rules: (a) specific `status.json` update, (b) defined chat UI feedback, (c) stated confirmation requirement. The complete button inventory:
+
+| Button | Context | `status.json` Effect | Chat UI After Press | Confirmation Required? |
+|---|---|---|---|---|
+| Distill | Phase 1 — after brain dump input | Phase set to `distilling` | Button disabled, spinner shown with "Distilling…" message. AI response streams in when ready. | No — single click. |
+| Confirm (Phase 1) | Phase 1 — after human approves distillation | Phase set to `spec_building`. `project_name` and `deliverable_type` written. | Button disabled, chat shows "Intent locked. Moving to spec building." New Phase 2 context loads. | No — single click. |
+| Confirm (Phase 2) | Phase 2 — after spec and constraints approved | Phase set to `building` | Button disabled, chat shows "Spec and constraints locked. Build starting." Phase 3 begins. | No — single click. |
+| Provide Input | Phase 3 stuck recovery | Phase remains `building` | Button disabled, chat shows input prompt. Human types response, builder resumes. | No — single click opens input. |
+| Terminate (Phase 3) | Phase 3 stuck recovery | Phase set to `halted`, `halt_reason: "human_terminated"` | Confirmation dialog: "This will permanently stop the project. Confirm?" On confirm: chat shows "Project terminated." Buttons removed. | Yes — single confirmation step. |
+| Resume | Phase 4 halt recovery | Phase remains `polishing`, `halt_reason` cleared | Button disabled, chat shows "Resuming polish loop from iteration [N+1]." Loop restarts. | No — single click. |
+| Override | Phase 4 halt recovery | Phase set to `done`, `halt_reason` cleared | Confirmation dialog: "Accept current state as final deliverable?" On confirm: chat shows "Deliverable accepted. Project complete." Buttons removed. | Yes — single confirmation step. |
+| Terminate (Phase 4) | Phase 4 halt recovery | Phase set to `halted`, `halt_reason: "human_terminated"` | Confirmation dialog: "This will permanently stop the project. Confirm?" On confirm: chat shows "Project terminated." Buttons removed. | Yes — single confirmation step. |
+| Override (Gate) | Plan Completeness Gate failure | Phase set to `building` (resumes Code mode build) | Confirmation dialog: "Proceed with Code mode despite incomplete plan?" On confirm: chat shows "Override accepted. Build starting." | Yes — single confirmation step. |
+| Terminate (Gate) | Plan Completeness Gate failure | Phase set to `halted`, `halt_reason: "human_terminated"` | Confirmation dialog: "This will permanently stop the project. Confirm?" On confirm: chat shows "Project terminated." Buttons removed. | Yes — single confirmation step. |
+
 **Phase 1 Error Handling:**
 
 | Condition | Action |
@@ -119,7 +140,7 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 1. AI proposes deliverable structure and key decisions based on `intent.md`
 2. AI challenges weak or risky decisions present in `intent.md` — missing dependencies, unrealistic constraints, scope gaps, contradictions — with specific reasoning. Does not rubber-stamp.
 3. AI resolves Unknowns and Open Questions from `intent.md` — either by making a reasoned decision (stated in `spec.md`) or by asking the human during the Phase 2 chat. No unresolved unknowns may carry into `spec.md`.
-4. AI derives 5-10 acceptance criteria from the objective, assumptions, and constraints in `intent.md`
+4. AI derives 5–10 acceptance criteria from the objective, assumptions, and constraints in `intent.md`
 5. Human confirms or overrides specific decisions
 6. Human reviews acceptance criteria — adds/removes as needed
 
@@ -166,7 +187,7 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 | Exclusions | What not to touch, what not to flag |
 | Severity Definitions | What counts as critical / medium / minor |
 | Scope | Plan mode: sections/topics in scope. Code mode: files/functions in scope. |
-| Acceptance Criteria | 5-10 statements of what the deliverable must contain or do |
+| Acceptance Criteria | 5–10 statements of what the deliverable must contain or do |
 
 #### Phase 3 — Build (Autonomous)
 
@@ -184,7 +205,7 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 **Code Mode:**
 
 1. Orchestrator loads code plugin (`/plugins/code/builder.js`)
-2. Codes the project using configured agent via Vibe Kanban
+2. Codes the project using configured agent via Vibe Kanban (when enabled) or direct agent invocation (when disabled — see Vibe Kanban toggle behavior)
 3. Implements logging throughout the codebase (mandatory)
 4. Writes tests: unit, integration, and acceptance (each acceptance criterion from `constraints.md` must have a corresponding test)
 5. Runs all tests, fixes failures, iterates until passing
@@ -221,6 +242,15 @@ Recovery follows the same confirmation model as Phase 4: explicit button presses
 
 **Phase 3 → Phase 4 Transition:** Automatic. When the Phase 3 builder completes successfully (plan document drafted or codebase built and tests passing), the orchestrator writes a git commit, updates `status.json` to `polishing`, sends a milestone notification ("Phase 3 complete. Deliverable built. Polish loop starting."), and immediately begins Phase 4. No human confirmation is required — this is within the autonomous window between Touchpoints 3 and 4.
 
+**Phase 3 → Phase 4 Transition Error Handling:**
+
+| Condition | Action |
+|---|---|
+| Phase 3 builder reports success but expected output files are missing (Plan mode: no `.md` deliverable in `/docs/`; Code mode: no source files in project directory) | Halt. Set `status.json` to `halted` with `halt_reason: "phase3_output_missing"`. Notify human: "Phase 3 reported success but deliverable files are missing. Review project directory." Do not enter Phase 4. |
+| Phase 3 output exists but is empty or trivially small (Plan mode: deliverable under ~100 characters; Code mode: no test files found) | Halt. Set `status.json` to `halted` with `halt_reason: "phase3_output_incomplete"`. Notify human: "Phase 3 deliverable appears incomplete. Review before proceeding." Do not enter Phase 4. |
+| `status.json` write fails during transition (cannot update phase to `polishing`) | Halt. Notify human with file path and error. The Phase 3 git commit has already been written — the deliverable is preserved. The operator must fix the file system issue and manually update `status.json` to resume. |
+| Milestone notification fails during transition | Log the notification failure. Proceed with Phase 4 — notification failure is not blocking. The phase transition and deliverable are the critical path, not the notification. |
+
 **Code Mode Testing Requirements:**
 
 | Test Type | What It Covers | When It Runs |
@@ -251,7 +281,7 @@ Recovery follows the same confirmation model as Phase 4: explicit button presses
 
 Algorithmic parameters for each guard (spike thresholds, similarity measures, window sizes) are defined in the build spec.
 
-**Loop State Persistence:** polish_state.json written after each iteration. Full field list in Project State Files table below. On crash, resumes from last completed iteration.
+**Loop State Persistence:** `polish_state.json` written after each iteration. Full field list in the Project State Files section under Technical Design. On crash, resumes from last completed iteration.
 
 **Halt Recovery:**
 
@@ -334,13 +364,13 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 | Project State | File-based: `/projects/{id}/` with `/docs/` subdirectory | Human-readable, git-trackable. State access wrapped in single module for future DB swap |
 | Version Control | Git — each project gets its own repo | Rollback built in. Separate repos for clean parallel isolation |
 | Notifications | ntfy.sh (Apache 2.0) with abstraction layer | One HTTP POST, no tokens needed. Abstraction supports adding channels via config |
-| Resource Connectors | Notion API, Google Drive API — with abstraction layer | Optional external resource intake for Phase 1. Abstraction layer follows same pattern as notification channels: config-driven, pluggable. Connector pulls content and writes to local `/resources/` directory. |
+| Resource Connectors | Notion API, Google Drive API — with abstraction layer (`/connectors/` directory) | Optional external resource intake for Phase 1. Abstraction layer follows same pattern as notification channels: config-driven, pluggable. Each connector is a module in `/connectors/` (e.g., `notion.js`, `google_drive.js`). Connector pulls content and writes to local `/resources/` directory. Connector interface defined in build spec. |
 | Config | `config.yaml` at project root | Thresholds, max iterations, concurrency, agent prefs, notification channels |
 | Prompts | External `.md` files in `/prompts/` | Human-editable pipeline prompts. Not embedded in code. Settings UI reads/writes directly. |
 | Schema Validation | Zod (MIT, TypeScript-first) | Single-source review JSON schema. Auto-validation with clear errors |
 | Template Engine | Handlebars (MIT) | OPA skeleton as fixed structure. AI fills slots, can't break structure |
 | Plugin Architecture | Convention-based: `/plugins/{type}/` | Self-contained per deliverable type. Orchestrator delegates, no if/else branching |
-| Operational Logging | Structured JSON logger (Node.js built-in) | ThoughtForge logs its own operations — agent invocations, phase transitions, convergence guard evaluations, errors, and halt events — to a per-project `thoughtforge.log` file as structured JSON lines. Separate from `polish_log.md` (which is the human-readable iteration log). Used for debugging, not human review. |
+| Operational Logging | Structured JSON logger (custom, using Node.js `fs` for file append) | ThoughtForge logs its own operations — agent invocations, phase transitions, convergence guard evaluations, errors, and halt events — to a per-project `thoughtforge.log` file as structured JSON lines. Separate from `polish_log.md` (which is the human-readable iteration log). Used for debugging, not human review. |
 | MCP (Future) | Model Context Protocol | Core actions as clean standalone functions for future MCP wrapping. Deferred. Not a current build dependency. |
 
 **Application Entry Point:** The operator starts ThoughtForge by running a Node.js server command (e.g., `thoughtforge start` or `node server.js`). This launches the lightweight web chat interface on a local port. The operator accesses the interface via browser. The entry point initializes the config loader, plugin loader, notification layer, and Vibe Kanban adapter (if enabled).
@@ -508,6 +538,18 @@ Orchestrator core actions (create project, check status, read polish log, trigge
 | Prompts | Prompt directory path, individual prompt files | `./prompts/`, one `.md` file per prompt |
 | Vibe Kanban | Enabled toggle | true |
 | Server | Web chat interface host and port | 127.0.0.1:3000 |
+
+**Connector and Notification URL Validation:**
+
+| Condition | When Checked | Action |
+|---|---|---|
+| Notification channel URL missing or empty (e.g., ntfy `url` is blank) | Startup (config validation) | Config validation fails. Server exits with error: "Notification channel '{channel}' is enabled but has no URL configured." |
+| Notification channel URL has no scheme or is malformed (e.g., missing `https://`) | Startup (config validation) | Config validation fails. Server exits with error: "Notification channel '{channel}' URL is malformed: {url}." |
+| Notification channel URL is well-formed but endpoint is unreachable at runtime | Runtime (notification send) | Log the send failure as a warning. Do not halt the pipeline — notification failure is not blocking. The notification layer retries once, then logs and continues. |
+| Resource connector URL/token missing when connector is enabled | Startup (config validation) | Config validation fails. Server exits with error: "Connector '{connector}' is enabled but missing required credentials." |
+| Resource connector target URL is invalid or unreachable at runtime | Runtime (Phase 1 resource pull) | Log the failure, notify the human in chat specifying which connector and target failed, proceed with distillation using available inputs. Already covered by Phase 1 error handling. |
+
+Validation occurs at startup for configuration-level issues (missing/malformed URLs and credentials for enabled channels/connectors). Runtime connectivity failures are handled gracefully — notifications log and continue, connectors log and proceed with available inputs. The pipeline never halts due to a notification delivery failure.
 
 **Credential Handling:** API tokens and credential paths in `config.yaml` are stored in plaintext. This is acceptable for v1 as a single-operator local tool. The operator is responsible for file system permissions on `config.yaml`. Credential encryption, secret vaults, and environment variable injection are deferred — not a current build dependency.
 

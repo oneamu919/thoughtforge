@@ -412,7 +412,7 @@ interface ProjectStatus {
   agent: string;
   created_at: string;   // ISO8601
   updated_at: string;   // ISO8601
-  halt_reason: string | null;  // Known values: "plan_incomplete", "guard_hallucination", "guard_fabrication", "guard_max_iterations", "human_terminated", "agent_failure", "file_system_error"
+  halt_reason: string | null;  // Known values: "plan_incomplete", "guard_hallucination", "guard_fabrication", "guard_max_iterations", "human_terminated", "agent_failure", "file_system_error", "phase3_output_missing", "phase3_output_incomplete"
 }
 ```
 
@@ -605,6 +605,19 @@ server:
 **Note:** These commands are assumed from Vibe Kanban documentation. Verify actual CLI matches before build (see Risk Register in Execution Plan).
 
 ---
+
+## Connector and Notification URL Validation
+
+**Used by:** Task 1 (config loader startup validation), Tasks 4–5 (notification layer), Tasks 7c–7e (resource connectors)
+
+### Startup Validation (Config Loader)
+
+For each enabled notification channel: validate that `url` is present and is a well-formed URL (has scheme, host). For each enabled resource connector: validate that required credential fields are non-empty. Validation uses the same Zod schema approach as the rest of config validation — URL fields use `z.string().url()` for enabled channels/connectors. Disabled channels/connectors skip URL validation.
+
+### Runtime Failure Handling
+
+- **Notification send failure** (endpoint unreachable, HTTP error, timeout): Log a warning with the channel name and error. Retry once. On second failure, log and continue — do not halt the pipeline. Notification failures are never blocking.
+- **Resource connector failure** (endpoint unreachable, API error, timeout): Already specified in connector interface — `pull()` returns `{ saved, failed }`. Failed targets include the reason. The orchestrator logs the failure, notifies the human in chat, and proceeds with available inputs.
 
 ---
 

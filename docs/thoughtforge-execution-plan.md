@@ -42,7 +42,7 @@
 
 ### Build Stage 2: Human Interaction Layer (Pipeline Phases 1–2)
 
-> **Note:** Task 12 depends on Task 25 (OSS discovery) for Code mode Phase 2 only. Plan mode Phase 2 does not use OSS discovery and can be implemented and tested before Task 25 is complete.
+> **Cross-stage dependency:** Task 12 depends on Task 25 (OSS discovery, Build Stage 4) for Code mode Phase 2 only. Plan mode Phase 2 does not use OSS discovery and can be implemented and tested before Task 25 is complete.
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
@@ -218,7 +218,7 @@
 - [ ] `config.yaml` controls all configurable values
 - [ ] First-run setup works: `config.yaml.example` copied, prerequisites checked, startup validates
 - [ ] Prompt editor: list, view, edit, and save prompt files via Settings UI
-- [ ] Retrospective / lessons learned captured
+- [ ] Retrospective / lessons learned captured (manual activity — not a build task)
 - [ ] Chat interface tests pass (WebSocket, streaming, buttons, file drop, project switching)
 
 ---
