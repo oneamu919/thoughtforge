@@ -165,6 +165,8 @@
 | 58g | Unit tests: concurrency limit enforcement (block new project at max, count halted as active, re-enable on terminal state, sidebar message displayed) | — | Task 2b | — | Not Started |
 | 58h | Unit tests: server restart recovery (interactive states resume, autonomous states halted with `server_restart` reason, notifications sent for halted projects, terminal states ignored) | — | Task 1c | — | Not Started |
 | 58i | Unit tests: resource file processing (text read, PDF extraction, image vision routing, unsupported format skip, file size limit enforcement) | — | Task 8 | — | Not Started |
+| 58j | Unit tests: plan mode safety guardrails (`safety-rules.js` blocks `shell_exec`, `file_create_source`, `package_install`, `test_exec` operations; allows `file_create_doc`, `file_create_state`, `agent_invoke`, `git_commit`) | — | Task 18 | — | Not Started |
+| 58k | Unit tests: Vibe Kanban adapter failure handling (visualization-only call failures logged and pipeline continues, agent execution call failures trigger retry-once-then-halt, VK disabled skips all calls) | — | Tasks 26–29a | — | Not Started |
 | 50b | Unit tests: first-run setup (missing config creates from example, prerequisite check reports missing CLIs, valid config passes startup) | — | Task 1b | — | Not Started |
 | 50c | Unit tests: operational logging module (log file creation, structured JSON format, log levels, event types, file append failure handling) | — | Task 3a | — | Not Started |
 

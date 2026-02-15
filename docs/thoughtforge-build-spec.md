@@ -521,7 +521,8 @@ The AI uses the first heading (H1) of the distilled `intent.md` document as the 
 | Phase 2 | `spec_building` | Entered on Phase 1 Confirm. |
 | Phase 3 | `building` | Entered on Phase 2 Confirm. |
 | Phase 4 | `polishing` | Entered automatically on Phase 3 completion. |
-| Terminal | `done`, `halted` | `done`: convergence or stagnation success. `halted`: guard trigger, human terminate, or unrecoverable error. |
+| Terminal | `done` | `done`: convergence or stagnation success. |
+| Non-terminal halt | `halted` | `halted`: guard trigger, human terminate, or unrecoverable error. Counts toward concurrency limit. Human must resume or terminate to free the slot. |
 
 ```typescript
 interface ProjectStatus {
@@ -534,6 +535,8 @@ interface ProjectStatus {
   halt_reason: string | null;  // Known values: "plan_incomplete", "guard_hallucination", "guard_fabrication", "guard_max_iterations", "human_terminated", "agent_failure", "file_system_error", "phase3_output_missing", "phase3_output_incomplete", "server_restart"
 }
 ```
+
+**Single-project concurrency model:** The sequential nature of the pipeline enforces single-threaded operation per project: each phase awaits completion before the next begins, and button presses are ignored while an operation is in progress. No explicit locking or mutex is required. Concurrent access to a single project's state files is not supported and does not need locking.
 
 ---
 
