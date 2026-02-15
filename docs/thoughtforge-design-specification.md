@@ -56,6 +56,30 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 
 ### Behavior
 
+#### Locked File Behavior
+
+"Locked" means the AI pipeline will not modify these files after their creation phase. The human may still edit them manually outside the pipeline, with the following consequences:
+
+##### `constraints.md` — Hot-Reloaded
+
+The pipeline re-reads `constraints.md` at the start of each Phase 4 iteration. Manual human edits to acceptance criteria or review rules are picked up automatically. If `constraints.md` is unreadable or missing at the start of a Phase 4 iteration, the iteration halts and the human is notified.
+
+**`constraints.md` — unvalidated after creation:** If the human restructures the file (missing sections, reordered content, added sections), ThoughtForge passes it to the AI reviewer as-is without schema validation. If the human empties the Acceptance Criteria section, the reviewer proceeds with whatever criteria remain (which may be none). This is treated as an intentional human override — the pipeline does not validate criteria presence after the initial Phase 2 write.
+
+**`constraints.md` — readability definition:** "Unreadable" means the file cannot be read from disk (permission error, I/O error) or is not valid UTF-8 text. A file that is readable but contains unexpected content (empty, restructured, nonsensical) is passed to the reviewer as-is per the unvalidated-after-creation policy. If the file exceeds the agent's context window when combined with other review context, it is truncated with a warning logged.
+
+**`constraints.md` truncation strategy:** If `constraints.md` exceeds the agent's context window when combined with other review context, it is truncated per the strategy defined in the build spec.
+
+##### `spec.md` and `intent.md` — Static After Creation
+
+Read at Phase 3 start and used by the Phase 3 builder. Not re-read during Phase 4 iterations — Phase 4 uses `constraints.md` and the deliverable itself.
+
+- Manual human edits during active pipeline execution have no effect — the pipeline works from its Phase 3 context.
+- On server restart, any in-memory Phase 3 context is discarded. When a halted project is resumed during Phase 3, the orchestrator re-reads both files from disk. When a halted project is resumed during Phase 4, neither file is re-read — Phase 4 operates from `constraints.md` and the current deliverable state.
+- There is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits to any locked file.
+
+**In short:** Editing `constraints.md` during Phase 4 works. Editing `spec.md` or `intent.md` during active pipeline execution has no effect. Editing them while the project is halted works if the project is subsequently resumed.
+
 #### Phase 1 — Brain Dump & Discovery
 
 **Primary Flow:**
@@ -75,10 +99,6 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 3. If external resource connectors are configured (Notion, Google Drive), the human provides page URLs or document links via chat, or the URLs are pre-configured in `config.yaml` (e.g., default Notion pages that should be pulled for every project). ThoughtForge pulls the content and saves it to `/resources/` as local files. Connectors are optional — if none are configured, this step is skipped.
    **Step 3 Detail — Connector URL Identification:** The AI matches URLs in chat messages against known URL patterns for each enabled connector and pulls content automatically. URL matching rules (enabled/disabled/unmatched behavior) are in the build spec.
 
-**Phase 1 has two action buttons:**
-- **Distill** — "I'm done providing inputs. Process them." (Pressed once after brain dump + resources are provided.)
-- **Confirm** — "The distillation looks correct. Move on." (Pressed after reviewing and correcting the AI's output.)
-
 4. Human clicks **Distill** button — signals that all inputs (brain dump text, files, connector URLs) have been provided and the AI should begin processing. This follows the same confirmation model as phase advancement: explicit button press, not chat-parsed.
 5. AI reads all resources (text, PDF, images via vision, code files) and the brain dump
 
@@ -95,7 +115,7 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 10. Human clicks **Confirm** button → advances to Phase 2
 11a. Output: `intent.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline.
 
-"Locked" means the AI pipeline will not modify the file after its creation phase. See Locked File Behavior (Phase 2 section) for the full definition, including human edit consequences.
+"Locked" means the AI pipeline will not modify these files after their creation phase — see Locked File Behavior above.
 
 11b. The deliverable type is derived from the confirmed intent and set in `status.json`.
 
@@ -166,31 +186,7 @@ Challenge findings that result in design changes are captured in the `spec.md` "
 If the proposed `constraints.md` content does not contain a recognizable Acceptance Criteria section (section heading missing entirely), the AI is re-invoked with an instruction to include acceptance criteria based on the confirmed intent and spec decisions. This follows the standard retry-once-then-halt behavior. The human is notified: "AI did not generate acceptance criteria. Retrying." If the second attempt also lacks the section, the pipeline halts and the human must provide criteria manually in chat.
 
 8. Human clicks **Confirm** → advances to Phase 3
-9. Outputs: `spec.md` and `constraints.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline.
-
-**Locked File Behavior:**
-
-"Locked" means the AI pipeline will not modify these files after their creation phase. The human may still edit them manually outside the pipeline, with the following consequences:
-
-#### `constraints.md` — Hot-Reloaded
-
-The pipeline re-reads `constraints.md` at the start of each Phase 4 iteration. Manual human edits to acceptance criteria or review rules are picked up automatically. If `constraints.md` is unreadable or missing at the start of a Phase 4 iteration, the iteration halts and the human is notified.
-
-**`constraints.md` — unvalidated after creation:** If the human restructures the file (missing sections, reordered content, added sections), ThoughtForge passes it to the AI reviewer as-is without schema validation. If the human empties the Acceptance Criteria section, the reviewer proceeds with whatever criteria remain (which may be none). This is treated as an intentional human override — the pipeline does not validate criteria presence after the initial Phase 2 write.
-
-**`constraints.md` — readability definition:** "Unreadable" means the file cannot be read from disk (permission error, I/O error) or is not valid UTF-8 text. A file that is readable but contains unexpected content (empty, restructured, nonsensical) is passed to the reviewer as-is per the unvalidated-after-creation policy. If the file exceeds the agent's context window when combined with other review context, it is truncated with a warning logged.
-
-**`constraints.md` truncation strategy:** If `constraints.md` exceeds the agent's context window when combined with other review context, it is truncated per the strategy defined in the build spec.
-
-#### `spec.md` and `intent.md` — Static After Creation
-
-Read at Phase 3 start and used by the Phase 3 builder. Not re-read during Phase 4 iterations — Phase 4 uses `constraints.md` and the deliverable itself.
-
-- Manual human edits during active pipeline execution have no effect — the pipeline works from its Phase 3 context.
-- On server restart, any in-memory Phase 3 context is discarded. When a halted project is resumed during Phase 3, the orchestrator re-reads both files from disk. When a halted project is resumed during Phase 4, neither file is re-read — Phase 4 operates from `constraints.md` and the current deliverable state.
-- There is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits to any locked file.
-
-**In short:** Editing `constraints.md` during Phase 4 works. Editing `spec.md` or `intent.md` during active pipeline execution has no effect. Editing them while the project is halted works if the project is subsequently resumed.
+9. Outputs: `spec.md` and `constraints.md` written to `/docs/` and locked — "Locked" means the AI pipeline will not modify these files after their creation phase — see Locked File Behavior above.
 
 **Phase 2 Error Handling:**
 
@@ -242,7 +238,7 @@ Plan mode always invokes agents directly via the agent communication layer, rega
 
 **Template Context Window Overflow:** If the partially-filled template exceeds the agent's context window during multi-invocation plan building, the builder passes only the current section's OPA table slot, the `spec.md` context for that section, and the immediately preceding section (for continuity) — not the full partially-filled template. A warning is logged when truncation occurs. The full template is reassembled from the individually-filled sections after all invocations complete.
 
-**Template Content Escaping:** AI-generated content must not break template rendering.
+**Template Content Escaping:** AI-generated content must not break template rendering. Template content escaping strategy is defined in the build spec.
 
 **Template Slot Validation:** After each plan builder invocation, the orchestrator validates that the returned content corresponds to a valid template slot. If the AI returns content for a non-existent slot, the content is discarded with a warning logged. If a required template slot receives empty or placeholder content (containing "TBD", "TODO", or "placeholder" — case-insensitive), the builder re-invokes the AI for that slot (subject to the standard retry-once-then-halt behavior). After all invocations complete and the template is assembled, a final validation confirms all slots are filled. Any remaining empty slots halt the builder with a notification identifying the unfilled sections.
 
@@ -260,7 +256,9 @@ The plan deliverable filename is `plan.md`, written to `/projects/{id}/docs/plan
 
 **Code builder context assembly:** The code builder passes the following files to the coding agent as build context: `spec.md` (architecture, decisions, dependencies), `constraints.md` (acceptance criteria, scope, priorities), and optionally the plan document from `/resources/` if one was identified by the Plan Completeness Gate. `intent.md` is not passed — its content is already distilled into `spec.md`. Resource files from `/resources/` (other than a chained plan document) are not passed to the code builder — they were consumed during Phase 1 distillation.
 
-**Code builder interaction model:** The code builder passes the full `spec.md` (architecture, dependencies, acceptance criteria) to the coding agent as a single build prompt. The agent is responsible for scaffolding, implementation, and initial test writing in a single invocation or multi-turn session, depending on how Vibe Kanban executes the task (if VK is enabled) or as a single invocation (if VK is disabled). This is a coarser-grained interaction model than the plan builder's section-by-section approach, reflecting that coding agents (Claude Code, Codex) operate best with full project context rather than isolated function-level prompts.
+**Code builder interaction model:** The code builder passes the full `spec.md` (architecture, dependencies, acceptance criteria) to the coding agent as a single build prompt. The agent is responsible for scaffolding, implementation, and initial test writing. This initial build is either a single agent invocation (VK disabled) or a multi-turn VK-managed session (VK enabled). After the initial build invocation completes, the code builder enters the test-fix cycle described below. This is a coarser-grained interaction model than the plan builder's section-by-section approach, reflecting that coding agents (Claude Code, Codex) operate best with full project context rather than isolated function-level prompts.
+
+**Code builder task decomposition:** The code builder derives an ordered task list from `spec.md`'s Deliverable Structure section. Each major architectural component or feature becomes a build task. The task list is persisted to `task_queue.json` at derivation time for crash recovery (see build spec Code Builder Task Queue). The coding agent receives the full `spec.md` as context for each task but is instructed to focus on the current task. Task granularity is determined by the code builder, not prescribed — it depends on the architecture complexity described in `spec.md`.
 
 **Code builder test-fix cycle:**
 
@@ -322,7 +320,7 @@ Button behavior and `status.json` effects are specified in the build spec Action
 
 **Human Chat During Autonomous Phases (3-4):**
 
-During Phase 3 and Phase 4 autonomous execution, the chat input field is disabled. The human can view the project's chat history and current status but cannot send messages. Chat input is re-enabled only when the pipeline enters a stuck or halt state that requires human interaction (Phase 3 stuck recovery, Phase 4 halt recovery). The human can always edit the deliverable files directly outside the pipeline — see "Deliverable Edits During Phase 4."
+During Phase 3 and Phase 4 autonomous execution, the chat input field is disabled. The human can view the project's chat history and current status but cannot send messages. During Phase 4, the chat panel displays a live status summary updated after each iteration: current iteration number, error counts (critical/medium/minor/total), convergence trajectory direction (improving/stable/worsening), and the most recent guard evaluation result. During Phase 3, the chat panel displays the current build step (e.g., "Building section 3 of 7" for Plan mode, or "Test-fix cycle, iteration 2" for Code mode). These are read from `polish_state.json` (Phase 4) and builder progress (Phase 3) respectively. Chat input is re-enabled only when the pipeline enters a stuck or halt state that requires human interaction (Phase 3 stuck recovery, Phase 4 halt recovery). The human can always edit the deliverable files directly outside the pipeline — see "Deliverable Edits During Phase 4."
 
 **Code Mode Testing Requirements:**
 
@@ -352,7 +350,7 @@ If the human manually edits the deliverable (plan document or source code) betwe
 
 **Agent assignment for review and fix steps:** Both the review and fix steps use the same agent assigned to the project (from `status.json` `agent` field). The review prompt instructs the agent to produce a JSON error report only — no fixes. The fix prompt instructs the agent to apply fixes from the provided issue list only — no new review. Prompt separation enforces the behavioral boundary. Using separate agents for review vs. fix is deferred — not a current build dependency.
 
-**Fix agent context assembly:** The fix agent receives the JSON issue list and the relevant deliverable context. For Plan mode: the current plan document. For Code mode: the fix agent receives the issue list and the content of each file referenced in the issues' `location` fields (parsed as relative paths from project root; line numbers are stripped before file lookup). If a referenced file does not exist, the issue is included in the context with a note: "Referenced file not found." If the total referenced file content exceeds the agent's context window, files are truncated starting from the largest, with a warning logged. `constraints.md` is always included for scope awareness. Unreferenced files are not passed to the fix agent — it operates only on files identified by the reviewer. The fix agent does not receive the prior review JSON from previous iterations — only the current iteration's issue list. Full context assembly is specified in the fix prompts (`plan-fix.md`, `code-fix.md`).
+**Fix agent context assembly:** The fix agent receives the issue list and the content of files referenced in each issue's location field. For Plan mode: the current plan document. For Code mode: each file referenced in the issues' `location` fields. If a referenced file does not exist, the issue is included in the context with a note: "Referenced file not found." If the total referenced file content exceeds the agent's context window, files are truncated starting from the largest, with a warning logged. `constraints.md` is always included for scope awareness. Unreferenced files are not passed to the fix agent — it operates only on files identified by the reviewer. The fix agent does not receive the prior review JSON from previous iterations — only the current iteration's issue list. Full context assembly is specified in the fix prompts (`plan-fix.md`, `code-fix.md`).
 
 **Zero-Issue Iteration:** If the review step produces zero issues (empty issues array), the fix step is skipped for that iteration. The orchestrator proceeds directly to convergence guard evaluation. Only the review commit is written — no fix commit.
 
@@ -380,10 +378,12 @@ Plan mode uses the two-step cycle (Review → Fix) with no test execution.
 
 **Convergence Guards:**
 
+**Fix Regression evaluation mechanism:** The Fix Regression guard does not run a second review within the same iteration. Instead, it compares consecutive iterations: iteration N's review reveals the error state after iteration N-1's fix. If iteration N's total error count exceeds iteration N-1's total error count, the prior fix introduced more issues than it resolved. "Two consecutive regressions" means iterations N and N+1 both show higher counts than their respective predecessors (N-1 and N).
+
 | Guard | Condition | Action |
 |---|---|---|
 | Termination (success) | Error counts within configured thresholds (+ all tests pass for code). Thresholds in `config.yaml`. | Done. Notify human. |
-| Fix Regression (per-iteration) | Evaluated immediately after each fix step, before other guards. Compares the post-fix total error count against the pre-fix review count for the same iteration. **Single occurrence:** If the fix increased the total error count, log a warning but continue. **Consecutive occurrences:** If the two most recent fix steps both increased their respective error counts, halt and notify: "Fix step is introducing more issues than it resolves. Review needed." | Warn (single) or Halt (2 consecutive). Notify human. |
+| Fix Regression (per-iteration) | Evaluated at the start of each iteration (after the review step produces error counts), comparing the current iteration's total error count against the previous iteration's total error count. If the current count is higher than the previous, the most recent fix step made things worse. **Single occurrence:** Log a warning but continue. **Consecutive occurrences:** If the two most recent iterations both show increased total error counts compared to their respective prior iterations, halt and notify. | Warn (single) or Halt (2 consecutive). Notify human. |
 | Hallucination | Total error count increases by more than 20% from the prior iteration (hardcoded threshold, defined in build spec) after at least 2 consecutive iterations with decreasing total error count (hardcoded minimum trend length, defined in build spec) | Halt. Notify human: "Project '{name}' — fix-regress cycle detected. Errors decreased for {N} iterations ({trajectory}) then spiked to {X} at iteration {current}. Review needed." |
 | Stagnation | **Intent:** Detect when the deliverable has reached a quality plateau — the reviewer resolves old issues but introduces equally many new cosmetic issues each iteration, producing no net improvement. Two conditions must both be true: (1) **Plateau:** Total error count is identical for `stagnation_limit` consecutive iterations. (2) **Issue rotation:** Fewer than 70% of current-iteration issues match any issue in the immediately prior iteration (match = Levenshtein similarity ≥ 0.8 on `description`). When both are true, the deliverable is converged. | Done (success). The deliverable has reached a stable quality level where the reviewer is cycling cosmetic issues rather than finding genuine regressions. Treated as converged — no further iterations will yield net improvement. |
 | Fabrication | Two conditions must both be true: (1) **Category spike:** A single severity category count exceeds its trailing average by more than 50% (with a minimum absolute increase of 2). Trailing window size defined in build spec. (2) **Prior near-convergence:** The system previously reached within 2× of the termination thresholds in at least one prior iteration (i.e., critical ≤ 0, medium ≤ 6, minor ≤ 10 with default config). This ensures fabrication is only flagged after the deliverable was demonstrably close to convergence — not during early volatile iterations. The `2×` multiplier is hardcoded; the base thresholds are read from `config.yaml` at runtime. Parameters in build spec. | Halt. Notify human. |
@@ -400,6 +400,8 @@ Algorithmic parameters for each guard (spike thresholds, similarity measures, wi
 When Phase 4 completes (termination or stagnation success), the chat displays a completion message with the final error counts, iteration count, and the file path to the polished deliverable. The project status shows as `done`. The human reviews the deliverable by opening the file directly — ThoughtForge does not render the deliverable inline. The chat thread remains available for reference (including all Phase 3-4 chat history) but no further pipeline actions are available.
 
 **Loop State Persistence:** `polish_state.json` written after each iteration. Full field list in the Project State Files section under Technical Design. On crash, resumes from last completed iteration.
+
+**Initial state:** When Phase 4 begins (Phase 3→4 transition), `polish_state.json` does not exist yet. The orchestrator initializes it after the first iteration completes. Before the first iteration, the orchestrator operates with `iteration: 0` and empty `convergence_trajectory`. If the pipeline halts or crashes during the first iteration (before `polish_state.json` is written), the orchestrator creates the file with the initial state on resume and re-attempts the first iteration.
 
 **Halt vs. Terminate Distinction:**
 
@@ -585,13 +587,9 @@ Every phase transition pings the human with a status update. Every notification 
 **Notification Examples:**
 - `"Project 'Wedding Plan' — polish loop converged. 0 critical, 1 medium, 3 minor. Ready for final review."`
 - `"Project 'API Backend' — fix-regress cycle detected. Errors trending down (42→28→19) then spiked to 31 at iteration 12. Review needed."`
-- `"Project 'CLI Tool' — polish sufficient. Ready for final review."`
-- `"Project 'Dashboard' — fabrication suspected at iteration 9. Errors were near-converged (0 critical, 2 medium, 4 minor) then spiked. The reviewer may be manufacturing issues because nothing real remains. Loop halted."`
-- `"Project 'Mobile App' — max 50 iterations reached. Avg flaws/iter: 12. Lowest: 6 at iter 38. Review needed."`
-- `"Project 'API Backend' — Phase 1 complete. Intent locked."`
-- `"Project 'API Backend' — Phase 2 complete. Spec and constraints locked. Build starting."`
 - `"Project 'API Backend' — Phase 3 complete. Deliverable built. Polish loop starting."`
-- `"Project 'CLI Tool' — Phase 2 spec building. AI stuck on ambiguity: should auth use JWT or session cookies? Decision needed."`
+
+Full notification message templates are in the build spec.
 
 **Active Session Awareness:** Notifications are sent regardless of whether the human has the project open in the chat interface. The notification layer does not track client connection state. Suppressing notifications for active sessions is deferred — not a current build dependency.
 

@@ -282,7 +282,7 @@ The orchestrator ignores top-level count fields (`critical`, `medium`, `minor`) 
 
 Guards are evaluated in the following order after each iteration. The first guard that triggers ends evaluation — subsequent guards are not checked.
 
-0. **Fix Regression** (per-iteration) — checked first, immediately after each fix step. If total error count increased compared to the review that prompted the fix, log a warning. If 2 consecutive iterations show fix-step regression, halt and notify. This guard runs before the convergence guards below.
+0. **Fix Regression** (per-iteration) — checked after each review step produces error counts. Compares current iteration's total error count to the prior iteration's total error count. If the current count is higher, the prior iteration's fix step introduced more issues than it resolved. If 2 consecutive iterations show increases, halt and notify. This guard runs before the convergence guards below.
 1. **Termination** (success) — checked first among convergence guards so that a successful outcome is never overridden by a halt
 2. **Hallucination** — checked before stagnation/fabrication because a spike after a downward trend is the strongest anomaly signal
 3. **Fabrication** — checked before stagnation because fabricated issues would produce false plateau signals
@@ -427,6 +427,14 @@ interface PlanBuilderResponse {
 ### Structured Response Validation (Non-Review)
 
 Phase 3 plan builder responses must conform to the `PlanBuilderResponse` schema. The orchestrator validates the response after each builder invocation. On parse failure: retry once. On second failure: halt and notify human. Phase 1 distillation and Phase 2 spec-building responses are natural language (not structured JSON) and do not require schema validation — the AI's output is presented directly in chat for human review and correction.
+
+---
+
+## Fix Agent Context Assembly
+
+**Used by:** Task 30 (polish loop orchestrator — fix step context assembly)
+
+Location fields in the issue JSON are parsed as relative paths from the project root. Line numbers (if present) are stripped before file lookup. The fix agent receives the full content of each referenced file alongside the issue list.
 
 ---
 
@@ -923,7 +931,7 @@ Specific error messages on validation failure:
 
 **Used by:** Task 30 (polish loop orchestrator — review context assembly)
 
-If `constraints.md` exceeds the available context budget when combined with other review context, it is truncated from the middle — the Context and Deliverable Type sections (top) and the Acceptance Criteria section (bottom) are preserved, and middle sections (Priorities, Exclusions, Severity Definitions, Scope) are removed in reverse order until the file fits. A warning is logged identifying which sections were removed.
+If `constraints.md` combined with other review context (deliverable content, test results, and the review prompt) exceeds the agent's `context_window_tokens` as estimated by `character_count / 4`, `constraints.md` is truncated from the middle — the Context and Deliverable Type sections (top) and the Acceptance Criteria section (bottom) are preserved, and middle sections (Priorities, Exclusions, Severity Definitions, Scope) are removed in reverse order until the total fits. A warning is logged identifying which sections were removed.
 
 ---
 
@@ -1049,6 +1057,18 @@ interface NotificationPayload {
   "summary": "Polish loop converged. 0 critical, 1 medium, 3 minor. Ready for final review."
 }
 ```
+
+### Notification Message Templates
+
+- `"Project 'Wedding Plan' — polish loop converged. 0 critical, 1 medium, 3 minor. Ready for final review."`
+- `"Project 'API Backend' — fix-regress cycle detected. Errors trending down (42→28→19) then spiked to 31 at iteration 12. Review needed."`
+- `"Project 'CLI Tool' — stagnation convergence. Error count stable at {N} for {M} iterations with issue rotation. Treated as converged. Ready for final review."`
+- `"Project 'Dashboard' — fabrication suspected at iteration 9. Errors were near-converged (0 critical, 2 medium, 4 minor) then spiked. The reviewer may be manufacturing issues because nothing real remains. Loop halted."`
+- `"Project 'Mobile App' — max 50 iterations reached. Avg flaws/iter: 12. Lowest: 6 at iter 38. Review needed."`
+- `"Project 'API Backend' — Phase 1 complete. Intent locked."`
+- `"Project 'API Backend' — Phase 2 complete. Spec and constraints locked. Build starting."`
+- `"Project 'API Backend' — Phase 3 complete. Deliverable built. Polish loop starting."`
+- `"Project 'CLI Tool' — Phase 2 spec building. AI stuck on ambiguity: should auth use JWT or session cookies? Decision needed."`
 
 ---
 
