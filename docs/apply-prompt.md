@@ -10,201 +10,143 @@ Read all target files before editing. After all changes are applied, git commit 
 
 - `docs/thoughtforge-design-specification.md` (referred to as "Design Spec")
 - `docs/thoughtforge-build-spec.md` (referred to as "Build Spec")
-- `docs/thoughtforge-execution-plan.md` (referred to as "Execution Plan")
 
-Read all three files before making any edits.
+Read both files before making any edits.
 
 ---
 
 ## SECTION 1: Replacements (Unclear Writing)
 
-### Change 1 — Design Spec, Phase 1 Step 3, Connector URL Identification (around line 82) [Minor]
+### Change 1 — Design Spec, Phase 1 Step 9: "Realign from here" rollback point [Minor]
 
-**Find this text:**
-> "URLs matching an enabled connector pattern are pulled automatically. URLs matching a disabled connector pattern are ignored. Unrecognized URLs are treated as regular brain dump text."
+**Find** in Phase 1, step 9:
+> Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons to prevent misinterpretation), "realign from here" is a chat-parsed command because it does not advance the pipeline — it re-runs the distillation using the original brain dump plus all corrections up to the identified rollback point. The AI re-distills from the original brain dump plus corrections up to a rollback point. Algorithm details in build spec.
 
 **Replace with:**
-> "The AI matches each URL against the known patterns for enabled connectors:
-> - **Match + enabled:** URL is pulled automatically via the connector.
-> - **Match + disabled:** URL is silently ignored (not pulled, not treated as text).
-> - **No match:** URL is treated as regular brain dump text and included in distillation context."
+> Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons to prevent misinterpretation), "realign from here" is a chat-parsed command because it does not advance the pipeline — it discards AI messages and corrections after the most recent substantive human correction and re-distills from the original brain dump plus corrections up to that point. Exact matching rules and algorithm in build spec.
 
 ---
 
-### Change 2 — Design Spec, Stagnation Guard description (around line 334) [Minor]
+### Change 2 — Design Spec, Phase 4 Convergence Guards table: Fabrication guard duplicated phrase [Minor]
 
-**Find this text:**
-> "The comparison uses total count only — a shift in severity composition at the same total still qualifies as stagnation if the rotation threshold is also met."
+**Find** in Phase 4 Convergence Guards table, fabrication guard condition 2:
+> AND in at least one prior iteration, every severity category was at or below twice its convergence threshold — every severity category was at or below twice its convergence threshold — that is, critical ≤ 2 × `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max`
 
 **Replace with:**
-> "Stagnation compares total error count only, not per-severity breakdowns. A shift in severity composition (e.g., fewer criticals but more minors) at the same total still qualifies as stagnation, provided the rotation threshold is also met."
+> AND in at least one prior iteration, every severity category was at or below twice its convergence threshold — that is, critical ≤ 2 × `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max`
 
 ---
 
-### Change 3 — Design Spec, Fabrication Guard (around line 335) [Minor]
+### Change 3 — Design Spec, Phase 3 Stuck Detection table: Overloaded term [Minor]
 
-**Find this text (the inline hardcoded math):**
-> "specifically: critical ≤ 0 (2 × 0), medium ≤ 6 (2 × 3), minor ≤ 10 (2 × 5) using default config values"
+**Find** the introductory line before the Stuck Detection table:
+> **Stuck Detection (Phase 3):**
 
 **Replace with:**
-> "every severity category was at or below twice its convergence threshold — that is, critical ≤ 2 × `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max` (using default config: ≤0 critical, ≤6 medium, ≤10 minor). These values are derived from `config.yaml` at runtime, not hardcoded."
+> **Stuck Detection (Phase 3):** Plan mode and Code mode use different stuck detection mechanisms. Plan mode relies on AI self-reporting via a structured response field. Code mode relies on orchestrator-observed failure patterns.
 
 ---
 
-### Change 4 — Design Spec, Phase 3 Code Builder Interaction Model (around line 237) [Minor]
+### Change 4 — Design Spec, Design Decision #3: "git repo" ambiguity [Minor]
 
-**Find this text:**
-> "Since each cycle produces different failing tests, the stuck detector will not trigger on rotating failures."
+**Find** in Design Decision #3:
+> Each project gets its own git repo
 
 **Replace with:**
-> "If each test-fix cycle produces *different* failing tests (rotating failures rather than the same tests failing repeatedly), the stuck detector does not trigger — it only fires on 3 consecutive cycles with the *identical* set of failing test names."
+> Each project gets its own local git repository (git init, no remote)
 
 ---
 
-### Change 5 — Design Spec, Locked File Behavior section (around line 166) [Minor]
+### Change 5 — Design Spec, Phase 3→4 Transition Error Handling: Undefined completeness thresholds [Minor]
 
-**Find this text:**
-> "On server restart, the in-memory copies are lost."
-
-**Replace with:**
-> "On server restart, the orchestrator's in-memory working copies of `spec.md` and `intent.md` (loaded at Phase 3 start) are discarded."
-
----
-
-### Change 6 — Execution Plan, Critical Path (around line 192) [Minor]
-
-**Find this text:**
-> "Task 1 → Task 41 → Task 42 → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 16 → Task 30 → Tasks 33–37 → Task 51"
+**Find:**
+> Phase 3 output exists but is empty or trivially small (below minimum completeness thresholds)
 
 **Replace with:**
-> "Task 1 → Task 41 → Task 42 → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 30 → Tasks 33–37 → Task 51
->
-> Note: Task 30 depends on Task 17 (plan reviewer) and Task 6c (Phase 3→4 transition), not Task 16 (templates). Task 16 (templates) feeds Task 15 at runtime but is not on the critical path — templates can be created after the builder module. Task 17 runs in parallel with Task 15 and must complete before Task 30."
-
----
-
-### Change 7 — Build Spec, Code Builder Task Queue section (around line 208) [Minor]
-
-**Find this text:**
-> "The exact parsing and ordering logic is an implementation detail of Task 21, but must produce a deterministic task list from the same `spec.md` input"
-
-**Replace with:**
-> "The exact parsing and ordering logic is an implementation detail of Task 21, but must produce a deterministic task list from the same `spec.md` input — this ensures crash recovery (re-deriving the task list after restart) produces the same task ordering and can correctly identify which tasks were already completed."
-
----
-
-### Change 8 — Design Spec, Hallucination Guard notification template (around line 333) [Minor]
-
-**Find the notification message template that says:**
-> "Errors trending down then spiked"
-
-**Replace the notification template with:**
-> `"Project '{name}' — fix-regress cycle detected. Errors decreased for {N} iterations ({trajectory}) then spiked to {X} at iteration {current}. Review needed."`
+> Phase 3 output exists but is empty or trivially small (below `config.yaml` `phase3_completeness` thresholds)
 
 ---
 
 ## SECTION 2: Additions (Missing Plan-Level Content)
 
-### Change 9 — Design Spec, Phase 2, after the Unknowns validation gate (step 7 area) [Critical]
+### Change 6 — Design Spec, Phase 3 Plan Mode: Template context window overflow [Major]
 
-**Add the following new subsection:**
-
-> **Acceptance Criteria Validation Gate:** Before Phase 2 Confirm advances to Phase 3, the orchestrator validates that the Acceptance Criteria section of the proposed `constraints.md` contains at least 1 criterion. If the section is empty, the Confirm button is blocked and the AI prompts the human: "At least one acceptance criterion is required before proceeding. Add acceptance criteria or confirm the AI's proposed set." This gate enforces the minimum at creation time only — after `constraints.md` is written, the human may freely edit it (including emptying the section) per the unvalidated-after-creation policy.
-
----
-
-### Change 10 — Design Spec, Vibe Kanban Integration Interface section, after the toggle behavior table [Major]
-
-**Add the following paragraph:**
-
-> **Toggle Change During Active Projects:** The `vibekanban.enabled` toggle is read at each operation, not cached at project creation. If VK is disabled after a project was created with VK enabled, subsequent VK status update calls will succeed (updating an existing card) but new project creation will skip card creation. If VK is enabled after a project was created without it, VK status calls will fail (no card exists) and will be logged and ignored per standard VK failure handling. Toggling VK mid-project does not halt or disrupt the pipeline — VK calls are never on the critical path.
+**Add** the following paragraph after the "Builder interaction model" paragraph in Phase 3 Plan Mode:
+> **Template Context Window Overflow:** If the partially-filled template exceeds the agent's context window during multi-invocation plan building, the builder passes only the current section's OPA table slot, the `spec.md` context for that section, and the immediately preceding section (for continuity) — not the full partially-filled template. A warning is logged when truncation occurs. The full template is reassembled from the individually-filled sections after all invocations complete.
 
 ---
 
-### Change 11 — Design Spec, Phase 4 Error Handling table [Major]
+### Change 7 — Design Spec, Phase 4: Zero-issue iteration behavior [Major]
 
-**Add a new row to the error handling table:**
-
-> | `polish_state.json` unreadable, missing, or invalid at Phase 4 resume | Halt and notify the operator with the file path and the specific error (parse failure, missing file, invalid schema). Do not attempt recovery or partial loading — the operator must fix or recreate the file. Same behavior as `status.json` and `chat_history.json` corruption handling. |
-
----
-
-### Change 12 — Design Spec, Phase 3 Code Mode, after the test framework selection paragraph [Major]
-
-**Add the following paragraph:**
-
-> **Test Command Discovery:** The code builder's `test-runner.js` does not parse `spec.md` to discover the test command. Instead, the coding agent is instructed (via the `/prompts/code-build.md` prompt) to create a standard `npm test` script in the project's `package.json` (or the language-equivalent test entry point). `test-runner.js` always invokes the project's standard test entry point (`npm test` for Node.js projects). The specific test framework is an implementation detail of the deliverable codebase, not of ThoughtForge's `test-runner.js`. If the test command exits non-zero, `test-runner.js` treats it as test failures and captures stdout/stderr as the `details` field.
+**Add** the following paragraph after the "Fix agent context assembly" paragraph in Phase 4:
+> **Zero-Issue Iteration:** If the review step produces zero issues (empty issues array), the fix step is skipped for that iteration. The orchestrator proceeds directly to convergence guard evaluation. Only the review commit is written — no fix commit.
 
 ---
 
-### Change 13 — Execution Plan, Build Stage 2, after Task 8 [Major]
+### Change 8 — Design Spec, Notification Content section: Active session awareness [Minor]
 
-**Add a new task row to the task table:**
-
-> | 8a | Implement chat-message URL scanning for resource connectors: match URLs in brain dump chat messages against enabled connector URL patterns (from build spec), auto-pull matched URLs via connector layer, ignore matches for disabled connectors, pass unmatched URLs through as brain dump text | — | Task 8, Task 7c | — | Not Started |
-
----
-
-### Change 14 — Execution Plan, Task 8 description [Minor]
-
-**Append to the existing Task 8 description:**
-
-> "Include ambiguous deliverable type handling per design spec: when brain dump signals both Plan and Code, AI defaults to Plan and flags in Open Questions."
+**Add** the following to the Notification Content section:
+> **Active Session Awareness:** Notifications are sent regardless of whether the human has the project open in the chat interface. The notification layer does not track client connection state. Suppressing notifications for active sessions is deferred — not a current build dependency.
 
 ---
 
-### Change 15 — Design Spec, UI section, after the project list sidebar description [Minor]
+### Change 9 — Design Spec, Phase 4 Halt Recovery section: State continuity on resume [Minor]
 
-**Add the following paragraph:**
-
-> **Mid-Stream Project Switch:** If the human switches projects while an AI response is streaming, the client stops rendering the stream for the previous project's chat. Server-side processing continues uninterrupted — the AI response completes and is persisted to `chat_history.json` regardless of client-side display state. When the human returns to the project, the completed response is visible in the chat history.
+**Add** the following to the Phase 4 Halt Recovery section:
+> **State Continuity on Resume:** The convergence trajectory in `polish_state.json` is continuous across the halt boundary — the resumed iteration is numbered sequentially after the last completed iteration. `polish_log.md` receives a log entry for the resume event before the next iteration's entry: `## Resumed at {ISO8601} — Halted by {guard_type} at iteration {N}, resumed by human`.
 
 ---
 
-### Change 16 — Execution Plan, Task 6c dependencies [Minor]
+### Change 10 — Design Spec, after Phase 4 Convergence Guards table: Halt vs. Terminate clarity [Minor]
 
-**Find Task 6c's "Depends On" value:**
-> `Task 6a, Task 7`
-
-**Replace with:**
-> `Task 5, Task 6a, Task 7`
+**Add** the following paragraph immediately after the Phase 4 Convergence Guards table:
+> **Halt vs. Terminate:** When a convergence guard triggers a halt, the project is recoverable — the human can Resume or Override. When the human explicitly Terminates (via button), the project is permanently stopped (`halt_reason: "human_terminated"`). Both use the `halted` phase value in `status.json`; the `halt_reason` field distinguishes them.
 
 ---
 
 ## SECTION 3: Extractions (Move Implementation Details from Design Spec to Build Spec)
 
-### Change 17 — Design Spec → Build Spec: "realign from here" matching rule (around line 92) [Minor]
+### Change 11 — Design Spec, Phase 1 Step 3: Extract connector URL matching details [Minor]
 
-**In the Design Spec, find this text:**
-> "The command is matched as an exact case-insensitive string: the entire chat message must be 'realign from here' with no additional text."
+**Find** in Design Spec, Phase 1 step 3:
+> The AI matches each URL against the known patterns for enabled connectors:
+> - **Match + enabled:** URL is pulled automatically via the connector.
+> - **Match + disabled:** URL is silently ignored (not pulled, not treated as text).
+> - **No match:** URL is treated as regular brain dump text and included in distillation context.
 
-**Replace that sentence in the Design Spec with:**
-> "The human types 'realign from here' in chat to trigger a re-distillation from the original brain dump plus corrections up to a rollback point. Exact matching rules and algorithm in build spec."
+**Replace with:**
+> The AI matches each URL against the known patterns for enabled connectors and pulls content automatically. URL matching rules (enabled/disabled/unmatched behavior) are in the build spec.
 
-**Then add the removed matching rule to the Build Spec's Realign Algorithm section:**
-> "The command is matched as an exact case-insensitive string: the entire chat message must be 'realign from here' with no additional text."
+Ensure the extracted matching matrix is present in the Build Spec's connector section. If it is already there, no Build Spec change is needed for this item.
 
 ---
 
-### Change 18 — Design Spec: Stagnation Guard inline parameter values (around line 334) [Minor]
+### Change 12 — Design Spec: Condense Phase 2 Chat History Truncation [Minor]
 
-**If the design spec stagnation guard description contains inline parameter values like "70% of issues" or "Levenshtein similarity ≥ 0.8"**, remove those inline values from the design spec. The design spec should say only:
+**Find:**
+> **Phase 2 Chat History Truncation:** If Phase 2 chat history exceeds the agent context window, the agent invocation layer truncates older messages from the beginning of the history, retaining the most recent messages and always retaining the initial AI spec proposal message (the first AI message in Phase 2). Messages between the initial proposal and the retained recent messages are dropped. A warning is logged when truncation occurs. This mirrors the Phase 1 truncation behavior — the initial proposal serves the same anchoring role as the original brain dump.
 
-> "Issue rotation detected — old issues resolved, new issues introduced at the same rate (rotation threshold and similarity measure defined in build spec)."
+**Replace with:**
+> **Phase 2 Chat History Truncation:** If Phase 2 chat history exceeds the agent context window, older messages are truncated while always retaining the initial AI spec proposal (same anchoring pattern as Phase 1's brain dump retention). Algorithm in build spec.
 
-The build spec's Convergence Guard Parameters section already contains these values. Confirm they are present there and do not duplicate them.
+---
+
+### Change 13 — Design Spec: Condense Phase 3–4 Chat History Truncation [Minor]
+
+**Find:**
+> **Phase 3–4 Chat History Truncation:** If Phase 3 or Phase 4 recovery chat history exceeds the agent context window, the agent invocation layer truncates older messages from the beginning, retaining the most recent messages. There is no anchoring message for these phases — unlike Phases 1–2, recovery conversations do not have a structural anchor that must be preserved. A warning is logged when truncation occurs.
+
+**Replace with:**
+> **Phase 3–4 Chat History Truncation:** If Phase 3 or Phase 4 recovery chat history exceeds the agent context window, older messages are truncated from the beginning with no anchoring message. Algorithm in build spec.
 
 ---
 
 ## After All Changes Are Applied
 
 1. Re-read each modified file to confirm no formatting is broken (unclosed tables, orphaned headers, broken markdown).
-2. `git status -u` — verify all modified files
-3. `git diff --stat` — confirm changes
-4. Git add only the files you modified:
-   ```bash
-   git add docs/thoughtforge-design-specification.md docs/thoughtforge-build-spec.md docs/thoughtforge-execution-plan.md
-   ```
+2. `git status -u` — verify all modified files.
+3. `git diff --stat` — confirm changes.
+4. Git add only the files you modified.
 5. Commit with message: `Apply review findings`
 6. Push to remote: `git push`
 7. `git pull` — confirm sync with remote. Do not leave commits unpushed.
