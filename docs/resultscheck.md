@@ -1,7 +1,8 @@
 ﻿**result: true** — still needs updates.
 
-- **Critical:** 0
-- **Major:** 2
-- **Minor:** 10
+**Counts:**
+- Critical: 0
+- Major: 2
+- Minor: 8
 
-The minor count (10) exceeds the convergence threshold of fewer than 5, so the project files still need updates. `apply-prompt.md` has been written with all 13 changes mapped to their exact locations in the source files.
+The review passes on critical (0) and major (2 < 3) findings, but fails on minor findings (8, which is not fewer than 5). `apply-prompt.md` has been written with all 8 changes mapped to their target files with exact replacement/addition text.
