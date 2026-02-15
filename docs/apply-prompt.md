@@ -16,173 +16,149 @@ Read ALL three files before making any edits.
 
 ## Changes to Apply
 
-### 1. [Minor] Design spec — Phase 2 Step 4 acceptance criteria ambiguity
+### 1. [Minor] Design spec — Phase 1, step 11a: add "locked" definition
 
-Find the Phase 2, Step 4 passage where "at least 1, target 5–10" acceptance criteria are described.
+After step 11a, insert:
 
-Replace with:
-
-> 4. AI derives acceptance criteria from the objective, assumptions, and constraints in `intent.md`. The validation gate enforces a minimum of 1 criterion; the target range of 5–10 is guidance for the AI prompt, not an enforced threshold. For Plan mode, criteria assess document completeness, logical coherence, and actionability. For Code mode, criteria assess functional requirements that map to testable acceptance tests in Phase 3.
+> "Locked" means the AI pipeline will not modify the file after its creation phase. See Locked File Behavior (Phase 2 section) for the full definition, including human edit consequences.
 
 ---
 
-### 2. [Minor] Design spec — Phase 3 Code mode stuck detection inconsistency
+### 2. [Minor] Design spec — Phase 4 Stagnation Guard: replace "converged plateau" text
 
-Find the test-fix cycle section in Phase 3 Code Mode (the passage describing stuck detection).
+In the stagnation guard table, replace the Action column text for the stagnation-detected row with:
 
-Replace with:
-
-> **Stuck detection within the test-fix cycle:** Two conditions trigger stuck detection: (1) the build agent returns non-zero exit on the same build task after 2 consecutive retries, OR (2) the test suite fails on the identical set of test names for 3 consecutive fix-and-retest cycles (compared by exact string match). If each cycle produces different failing tests (rotating failures), condition (2) does not trigger.
-
-Also update the Phase 3 Stuck Detection table, Code row, to read:
-
-> | Code | See test-fix cycle stuck detection above. | Notify and wait |
+> Done (success). The deliverable has reached a stable quality level where the reviewer is cycling cosmetic issues rather than finding genuine regressions. Treated as converged — no further iterations will yield net improvement.
 
 ---
 
-### 3. [Minor] Design spec — Phase 4 Fix Regression guard
+### 3. [Minor] Design spec — Phase 1, after step 3: add button summary callout
 
-Find the Fix Regression guard row in the convergence guards table.
+Immediately after step 3 (before step 4), insert:
 
-Replace with:
-
-> | Fix Regression (per-iteration) | Evaluated immediately after each fix step, before other guards. Compares the post-fix total error count against the pre-fix review count for the same iteration. **Single occurrence:** If the fix increased the total error count, log a warning but continue. **Consecutive occurrences:** If the two most recent fix steps both increased their respective error counts, halt and notify: "Fix step is introducing more issues than it resolves. Review needed." | Warn (single) or Halt (2 consecutive). Notify human. |
-
----
-
-### 4. [Minor] Design spec — Stagnation Guard missing intent
-
-Find the Stagnation guard row in the convergence guards table.
-
-Replace with:
-
-> | Stagnation | **Intent:** Detect when the deliverable has reached a quality plateau — the reviewer resolves old issues but introduces equally many new cosmetic issues each iteration, producing no net improvement. Two conditions must both be true: (1) **Plateau:** Total error count is identical for `stagnation_limit` consecutive iterations. (2) **Issue rotation:** Fewer than 70% of current-iteration issues match any issue in the immediately prior iteration (match = Levenshtein similarity ≥ 0.8 on `description`). When both are true, the deliverable is converged. | Done (success — treated as converged plateau). Notify human with final error counts and iteration summary. |
+> **Phase 1 has two action buttons:**
+> - **Distill** — "I'm done providing inputs. Process them." (Pressed once after brain dump + resources are provided.)
+> - **Confirm** — "The distillation looks correct. Move on." (Pressed after reviewing and correcting the AI's output.)
 
 ---
 
-### 5. [Minor] Design spec — Fabrication Guard compound conditions
+### 4. [Minor] Design spec — Phase 2, step 2: remove "Challenge:" label
 
-Find the Fabrication guard row in the convergence guards table.
+Replace Phase 2 step 2 with:
 
-Replace with:
+> 2. AI evaluates `intent.md` for structural issues: missing dependencies, unrealistic constraints, scope gaps, internal contradictions, and ambiguous priorities. Each flagged issue is presented to the human with specific reasoning. The AI does not rubber-stamp — it must surface concerns even if the human's intent seems clear. This step does not resolve Unknowns — it identifies new problems.
 
-> | Fabrication | Two conditions must both be true: (1) **Category spike:** A single severity category count exceeds its trailing average by more than 50% (with a minimum absolute increase of 2). Trailing window size defined in build spec. (2) **Prior near-convergence:** The system previously reached within 2× of the termination thresholds in at least one prior iteration (i.e., critical ≤ 0, medium ≤ 6, minor ≤ 10 with default config). This ensures fabrication is only flagged after the deliverable was demonstrably close to convergence — not during early volatile iterations. The `2×` multiplier is hardcoded; the base thresholds are read from `config.yaml` at runtime. Parameters in build spec. | Halt. Notify human. |
+If the "Challenge" and "Resolve" labels are desired for reference, add a brief introductory line before the Phase 2 numbered list: "Phase 2 has two AI-driven steps: Challenge (step 2) and Resolve (step 3)."
 
 ---
 
-### 6. [Minor] Design spec — Halt vs. Terminate distinction buried
+### 5. [Minor] Design spec — Phase 3 Plan Mode, after step 1: add VK bypass note
 
-Find the paragraph describing the halt vs. terminate distinction (currently between convergence guard descriptions and halt recovery).
+After Phase 3 Plan Mode step 1, insert:
 
-Move it to immediately before the "Halt Recovery" section and add a subheading:
+> Plan mode always invokes agents directly via the agent communication layer, regardless of whether Vibe Kanban is enabled. VK provides visualization only (card status updates) for Plan mode projects. VK agent execution is used exclusively in Code mode.
 
-> **Halt vs. Terminate Distinction:**
+---
+
+### 6. [Critical] Design spec — After "Phase 3 → Phase 4 Transition" section: add human chat during autonomous phases
+
+Insert a new section:
+
+> **Human Chat During Autonomous Phases (3-4):**
 >
-> When a convergence guard triggers a halt, the project is recoverable — the human can Resume or Override. When the human explicitly Terminates (via button), the project is permanently stopped (`halt_reason: "human_terminated"`). Both use the `halted` phase value in `status.json`; the `halt_reason` field distinguishes them. (Authoritative field values are in the build spec Action Button Behavior table.)
+> During Phase 3 and Phase 4 autonomous execution, the chat input field is disabled. The human can view the project's chat history and current status but cannot send messages. Chat input is re-enabled only when the pipeline enters a stuck or halt state that requires human interaction (Phase 3 stuck recovery, Phase 4 halt recovery). The human can always edit the deliverable files directly outside the pipeline — see "Deliverable Edits During Phase 4."
 
 ---
 
-### 7. [Minor] Design spec — Chat Interface distracting parenthetical
+### 7. [Major] Design spec — Fix agent context assembly: add Code mode context specification
 
-Find: "Lightweight web chat interface (terminal-based alternative deferred)."
+In the fix agent context section (where Code mode fix agent context is described), add:
 
-Replace with:
-
-> **ThoughtForge Chat (Built):** Lightweight web chat interface. (A terminal-based alternative is deferred — not a current build dependency.)
+> For Code mode: the fix agent receives the issue list and the content of each file referenced in the issues' `location` fields (parsed as relative paths from project root; line numbers are stripped before file lookup). If a referenced file does not exist, the issue is included in the context with a note: "Referenced file not found." If the total referenced file content exceeds the agent's context window, files are truncated starting from the largest, with a warning logged. `constraints.md` is always included for scope awareness. Unreferenced files are not passed to the fix agent — it operates only on files identified by the reviewer.
 
 ---
 
-### 8. [Major] Design spec — Add deliverable edits during Phase 4
+### 8. [Major] Design spec — Acceptance Criteria Validation Gate: add error handling
 
-After the "Locked File Behavior" section, before Phase 4, add:
+In the Acceptance Criteria Validation Gate paragraph, add:
 
-> **Deliverable Edits During Phase 4:**
+> If the proposed `constraints.md` content does not contain a recognizable Acceptance Criteria section (section heading missing entirely), the AI is re-invoked with an instruction to include acceptance criteria based on the confirmed intent and spec decisions. This follows the standard retry-once-then-halt behavior. The human is notified: "AI did not generate acceptance criteria. Retrying." If the second attempt also lacks the section, the pipeline halts and the human must provide criteria manually in chat.
+
+---
+
+### 9. [Minor] Design spec — After Phase 4 Convergence Guards section: add human final review
+
+Insert:
+
+> **Phase 4 Completion — Human Final Review:**
 >
-> If the human manually edits the deliverable (plan document or source code) between Phase 4 iterations, the edits are picked up by the next iteration's review step — the reviewer reads the current state of the deliverable from disk. The next fix step's git commit captures both the human's edits and the AI's fixes. The pipeline does not detect, warn about, or distinguish human edits from AI fixes. This is by design — the human has full authority to modify the deliverable at any time. The convergence trajectory may shift as a result (human edits could increase or decrease error counts). No special handling is needed.
+> When Phase 4 completes (termination or stagnation success), the chat displays a completion message with the final error counts, iteration count, and the file path to the polished deliverable. The project status shows as `done`. The human reviews the deliverable by opening the file directly — ThoughtForge does not render the deliverable inline. The chat thread remains available for reference (including all Phase 3-4 chat history) but no further pipeline actions are available.
 
 ---
 
-### 9. [Major] Design spec — Add Template Slot Validation
+### 10. [Minor] Design spec — WebSocket Reconnection: extract implementation details to build spec
 
-In Phase 3 Plan Mode, after the "Template Content Escaping" section, add:
+Remove the "Server-side session," "Project Status on Return," and reconnection detail paragraphs from the design spec's WebSocket Disconnection section. Keep only the behavioral requirement ("client auto-reconnects and syncs state") and defer details to the build spec.
 
-> **Template Slot Validation:** After each plan builder invocation, the orchestrator validates that the returned content corresponds to a valid template slot. If the AI returns content for a non-existent slot, the content is discarded with a warning logged. If a required template slot receives empty or placeholder content (containing "TBD", "TODO", or "placeholder" — case-insensitive), the builder re-invokes the AI for that slot (subject to the standard retry-once-then-halt behavior). After all invocations complete and the template is assembled, a final validation confirms all slots are filled. Any remaining empty slots halt the builder with a notification identifying the unfilled sections.
+Replace in the design spec with:
 
----
+> The client auto-reconnects and syncs state from the server on reconnect. Detailed reconnection behavior is in the build spec.
 
-### 10. [Major] Execution plan — Add TypeScript to Task 1
-
-Find Task 1 in the Task Breakdown of the execution plan.
-
-Replace Task 1's description with:
-
-> Initialize Node.js project with TypeScript: `tsconfig.json` (`"module": "nodenext"`, `"moduleResolution": "nodenext"`), `package.json` with ESM (`"type": "module"`), `start` script targeting compiled output, `dev` script using `tsx` for development, `build` script running `tsc`, and folder structure. Install initial dependencies (per build spec Initial Dependencies). Implement `config.yaml` loader with Zod schema validation.
+Ensure the removed content exists in the build spec's WebSocket Reconnection Parameters section. If already present, no build spec change needed.
 
 ---
 
-### 11. [Minor] Design spec — Add Phase 2 Challenge step persistence
+### 11. [Minor] Design spec — Phase 1 Error Handling table: extract chunking/truncation detail
 
-After Phase 2 step 2, add:
+Replace the "Brain dump text exceeds agent context window" row's action text with:
 
-> Challenge findings that result in design changes are captured in the `spec.md` "Key Decisions" section with the original concern and resolution. Challenge findings that the human dismisses are not persisted beyond the chat history. Since chat history is cleared on Phase 2→3 transition, dismissed challenges are not available for later reference. This is acceptable — the human's decisions are captured in `spec.md`; the reasoning for rejected alternatives is not.
+> | Brain dump text exceeds agent context window | Handled by the agent invocation layer's context window management (see build spec). A warning is displayed in chat if truncation occurs. |
 
----
-
-### 12. [Minor] Execution plan — Add static assets to Task 7
-
-Find Task 7 ("Build ThoughtForge web chat interface") in the execution plan.
-
-Add to Task 7's description:
-
-> Create `/public/` directory with static assets: `index.html` (single-page chat interface), `style.css`, and `app.js` (vanilla JavaScript for WebSocket client, DOM manipulation, project switching, and action buttons). These are served by Express directly — no build tooling or bundler required.
+Move the original implementation detail (AI processes in chunks / truncates to max input size) to the build spec's Agent Communication section if not already present there.
 
 ---
 
-### 13. [Minor] Design spec — Add config reload behavior
+### 12. [Minor] Design spec — `constraints.md` truncation strategy: remove redundant detail
 
-In the Configuration section of the design spec, add:
+Remove the sentence "with priority given to Context/Deliverable Type and Acceptance Criteria sections" from the design spec. Replace with:
 
-> **Config reload behavior:** `config.yaml` is read once at server startup and cached in memory for the duration of the server process. Changes to `config.yaml` require a server restart to take effect. The one exception is `vibekanban.enabled`, which is read at each VK operation (already specified in VK toggle behavior). Hot-reloading of config is deferred — not a current build dependency.
-
----
-
-### 14. [Minor] Design spec — Extract Project Initialization detail to build spec
-
-Find Phase 1 step 0 in the design spec. It contains collision retry behavior, agent field assignment, and git init failure handling.
-
-Trim the design spec to the behavioral description and cross-reference: "Project initialization creates the project directory structure, initializes version control, writes the initial project state, optionally registers on the Kanban board, and opens the chat interface. The full initialization sequence — including collision retry, field assignments, and error handling — is in the build spec."
-
-Remove the collision retry algorithm, agent field assignment details (`status.json` `agent` field), and git init failure handling from the design spec. These already exist in the build spec's "Project Initialization Sequence" section.
+> If `constraints.md` exceeds the agent's context window when combined with other review context, it is truncated per the strategy defined in the build spec.
 
 ---
 
-### 15. [Minor] Design spec — Extract VK toggle truth table to build spec
+### 13. [Minor] Design spec — Stagnation Guard Detail: extract Levenshtein formula
 
-Find the 4-row truth table (VK enabled/disabled × Plan/Code) and toggle-change-during-active-projects paragraph in the design spec.
-
-Replace in the design spec with: "Both modes function fully with VK disabled. VK provides visualization and Code mode agent execution. Plan mode always invokes agents directly. Implementation details including the toggle truth table are in the build spec."
-
-Move the removed truth table and toggle-change handling to the build spec's VK CLI Interface section.
+Remove the similarity formula sentence (`1 - (levenshtein_distance(a, b) / max(a.length, b.length))`) from the design spec's Stagnation Guard Detail. Keep only: "Issue rotation is detected when fewer than 70% of current issues match any issue in the prior iteration. Match is defined as Levenshtein similarity >= 0.8 on the `description` field." The formula is already in the build spec.
 
 ---
 
-### 16. [Minor] Design spec — Extract Phase 1-2 Chat Agent Model to build spec
+### 14. [Minor] Execution plan — Cross-stage dependency note after Stage 1: remove duplicate
 
-Find the subprocess invocation pattern ("prompt via stdin, response via stdout, one subprocess call per turn") and context assembly details in the design spec.
-
-Replace in the design spec with: "Each chat turn is a stateless AI invocation with full context. There is no persistent agent session. Implementation details are in the build spec."
-
-Move the removed subprocess pattern and context assembly list to the build spec's Agent Communication section.
+Remove the cross-stage dependency callout note after Build Stage 1. The same guidance is already captured in the Parallelism Opportunities section at the bottom.
 
 ---
 
-### 17. [Minor] Design spec — Extract WebSocket reconnection detail to build spec
+### 15. [Major] Execution plan — Task 8: add mid-processing input queuing
 
-Find the in-flight response handling and operation-completion scenarios in the design spec's WebSocket reconnection content.
+Add to Task 8's description:
 
-Replace in the design spec with: "The client auto-reconnects and syncs state from the server on reconnect. Detailed reconnection behavior is in the build spec."
+> Include mid-processing human input queuing: if the human sends a chat message while the AI is processing, queue the message in `chat_history.json` and include it in the next AI invocation's context (per design spec Phase 1 Mid-Processing Human Input).
 
-Move the removed in-flight response handling, operation-completion scenarios, and re-trigger behavior to the build spec's WebSocket Reconnection Parameters section.
+---
+
+### 16. [Major] Execution plan — Task 30: add plan fix output validation
+
+Add to Task 30's description:
+
+> Include plan mode fix output validation per design spec: after each plan mode fix, validate the returned content is non-empty and not less than 50% of the pre-fix document size. Reject invalid fix output, preserve pre-fix document, log warning. Halt after 2 consecutive rejected fix outputs.
+
+---
+
+### 17. [Minor] Execution plan — Task 6c: add config-driven validation detail
+
+Add to Task 6c's description:
+
+> Implement `phase3_completeness` config-driven validation: Plan mode checks deliverable character count against `config.yaml` `phase3_completeness.plan_min_chars`. Code mode checks for at least one test file when `phase3_completeness.code_require_tests` is true. Both checks run before Phase 4 entry.
 
 ---
 
