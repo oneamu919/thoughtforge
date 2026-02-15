@@ -1,4 +1,4 @@
-# Apply Review Findings from results.md
+# Apply Review Findings from results.md (Iteration 10)
 
 You are an AI coder. Apply every change listed below to the source files. Each change is taken directly from the review findings in `results.md`. Do not interpret or improvise — apply the replacements, additions, and extractions exactly as specified.
 
@@ -18,166 +18,123 @@ Read all three files before making any edits.
 
 ## Changes to Apply
 
-### Change 1 — Design Spec: Stagnation Guard wording (Minor)
+### Change 1 — Design Spec: Phase 2 "realign from here" rationale (Major)
 
-**Location:** Phase 4 Convergence Guards, Stagnation Guard description.
-
-**Find:**
-> Same total error count for 3+ consecutive iterations AND issue rotation detected — fewer than 70% of current issues match issues from the immediately prior iteration by description similarity.
-
-**Replace with:**
-> Same total error count for 3+ consecutive iterations AND issue replacement detected — fewer than 70% of current issues have a matching issue in the immediately prior iteration by description similarity. This indicates the reviewer is finding new issues to replace resolved ones, producing a plateau rather than genuine progress.
-
----
-
-### Change 2 — Design Spec: Fabrication Guard wording (Minor)
-
-**Location:** Phase 4 Convergence Guards, Fabrication Guard description.
-
-**Find the text containing:**
-> A severity category spikes significantly above its trailing 3-iteration average, AND the system had previously reached within 2× of convergence thresholds in at least one prior iteration — suggesting the reviewer is manufacturing issues because nothing real remains
-
-**Replace with:**
-> A severity category spikes significantly above its trailing 3-iteration average, AND the system had previously reached counts within 2× of the termination thresholds (i.e., critical ≤ 0, medium ≤ 6, minor ≤ 10) in at least one prior iteration — suggesting the reviewer is manufacturing issues because nothing real remains
-
----
-
-### Change 3 — Design Spec: Connector URL identification formatting (Minor)
-
-**Location:** Phase 1 step 3, the "Connector URL identification" paragraph that follows step 3.
-
-**Action:** Prefix the paragraph explicitly to clarify it belongs to step 3. Change the opening to:
-
-> **Step 3 Detail — Connector URL Identification:** The AI identifies connector URLs in chat messages by matching against known URL patterns...
-
-Keep the rest of the paragraph text intact. Only add the bold prefix and indent it under step 3.
-
----
-
-### Change 4 — Design Spec: Locked File Behavior wording (Minor)
-
-**Location:** Locked File Behavior section.
+**Location:** Phase 2 Conversation Mechanics (~line 141)
 
 **Find:**
-> If the file is readable but has modified structure, ThoughtForge passes it to the AI reviewer without structural validation. The reviewer processes whatever content it receives — no special handling is required for structural variations.
+> The 'realign from here' command is not supported in Phase 2. If issued, it is ignored.
 
 **Replace with:**
-> If the file is readable but has been restructured by the human (missing sections, reordered content, added sections), ThoughtForge passes it to the AI reviewer as-is without validating that it matches the original `constraints.md` schema. The reviewer processes whatever content it receives.
+> The 'realign from here' command is not supported in Phase 2. If issued, it is ignored. Targeted corrections via chat handle all Phase 2 revisions.
 
 ---
 
-### Change 5 — Execution Plan: Cross-stage dependency note (Minor)
+### Change 2 — Design Spec: Phase 3 test-fix cycle clarification (Minor)
 
-**Location:** Build Stage 1 cross-stage dependency note.
+**Location:** Phase 3 Code Mode (~line 214)
 
 **Find:**
-> Agent Layer (Build Stage 7, Tasks 41–44) provides the core agent invocation mechanism used by Stages 2–6. Task 41 depends on Task 1 (foundation), so Build Stage 7 should begin as soon as Task 1 completes, overlapping with the remainder of Build Stage 1.
+> The code builder then enters a test-fix cycle: run tests, pass failures back to the agent, agent fixes, re-run tests — repeating until all tests pass or stuck detection triggers.
 
 **Replace with:**
-> Agent Layer (Build Stage 7, Tasks 41–44) provides the core agent invocation mechanism used by Stages 2–6. Task 41 depends only on Task 1 (foundation), so Build Stage 7 should begin as soon as Task 1 completes. Stage 1 Tasks 2–6e and Stage 7 Tasks 41–44 can proceed in parallel. Any task that invokes an AI agent (Tasks 8, 12, 15, 21, 30) must wait for Tasks 41–42 to complete.
+> The code builder then enters a test-fix cycle: run tests, pass failures back to the agent, agent fixes, re-run tests — repeating until all tests pass or stuck detection triggers. Unlike Phase 4 iterations, the Phase 3 test-fix cycle does not commit after each cycle — a single git commit is written when Phase 3 completes successfully.
 
 ---
 
-### Change 6 — Design Spec: Server Restart Behavior explanation (Minor)
+### Change 3 — Build Spec: Crash recovery wording clarification (Minor)
 
-**Location:** Server Restart Behavior section.
+**Location:** Code Builder Task Queue (~lines 206–208)
 
 **Find:**
-> Projects in autonomous states (`distilling`, `building`, `polishing`) — where the AI was actively processing without human interaction — are set to `halted` with `halt_reason: "server_restart"` and the human is notified.
+> On crash recovery, the code builder re-derives the task list from `spec.md` and the current project file state.
 
 **Replace with:**
-> Projects in autonomous states (`distilling`, `building`, `polishing`) are set to `halted` with `halt_reason: "server_restart"`. These are not auto-resumed because the server cannot safely re-enter a mid-execution agent invocation or polish iteration — the prior subprocess is dead and its partial output is unknown. The human must explicitly resume.
+> On crash recovery, the code builder re-derives the task list from `spec.md` and the current state of files in the project directory (e.g., which source files and test files already exist).
 
 ---
 
-### Change 7 — Design Spec: Add Access Control statement (Major)
+### Change 4 — Execution Plan: Add Task 31 to orchestrator module note (Minor)
 
-**Location:** Under Technical Design → ThoughtForge Stack, after the Server entry.
+**Location:** Build Stage 8 note about Tasks 32, 38, 39 (~line 110)
 
-**Action:** Insert this new subsection:
+**Find:**
+> Tasks 32, 38, and 39 are implemented within the Task 30 orchestrator module, not as separate files. They are listed separately for progress tracking.
 
-> **Access Control:** When bound to localhost (`127.0.0.1`), no authentication is required — only the local operator can access the interface. If the operator changes the bind address to allow network access (`0.0.0.0` or a specific network interface), a warning is logged at startup: "Server bound to network interface. No authentication is configured — any network client can access ThoughtForge." Authentication and access control are deferred — not a current build dependency. The operator assumes responsibility for network security when binding to non-localhost addresses.
-
----
-
-### Change 8 — Design Spec: Add Connector failure during distillation note (Major)
-
-**Location:** Phase 1 Error Handling table, as a clarifying note below the table.
-
-**Action:** Insert below the Phase 1 Error Handling table:
-
-> **Connector failure during distillation:** If a connector fails after the human clicks Distill, the distillation proceeds automatically using all successfully retrieved inputs. The human is notified of the connector failure in chat but does not need to re-click Distill. The failed connector resources are simply absent from the distillation context.
+**Replace with:**
+> Tasks 31, 32, 38, and 39 are implemented within the Task 30 orchestrator module, not as separate files. They are listed separately for progress tracking.
 
 ---
 
-### Change 9 — Design Spec: Add Browser Compatibility statement (Minor)
+### Change 5 — Design Spec: Add `constraints.md` empty acceptance criteria handling (Major)
 
-**Location:** Under UI → ThoughtForge Chat section.
+**Location:** Locked File Behavior section, after the `constraints.md` hot-reload paragraph (~line 149)
 
-**Action:** Insert this new entry:
+**Action:** Insert the following new paragraph immediately after the existing hot-reload paragraph:
 
-> **Browser Compatibility:** The chat interface targets modern evergreen browsers (Chrome, Firefox, Edge, Safari — current and previous major version). No IE11 or legacy browser support. ES6+ JavaScript features and native WebSocket API are assumed available.
-
----
-
-### Change 10 — Design Spec: Add Concurrent edit handling statement (Minor)
-
-**Location:** Under UI → Prompt Management section.
-
-**Action:** Insert:
-
-> **Concurrent edit handling:** The prompt editor uses a last-write-wins model with no conflict detection. Since this is a single-operator tool, concurrent tab edits are the operator's responsibility.
+> If the human empties or removes the Acceptance Criteria section from `constraints.md`, the reviewer proceeds with whatever criteria remain (which may be none). This is treated as an intentional human override — the pipeline does not validate that acceptance criteria are present after the initial Phase 2 write. The human accepts responsibility for review quality when manually editing `constraints.md`.
 
 ---
 
-### Change 11 — Design Spec: Add log rotation note (Minor)
+### Change 6 — Build Spec: Add VK card creation failure handling during initialization (Major)
 
-**Location:** Under Functional Design → Phase 1 → Disk management paragraph. Append to end of existing paragraph.
+**Location:** Project Initialization Sequence, after step 5 (~line 483)
 
-**Action:** Append:
+**Action:** Insert the following new paragraph after the Kanban card creation step:
 
-> Operational logs (`thoughtforge.log`) also accumulate without rotation or size limits in v1. The operator is responsible for manual log management. Automated log rotation is deferred — not a current build dependency.
-
----
-
-### Change 12 — Design Spec: Remove Levenshtein threshold (extraction) (Minor)
-
-**Location:** Phase 4, Stagnation Guard description (same area as Change 1).
-
-**Find** (after Change 1 has been applied) the text:
-> Levenshtein similarity ≥ 0.8 on the `description` field
-
-**Replace the surrounding clause so it reads:**
-> fewer than 70% of current issues match issues from the immediately prior iteration by description similarity (match threshold defined in build spec)
-
-Do NOT modify the build spec — it already contains "Levenshtein similarity ≥ 0.8 on the `description` field" at ~lines 303-304.
+> If Vibe Kanban card creation fails during initialization, log a warning and continue. The project proceeds without a Kanban card. Subsequent VK status update calls for this project will also fail (card does not exist) and will be logged and ignored per standard VK failure handling. The pipeline is fully functional without VK visualization.
 
 ---
 
-### Change 13 — Design Spec: Replace threshold numbers in Convergence Guards table (extraction) (Minor)
+### Change 7 — Design Spec: Add `chat_history.json` completion behavior (Minor)
 
-**Location:** Convergence Guards table (~lines 295-301).
+**Location:** Project State Files section, `chat_history.json` row (~line 503)
 
-In the **Stagnation guard** row, replace:
-- "Same total error count for 3+ consecutive iterations" → "Same total error count for consecutive iterations exceeding the configured stagnation limit"
-- "fewer than 70% of current issues match" → "issue replacement detected (rotation threshold and similarity measure defined in build spec)"
+**Action:** Add the following to the `chat_history.json` description:
 
-In the **Fabrication guard** row, replace:
-- "trailing 3-iteration average" → "trailing average (window size defined in build spec)"
-- "within 2× of convergence thresholds" → "within a multiplier of convergence thresholds (multiplier defined in build spec)"
-
-Do NOT change the Hallucination guard row — it is already correctly written without inline numbers.
+> Chat history is never cleared on pipeline completion (`done`) or halt. The full Phase 3 and Phase 4 chat history (including any recovery conversations) persists in the completed project for human reference.
 
 ---
 
-### Change 14 — Design Spec: Remove default values from Configuration table (extraction) (Minor)
+### Change 8 — Execution Plan: Add path traversal validation to Task 7h (Minor)
 
-**Location:** Configuration table (~lines 573-584).
+**Location:** Task 7h in the execution plan
 
-In the "Defaults" column of every row, replace each specific default value with:
-> See `config.yaml` template in build spec
+**Find:**
+> Implement file/resource dropping in chat interface (upload to `/resources/`)
 
-Keep the "What's Configurable" column unchanged — that is plan-level content.
+**Replace with:**
+> Implement file/resource dropping in chat interface (upload to `/resources/`). Validate that resolved file paths stay within the project's `/resources/` directory — reject uploads with path traversal components (`..`, absolute paths).
+
+---
+
+### Change 9 — Execution Plan: Add unit test task for operational logging module (Minor)
+
+**Location:** Build Stage 8 table, after the last test task row
+
+**Action:** Add a new row to the table:
+
+> | 50c | Unit tests: operational logging module (log file creation, structured JSON format, log levels, event types, file append failure handling) | — | Task 3a | — | Not Started |
+
+---
+
+### Change 10 — Extract connector URL patterns from Design Spec to Build Spec (Minor)
+
+**Part A — Design Spec** (Phase 1 step 3, Connector URL Identification, ~line 80)
+
+**Find:**
+> The AI identifies connector URLs in chat messages by matching against known URL patterns for each enabled connector (e.g., `notion.so/` or `notion.site/` for Notion, `docs.google.com/` or `drive.google.com/` for Google Drive). URLs matching an enabled connector pattern are pulled automatically. URLs matching a disabled connector pattern are ignored. Unrecognized URLs are treated as regular brain dump text.
+
+**Replace with:**
+> The AI identifies connector URLs in chat messages by matching against known URL patterns for each enabled connector. Pattern definitions are in the build spec. URLs matching an enabled connector pattern are pulled automatically. URLs matching a disabled connector pattern are ignored. Unrecognized URLs are treated as regular brain dump text.
+
+**Part B — Build Spec** (Resource Connector Interface section, ~lines 419–438)
+
+**Add under the Notion Connector subsection:**
+> **URL patterns:** `notion.so/`, `notion.site/`
+
+**Add under the Google Drive Connector subsection:**
+> **URL patterns:** `docs.google.com/`, `drive.google.com/`
 
 ---
 
