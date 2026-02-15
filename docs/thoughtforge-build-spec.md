@@ -205,6 +205,8 @@ Return type varies by plugin:
 
 ### Code Builder Task Queue
 
+**Task derivation guidance:** The code builder parses the Deliverable Structure and Acceptance Criteria sections of `spec.md`. Each architectural component or feature maps to a build task. Each acceptance criterion maps to a test-writing task. The builder orders tasks by dependency (foundational components first, then features, then tests). The exact parsing and ordering logic is an implementation detail of Task 21, but must produce a deterministic task list from the same `spec.md` input.
+
 The code builder maintains an ordered list of build tasks derived from `spec.md` (e.g., implement feature X, write tests for Y). Each task has a string identifier used for stuck detection — consecutive agent invocations against the same task identifier increment the retry counter. The task list format and derivation logic are internal to the code builder and are not persisted to state files. On crash recovery, the code builder re-derives the task list from `spec.md` and the current state of files in the project directory (e.g., which source files and test files already exist).
 
 ### Operation Type Taxonomy
@@ -403,9 +405,10 @@ The Phase 3 plan builder prompt requires the AI to include a structured stuck si
 
 ```typescript
 interface PlanBuilderResponse {
-  stuck: boolean;        // true if the AI cannot proceed without human input
-  reason?: string;       // Required when stuck is true — what decision is needed
-  content: string;       // The drafted content — required when stuck is false, empty string when stuck is true
+  stuck: boolean;
+  reason?: string;       // Required when stuck is true
+  content: string;       // Non-empty when stuck is false; empty string when stuck is true.
+                         // Orchestrator must validate: if stuck is false and content is empty, treat as malformed response.
 }
 ```
 
@@ -499,9 +502,12 @@ Once an action button is pressed, it is immediately disabled in the UI and remai
 
 **Used by:** Task 2 (project initialization)
 
+### Project ID Format
+`{timestamp}-{random}`, e.g., `20260214-a3f2`. Timestamp is `YYYYMMDD` from project creation date. Random is a 4-character lowercase hexadecimal string. The combined ID is URL-safe, filesystem-safe, and unique within the projects directory.
+
 The following operations execute in order when a new project is created:
 
-1. Generate a unique project ID (format: `{timestamp}-{random}`, e.g., `20260214-a3f2`)
+1. Generate a unique project ID (see Project ID Format above)
 2. Create the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories)
 3. Initialize a git repo in the project directory
 4. Write an initial `status.json` with phase `brain_dump` and `project_name` as empty string
@@ -550,8 +556,8 @@ If the first word of the Deliverable Type section is neither "Plan" nor "Code" (
 | Phase 2 | `spec_building` | Entered on Phase 1 Confirm. |
 | Phase 3 | `building` | Entered on Phase 2 Confirm. |
 | Phase 4 | `polishing` | Entered automatically on Phase 3 completion. |
-| Terminal | `done` | `done`: convergence or stagnation success. |
-| Non-terminal halt | `halted` | `halted`: guard trigger, human terminate, or unrecoverable error. Counts toward concurrency limit. Human must resume or terminate to free the slot. |
+| Terminal | `done` | Convergence or stagnation success. Does not count toward concurrency limit. |
+| Halt | `halted` | Guard trigger, human terminate, or unrecoverable error. Counts toward concurrency limit until human resumes (returning to active state) or the operator manually deletes the project directory. Terminated projects (`halt_reason: "human_terminated"`) are functionally finished but use the same `halted` state. |
 
 ```typescript
 interface ProjectStatus {
@@ -690,6 +696,10 @@ polish:
 concurrency:
   max_parallel_runs: 3
 
+# Projects
+projects:
+  directory: "./projects"  # Base directory for all project directories
+
 # Notifications
 notifications:
   default_channel: "ntfy"
@@ -746,10 +756,7 @@ agents:
 # The `supports_vision` field determines whether image resources are passed to
 # this agent. If `false` or absent, image files are logged as skipped.
 
-# Templates — plan mode templates live inside their plugin directory.
-# This key is reserved for future cross-plugin shared templates. Not used in current scope.
-# templates:
-#   directory: "./plugins/plan/templates"
+# templates: (reserved for future cross-plugin shared template configuration)
 
 # Plugins
 plugins:

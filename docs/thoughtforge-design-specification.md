@@ -90,6 +90,8 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 7. AI presents distillation to human in chat
 8. Human corrects via chat → AI revises and re-presents
 9. Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons to prevent misinterpretation), "realign from here" is a chat-parsed command because it does not advance the pipeline — it re-runs the distillation using the original brain dump plus all corrections up to the identified rollback point. The AI re-distills from the original brain dump plus corrections up to a rollback point. Algorithm details in build spec.
+
+The command is matched as an exact case-insensitive string: the entire chat message must be "realign from here" with no additional text. Messages containing the phrase alongside other text are treated as regular corrections.
 10. Human clicks **Confirm** button → advances to Phase 2
 11a. Output: `intent.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline.
 
@@ -106,8 +108,6 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 **Action Button Behavior (All Buttons):**
 
 Every action button in the chat interface follows these rules: (a) specific `status.json` update, (b) defined chat UI feedback, (c) stated confirmation requirement. Complete button inventory with `status.json` effects and UI behavior is specified in the build spec.
-
-**Button Debounce:** Buttons prevent duplicate actions. Once pressed, a button cannot trigger a second action until the first completes or fails. Server-side deduplication handles race conditions.
 
 **Phase 1 Error Handling:**
 
@@ -230,6 +230,8 @@ The plan deliverable filename is `plan.md`, written to `/projects/{id}/docs/plan
 
 1. Orchestrator loads code plugin (`/plugins/code/builder.js`)
 
+1a. **Plan Completeness Gate:** Before the code builder begins work, the orchestrator runs the Plan Completeness Gate (see dedicated section below). If the gate halts the pipeline, Phase 3 does not proceed. If the gate passes or is skipped (no plan document in `/resources/`), the code builder begins.
+
 **Code builder context assembly:** The code builder passes the following files to the coding agent as build context: `spec.md` (architecture, decisions, dependencies), `constraints.md` (acceptance criteria, scope, priorities), and optionally the plan document from `/resources/` if one was identified by the Plan Completeness Gate. `intent.md` is not passed — its content is already distilled into `spec.md`. Resource files from `/resources/` (other than a chained plan document) are not passed to the code builder — they were consumed during Phase 1 distillation.
 
 **Code builder interaction model:** The code builder passes the full `spec.md` (architecture, dependencies, acceptance criteria) to the coding agent as a single build prompt. The agent is responsible for scaffolding, implementation, and initial test writing in a single invocation or multi-turn session, depending on how Vibe Kanban executes the task (if VK is enabled) or as a single invocation (if VK is disabled). The code builder then enters a test-fix cycle: run tests, pass failures back to the agent, agent fixes, re-run tests — repeating until all tests pass or stuck detection triggers. Unlike Phase 4 iterations, the Phase 3 test-fix cycle does not commit after each cycle — a single git commit is written when Phase 3 completes successfully. This is a coarser-grained interaction model than the plan builder's section-by-section approach, reflecting that coding agents (Claude Code, Codex) operate best with full project context rather than isolated function-level prompts. The Phase 3 test-fix cycle does not have its own iteration cap — it terminates only via stuck detection (3 consecutive identical test failures or 2 consecutive non-zero exits on the same task). Since each cycle produces different failing tests, the stuck detector will not trigger on rotating failures. In practice, the code builder's test-fix cycle is bounded by the agent timeout and the human's ability to terminate via the Phase 3 stuck recovery buttons. A hard cap on Phase 3 test-fix cycles is deferred — not a current build dependency.
@@ -328,9 +330,9 @@ Plan mode uses the two-step cycle (Review → Fix) with no test execution.
 | Guard | Condition | Action |
 |---|---|---|
 | Termination (success) | Error counts within configured thresholds (+ all tests pass for code). Thresholds in `config.yaml`. | Done. Notify human. |
-| Hallucination | Total error count increases by more than the configured spike threshold (`hallucination_spike_threshold`, defined in build spec) after at least the configured minimum number of consecutive iterations with decreasing total error count (`hallucination_min_trend`, defined in build spec) | Halt. Notify human: "Fix-regress cycle detected. Errors trending down then spiked. Iteration [N]: [X] total (was [Y]). Review needed." |
+| Hallucination | Total error count increases by more than 20% from the prior iteration (hardcoded threshold, defined in build spec) after at least 2 consecutive iterations with decreasing total error count (hardcoded minimum trend length, defined in build spec) | Halt. Notify human: "Fix-regress cycle detected. Errors trending down then spiked. Iteration [N]: [X] total (was [Y]). Review needed." |
 | Stagnation | **Stagnation:** Two conditions must both be true: (1) Same total error count (sum of critical + medium + minor) for a configured number of consecutive iterations (stagnation limit). (2) Issue rotation detected — old issues resolved, new issues introduced at the same rate (rotation threshold and similarity measure defined in build spec). The comparison uses total count only — a shift in severity composition at the same total still qualifies as stagnation if the rotation threshold is also met. When both conditions are true, the deliverable has reached a quality plateau where the reviewer is cycling through cosmetic issues rather than finding genuine regressions. Treated as converged. | Done (success — treated as converged plateau). Notify human with final error counts and iteration summary. |
-| Fabrication | A severity category spikes significantly above its trailing average (window size defined in build spec), AND in at least one prior iteration, every severity category was at or below 2x its convergence threshold (e.g., critical ≤0, medium ≤6, minor ≤10) — indicating the deliverable was near-converged, and subsequent spikes likely represent manufactured issues | Halt. Notify human. |
+| Fabrication | A severity category spikes significantly above its trailing average (window size defined in build spec), AND in at least one prior iteration, every severity category was at or below twice its convergence threshold — specifically: critical ≤ 0 (2 × 0), medium ≤ 6 (2 × 3), minor ≤ 10 (2 × 5) using default config values. This ensures fabrication is only flagged after the deliverable was near-converged. | Halt. Notify human. |
 | Max iterations | Hard ceiling reached (configurable, default 50) | Halt. Notify human: "Max [N] iterations reached. Avg flaws/iter: [X]. Lowest: [Y] at iter [Z]. Review needed." |
 
 Algorithmic parameters for each guard (spike thresholds, similarity measures, window sizes) are defined in the build spec.
@@ -389,8 +391,8 @@ These follow the same confirmation model as other recovery interactions — expl
 
 | Rule | What It Prevents |
 |---|---|
-| No CLI agent execution | No coding agents, shell commands, package installs during Plan mode Phases 3-4 |
-| No file creation outside plan docs | No `.js`, `.py`, `.ts`, `.sh` files. Only `.md` in `/docs/` and `.json` state files |
+| No coding agent shell access | No shell commands, package installs, or file system writes to source files during Plan mode Phases 3-4. AI agents are invoked for text generation only — not with coding-agent capabilities. |
+| No source file creation | Only documentation files (`.md`) and operational state files (`.json`) may be created. Source file extensions are defined in `safety-rules.js`. |
 | No "quick prototype" | AI cannot build something to validate the plan |
 | No test execution | Plan quality assessed by review loop only |
 | Phase 3 = document drafting only | No project scaffolding or boilerplate |
@@ -436,6 +438,8 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 **Access Control:** When bound to localhost (`127.0.0.1`), no authentication is required — only the local operator can access the interface. If the operator changes the bind address to allow network access (`0.0.0.0` or a specific network interface), a warning is logged at startup: "Server bound to network interface. No authentication is configured — any network client can access ThoughtForge." Authentication and access control are deferred — not a current build dependency. The operator assumes responsibility for network security when binding to non-localhost addresses.
 
 **Application Entry Point:** The operator starts ThoughtForge by running a Node.js server command (e.g., `thoughtforge start` or `node server.js`). This launches the lightweight web chat interface on a local port. The operator accesses the interface via browser. The entry point initializes the config loader, plugin loader, notification layer, and Vibe Kanban adapter (if enabled).
+
+Project directories are created under the path specified by `config.yaml` `projects.directory` (default: `./projects` relative to ThoughtForge's working directory).
 
 **Server Restart Behavior:** On startup, the server scans `/projects/` for projects with non-terminal `status.json` states (`brain_dump`, `distilling`, `human_review`, `spec_building`, `building`, `polishing`). Projects in human-interactive states (`brain_dump`, `human_review`, `spec_building`) resume normally — they are waiting for human input and no action is needed. Projects in autonomous states (`distilling`, `building`, `polishing`) are set to `halted` with `halt_reason: "server_restart"`. These are not auto-resumed because the server cannot safely re-enter a mid-execution agent invocation or polish iteration — the prior subprocess is dead and its partial output is unknown. The human must explicitly resume. The server does not automatically re-enter autonomous pipeline phases after a restart.
 
@@ -485,6 +489,8 @@ Plugin interface contract (function signatures, parameters, return types) define
 
 ### Agent Communication
 
+**Agent layer** refers to ThoughtForge's built-in agent invocation module — the subprocess-based mechanism for calling AI agent CLIs, capturing output, normalizing responses, and handling failures. This is distinct from Vibe Kanban's agent execution, which wraps agent invocation in task management and worktree isolation.
+
 ThoughtForge invokes agents via CLI subprocess calls, passing prompts via file or stdin. Agent-specific adapters normalize output format differences. Invocation details in build spec.
 
 **Shell safety:** Prompt content is passed via stdin pipe or file — never through shell argument expansion. This prevents shell metacharacters in brain dump text or resource files from causing accidental command execution.
@@ -493,6 +499,8 @@ ThoughtForge invokes agents via CLI subprocess calls, passing prompts via file o
 - Non-zero exit, timeout, or empty output → retry once
 - Second failure → halt and notify human
 - Timeout configurable via `config.yaml` (`agents.call_timeout_seconds`, default 300)
+
+**Agent availability check:** At server startup, the configured default agent CLI is verified to exist on PATH. If not found, the server logs a warning: "Default agent '{agent}' not found on PATH. Projects will fail at first agent invocation." The server does not exit — other agents may be available, and the operator may install the agent before creating a project. At project creation, no agent availability check is performed — the first agent invocation failure triggers the standard retry-once-then-halt behavior.
 
 **Structured Response Validation (Non-Review):**
 Phase 3 plan builder responses must conform to the `PlanBuilderResponse` schema. The orchestrator validates the response after each builder invocation. On parse failure: retry once. On second failure: halt and notify human. Phase 1 distillation and Phase 2 spec-building responses are natural language (not structured JSON) and do not require schema validation — the AI's output is presented directly in chat for human review and correction.
@@ -526,7 +534,7 @@ Every phase transition pings the human with a status update. Every notification 
 
 **Concurrency Model:** Each project operates on its own isolated directory and state files. No cross-project state sharing exists.
 
-**Concurrency limit enforcement:** When the number of active projects (status not `done` or `halted`) reaches `config.yaml` `concurrency.max_parallel_runs`, new project creation is blocked. The chat interface disables the "New Project" action and displays a message: "Maximum parallel projects reached ({N}/{N}). Complete or halt an existing project to start a new one." Enforcement is at the ThoughtForge orchestrator level, not delegated to Vibe Kanban. Within a single project, the pipeline is single-threaded — only one operation (phase transition, polish iteration, button action) executes at a time. Concurrent access to a single project's state files is not supported and does not need locking.
+**Concurrency limit enforcement:** When the number of active projects (status not `done`) reaches `config.yaml` `concurrency.max_parallel_runs`, new project creation is blocked. The chat interface disables the "New Project" action and displays a message: "Maximum parallel projects reached ({N}/{N}). Complete or halt an existing project to start a new one." Enforcement is at the ThoughtForge orchestrator level, not delegated to Vibe Kanban. Within a single project, the pipeline is single-threaded — only one operation (phase transition, polish iteration, button action) executes at a time. Concurrent access to a single project's state files is not supported and does not need locking.
 
 **Halted projects and concurrency:** Projects with `halted` status count toward the active project limit until the human either resumes them (returning to active pipeline state) or terminates them (setting them to terminal state). This prevents the operator from creating unlimited projects while ignoring halted ones.
 
@@ -563,7 +571,7 @@ Every phase transition pings the human with a status update. Every notification 
 
 **Prompt file list refresh:** The Settings UI reads the `/prompts/` directory listing each time it is opened. If a prompt file is deleted externally while the editor is open, saving to the deleted file creates it anew (same atomic write behavior). No file locking — the single-operator model makes this acceptable.
 
-**Vibe Kanban Dashboard (Integrated, Not Built):** Columns map to `status.json` phases: Brain Dump → Distilling → Human Review → Spec Building → Building → Polishing → Done. `Distilling` and `Human Review` are separate Kanban columns representing Phase 1 sub-states — the card moves from Brain Dump → Distilling → Human Review as the phase progresses. "Confirmed" is not a separate column — confirmation advances the card from Human Review to the next phase. Cards with `halted` status remain in their current column with a visual halted indicator; "Halted" is a card state, not a column. Each card = one project. Shows agent, status, parallel execution.
+**Vibe Kanban Dashboard (Integrated, Not Built):** Columns map to `status.json` phases: Brain Dump → Distilling → Human Review → Spec Building → Building → Polishing → Done. `Distilling` and `Human Review` are separate Kanban columns representing Phase 1 sub-states — the card moves from Brain Dump → Distilling → Human Review as the phase progresses. "Confirmed" is not a separate column — confirmation advances the card from Human Review to the next phase. Cards with `halted` status remain in their current column with a visual halted indicator; "Halted" is a card state, not a column. Cards with `halt_reason: "human_terminated"` display a distinct visual indicator (e.g., strikethrough or "Terminated" badge) to distinguish permanently stopped projects from recoverable halts that await human action. The specific visual treatment is a UI implementation detail. Each card = one project. Shows agent, status, parallel execution.
 
 **Per-Card Stats:** Created timestamp, time per phase, total duration, status, and agent used are provided by Vibe Kanban's built-in dashboard. Polish loop metrics (iteration count, convergence trajectory, final error counts) are read from `polish_state.json` in each project directory. ThoughtForge does not push stats to Vibe Kanban — Vibe Kanban reads the project files directly.
 

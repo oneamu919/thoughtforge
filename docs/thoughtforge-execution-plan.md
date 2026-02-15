@@ -18,6 +18,8 @@
 
 **Implementation language:** The codebase uses TypeScript. Zod schemas and interface definitions in the build spec use TypeScript syntax. The build toolchain includes `tsc` compilation. (If JavaScript-only is preferred, replace TypeScript interfaces with JSDoc type annotations and use Zod's runtime-only validation.)
 
+**Pre-build decision: Test framework.** Choose Vitest or Jest before Task 1 begins. Both are compatible. Vitest is recommended for ESM-native support and faster execution with TypeScript projects (no separate compilation step for tests).
+
 ---
 
 ## Task Breakdown
@@ -39,9 +41,9 @@
 | 4 | Implement notification abstraction layer + ntfy.sh channel | — | Task 1 | — | Not Started |
 | 5 | Implement phase transition notifications (ping human on every milestone) | — | Task 3, Task 4 | — | Not Started |
 | 6 | Set up plugin loader (reads `/plugins/{type}/`, validates interface contract) | — | Task 1 | — | Not Started |
-| 6a | Implement pipeline orchestrator: phase sequencing based on `status.json`, plugin selection by `deliverable_type`, safety-rules enforcement (call plugin `validate(operation)` before every Phase 3/4 action), cross-cutting file system error handling (halt and notify on write failures — no retry) | — | Task 2, Task 3, Task 6 | — | Not Started |
+| 6a | Implement pipeline orchestrator: phase sequencing based on `status.json`, plugin selection by `deliverable_type`, safety-rules enforcement (call plugin `validate(operation)` before every Phase 3/4 action), cross-cutting file system error handling (halt and notify on file system failures — both read failures on critical state files and write failures — no retry) | — | Task 2, Task 3, Task 6 | — | Not Started |
 | 6b | Implement Phase 2→3 transition: Plan Completeness Gate trigger for Code mode, advancement logic | — | Task 6a, Task 6d | — | Not Started |
-| 6c | Implement Phase 3→4 automatic transition and Phase 3 stuck recovery interaction (Provide Input / Terminate buttons) | — | Task 6a, Task 7 | — | Not Started |
+| 6c | Implement Phase 3→4 automatic transition including output validation (per design spec Phase 3→4 Transition Error Handling: verify expected output files exist and meet `config.yaml` `phase3_completeness` thresholds before entering Phase 4), Phase 3 stuck recovery interaction (Provide Input / Terminate buttons), and milestone notification. | — | Task 6a, Task 7 | — | Not Started |
 | 6d | Implement Plan Completeness Gate: assessment prompt for Code mode Phase 3 entry (loaded from `/prompts/completeness-gate.md`), halt with `plan_incomplete` on fail, present Override and Terminate buttons in chat (Override resumes build, Terminate halts permanently) | — | Task 7a, Task 6e, Tasks 41–42 | — | Not Started |
 | 6e | Draft `/prompts/completeness-gate.md` prompt text | — | Task 7a | — | Not Started |
 
@@ -69,7 +71,7 @@
 | 9a | Implement `chat_history.json` persistence: append after each chat message, clear on Phase 1→2 and Phase 2→3 confirmation only (NOT on Phase 3→4 automatic transition), resume from last recorded message on crash | — | Task 3, Task 7 | — | Not Started |
 | 10 | Implement action buttons: Distill (Phase 1 intake trigger) and Confirm (phase advancement mechanism). Include button debounce: disable on press until operation completes, server-side duplicate request detection (ignore duplicates, return current state). | — | Task 7 | — | Not Started |
 | 11 | Implement intent.md generation and locking, project name derivation (extract from H1 or AI-generate), `deliverable_type` derivation (from Deliverable Type section of confirmed intent.md — `"plan"` or `"code"` in status.json), status.json `project_name` and `deliverable_type` update, and Vibe Kanban card name update (if enabled). Include deliverable type parse failure handling: reject values other than "Plan" or "Code", notify human in chat, do not advance. | — | Task 9, Task 2a, Task 26, Tasks 41–42 | — | Not Started |
-| 12 | Implement Phase 2: spec building. 1. Mode-specific proposal (Plan: OPA-structured plan sections; Code: architecture/language/framework/tools with OSS discovery from Task 25) 2. AI challenge of weak or risky decisions in `intent.md` (does not rubber-stamp) 3. Constraint discovery 4. Acceptance criteria extraction (5–10 per design spec) 5. Human review/override of proposed decisions and acceptance criteria 6. Unknown/Open Question resolution validation gate (block Confirm if unresolved items remain) 7. Confirm to advance | — | Task 6a, Task 10, Task 11, Task 7a, Task 7f, Task 25, Tasks 41–42 | — | Not Started |
+| 12 | Implement Phase 2: spec building per design spec Phase 2 behavior. Includes mode-specific proposal (Plan: OPA structure; Code: architecture with OSS discovery from Task 25), AI challenge of intent decisions, constraint discovery, acceptance criteria extraction, human review/override, Unknown resolution validation gate, and Confirm advancement. Prompt loaded from `/prompts/spec-building.md`. | — | Task 6a, Task 10, Task 11, Task 7a, Task 7f, Task 25, Tasks 41–42 | — | Not Started |
 | 13 | Implement `spec.md` and `constraints.md` generation | — | Task 12, Task 2a | — | Not Started |
 
 ### Build Stage 3: Plan Mode Plugin
