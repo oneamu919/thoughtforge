@@ -81,19 +81,17 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 4. Human clicks **Distill** button — signals that all inputs (brain dump text, files, connector URLs) have been provided and the AI should begin processing. This follows the same confirmation model as phase advancement: explicit button press, not chat-parsed.
 5. AI reads all resources (text, PDF, images via vision, code files) and the brain dump
 
-**Resource File Processing:**
-
-| Format | Processing Method |
-|---|---|
-| `.md`, `.txt`, code files | Read as plain text, passed to AI as context |
-| `.pdf` | Text extracted via PDF parsing library (e.g., `pdf-parse`). If extraction yields no text (scanned PDF), log a warning and skip the file. OCR is deferred. |
-| Images (`.png`, `.jpg`, `.gif`) | Passed to the AI agent's vision capability if the configured agent supports it. If not, log a warning and skip. |
-| Unsupported formats | Logged as unreadable per Phase 1 error handling |
+**Resource File Processing:** Resources are processed by format — text read directly, PDFs extracted, images via AI vision if supported, unsupported formats logged and skipped.
 
 6. AI distills into structured document: Deliverable Type, Objective, Assumptions, Constraints, Unknowns, Open Questions (max 5)
 7. AI presents distillation to human in chat
 8. Human corrects via chat → AI revises and re-presents
-9. Human can type "realign from here" as a chat message. The AI identifies the human's most recent substantive correction — defined as the last human message that is not a "realign from here" command. All messages after that correction (both AI and human) are excluded from the working context but remain in chat_history.json for audit purposes. The AI re-distills from the original brain dump plus all human corrections up to and including that baseline message. Does not restart from the original brain dump alone. If no human corrections exist yet (i.e., "realign from here" is sent before any corrections), the command is ignored and the AI responds asking the human to provide a correction first.
+9. Human can type "realign from here" as a chat message. The behavior is:
+
+   1. **Baseline identification:** The AI identifies the human's most recent substantive correction — defined as the last human message that is not a "realign from here" command.
+   2. **Context truncation:** All messages after that correction (both AI and human) are excluded from the working context but remain in `chat_history.json` for audit purposes.
+   3. **Re-distillation:** The AI re-distills from the original brain dump plus all human corrections up to and including that baseline message. It does not restart from the original brain dump alone.
+   4. **No-correction guard:** If no human corrections exist yet (i.e., "realign from here" is sent before any corrections), the command is ignored and the AI responds asking the human to provide a correction first.
 10. Human clicks **Confirm** button → advances to Phase 2
 11. Output: `intent.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline. The `deliverable_type` field in `status.json` is set to `"plan"` or `"code"` at this point, derived from the Deliverable Type section of the confirmed `intent.md`.
 
@@ -139,7 +137,11 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 8. Human clicks **Confirm** → advances to Phase 3
 9. Outputs: `spec.md` and `constraints.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline.
 
-**Manual Edit Behavior:** "Locked" means the AI pipeline will not modify these files after their creation phase. However, the pipeline re-reads `constraints.md` at the start of each Phase 4 iteration, so manual human edits to acceptance criteria or review rules are picked up automatically. `spec.md` and `intent.md` are read once at Phase 3 start and not re-read during later phases. If the human manually edits these files after their creation phase, the only way to pick up those changes is to create a new project — there is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits.
+**Manual Edit Behavior:** "Locked" means the AI pipeline will not modify these files after their creation phase.
+
+**`constraints.md` (hot-reloaded):** The pipeline re-reads `constraints.md` at the start of each Phase 4 iteration, so manual human edits to acceptance criteria or review rules are picked up automatically.
+
+**`spec.md` and `intent.md` (static after creation):** These are read once at Phase 3 start and not re-read during later phases. If the human manually edits these files after their creation phase, the only way to pick up those changes is to create a new project — there is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits to any locked file.
 
 **Phase 2 Error Handling:**
 
@@ -188,7 +190,7 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 4. Template defines OPA skeleton as fixed structure — AI fills content slots but cannot break structure
 5. Fills every section — no placeholders, no "TBD"
 
-**Template Content Escaping:** AI-generated content inserted into Handlebars template slots is escaped to prevent Handlebars syntax characters in plan text (e.g., literal `{{` or `}}`) from causing render failures. The plan builder escapes content before template rendering.
+**Template Content Escaping:** AI-generated content must not break template rendering.
 
 6. **NEVER creates source files, runs commands, installs packages, scaffolds projects, or executes anything. Document drafting only. Enforced at orchestrator level via plugin safety rules.**
 7. If stuck on a decision requiring human input: notifies and waits
@@ -208,7 +210,7 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 
 | Mode | Stuck Condition | Action |
 |---|---|---|
-| Plan | AI returns a JSON response. The orchestrator parses this JSON to detect stuck status. Response schema (`PlanBuilderResponse`) defined in build spec. | Notify and wait |
+| Plan | AI includes a `stuck: boolean` flag in every response (per `PlanBuilderResponse` schema in build spec). When `stuck` is `true`, the `reason` field describes what decision is needed. The orchestrator checks this flag after every builder response. | Notify and wait |
 | Code | Build agent returns non-zero exit after 2 consecutive retries on the same task, OR test suite fails on the same tests for 3 consecutive fix attempts | Notify and wait |
 
 **Phase 3 Stuck Recovery:**
@@ -259,7 +261,7 @@ Recovery follows the same confirmation model as Phase 4: explicit button presses
 
 **Step 2 — Fix (apply recommendations):** Orchestrator passes JSON issue list to fixer agent, which applies fixes. Git commit after fix (captures applied fixes).
 
-**Code Mode Iteration Cycle:** Code mode extends the two-step cycle with a test execution step at the beginning. The full Code mode cycle per iteration is: (1) **Test** — orchestrator runs tests via the code plugin's `test-runner.js` and captures results. (2) **Review** — orchestrator passes test results as additional context to the reviewer AI alongside the codebase and `constraints.md`. Reviewer outputs JSON error report. (3) **Fix** — orchestrator passes the issue list to the fixer agent. Git commit after fix. Plan mode uses the two-step cycle (Review → Fix) with no test execution. Both modes commit after the review step and after the fix step. Code mode follows the same two-commits-per-iteration pattern: git commit after the review step (captures review JSON and test results) and git commit after the fix step (captures applied fixes).
+**Code Mode Iteration Cycle:** Code mode extends the two-step cycle with a test execution step at the beginning. The full Code mode cycle per iteration is: (1) **Test** — orchestrator runs tests via the code plugin's `test-runner.js` and captures results. (2) **Review** — orchestrator passes test results as additional context to the reviewer AI alongside the codebase and `constraints.md`. Reviewer outputs JSON error report. (3) **Fix** — orchestrator passes the issue list to the fixer agent. Git commit after fix. Plan mode uses the two-step cycle (Review → Fix) with no test execution. Both modes commit after the review step and after the fix step. Code mode follows the same two-commits-per-iteration pattern: git commit after the review step (captures any review artifacts and test results) and git commit after the fix step (captures applied fixes). The review JSON output is persisted as part of the `polish_state.json` update and the `polish_log.md` append that occur at each iteration boundary — it is not written as a separate file.
 
 **Convergence Guards:**
 
@@ -267,7 +269,7 @@ Recovery follows the same confirmation model as Phase 4: explicit button presses
 |---|---|---|
 | Termination (success) | Error counts within configured thresholds (+ all tests pass for code). Thresholds in `config.yaml`. | Done. Notify human. |
 | Hallucination | Error count spikes sharply after a sustained downward trend | Halt. Notify human: "Fix-regress cycle detected. Errors trending down then spiked. Iteration [N]: [X] total (was [Y]). Review needed." |
-| Stagnation | Same total error count for 3+ consecutive iterations... AND issue churn detected (the specific issues change between iterations even though the total count stays flat — indicating the loop is replacing old issues with new ones at the same rate and has reached the best quality achievable autonomously) | Done (success). Notify human: "Polish sufficient. Ready for final review." |
+| Stagnation | Same total error count for 3+ consecutive iterations AND issue rotation detected — the specific issues change between iterations while the total count stays flat. This indicates the loop is replacing old issues with new ones at the same rate and has reached the best quality achievable autonomously. | Done (success). Notify human: "Polish sufficient. Ready for final review." |
 | Fabrication | A severity category spikes significantly above its trailing 3-iteration average (e.g., >50% increase), AND the system had previously approached convergence thresholds — suggesting the reviewer is manufacturing issues because nothing real remains | Halt. Notify human. |
 | Max iterations | Hard ceiling reached (configurable, default 50) | Halt. Notify human: "Max [N] iterations reached. Avg flaws/iter: [X]. Lowest: [Y] at iter [Z]. Review needed." |
 
@@ -297,12 +299,15 @@ Recovery is initiated through the ThoughtForge chat interface. The halted card r
 | Zod validation failure on review JSON | Retry up to `config.yaml` `polish.retry_malformed_output` (default 2). On repeated failure: halt and notify human. |
 | File system error during git commit after fix | Halt and notify human immediately. `polish_state.json` for the current iteration is not written (last completed iteration preserved for recovery). |
 | Test runner crash during Code mode iteration (process error, not test assertion failure) | Same retry behavior as agent communication layer: retry once, halt on second failure. Distinct from test assertion failures, which are passed to the reviewer as context. |
+| Git commit failure after review step | Halt and notify human immediately. The review JSON is preserved in memory for the current iteration. `polish_state.json` for the current iteration is not written. On resume, the review step is re-attempted from the beginning. |
 
 **Count Derivation:** The orchestrator derives error counts from the issues array, not from top-level count fields. Count derivation logic is specified in the build spec.
 
 #### Plan Completeness Gate (Code Mode Entry)
 
-When a Code mode pipeline starts and a plan document is detected in `/resources/`, the AI assesses whether the plan is complete enough to build from. This is a prompt-based AI judgment — not a mechanical gate. The AI is given the completeness signals below as evaluation criteria and returns a pass/fail recommendation with reasoning.
+When a Code mode pipeline starts and a plan document is detected in `/resources/`, the AI assesses whether the plan is complete enough to build from. This is a prompt-based AI judgment — not a mechanical gate.
+
+**Plan document identification:** The gate scans `/resources/` for `.md` files. If exactly one `.md` file is present, it is treated as the plan document. If multiple `.md` files are present, the gate evaluates each and uses the first that appears to be a structured plan (contains OPA table structure or section headings matching the plan template pattern). If no `.md` files are present, the gate is skipped — Code mode proceeds without plan evaluation. The AI is given the completeness signals below as evaluation criteria and returns a pass/fail recommendation with reasoning.
 
 **Completeness signals (prompt guidance, not a scored rubric):** OPA Framework structure present, specific objectives (not vague), decisions made (not options listed), enough detail to build without guessing, acceptance criteria defined, no TBD/placeholders, clear scope boundaries, dependencies listed.
 
@@ -362,7 +367,7 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 | Schema Validation | Zod (MIT, TypeScript-first) | Single-source review JSON schema. Auto-validation with clear errors |
 | Template Engine | Handlebars (MIT) | OPA skeleton as fixed structure. AI fills slots, can't break structure |
 | Plugin Architecture | Convention-based: `/plugins/{type}/` | Self-contained per deliverable type. Orchestrator delegates, no if/else branching |
-| Operational Logging | Structured JSON logger (custom, using Node.js `fs` for file append) | ThoughtForge logs its own operations — agent invocations, phase transitions, convergence guard evaluations, errors, and halt events — to a per-project `thoughtforge.log` file as structured JSON lines. Separate from `polish_log.md` (which is the human-readable iteration log). Used for debugging, not human review. |
+| Operational Logging | Structured JSON logger — per-project operational log for debugging | ThoughtForge logs its own operations — agent invocations, phase transitions, convergence guard evaluations, errors, and halt events — to a per-project `thoughtforge.log` file as structured JSON lines. Separate from `polish_log.md` (which is the human-readable iteration log). Used for debugging, not human review. |
 | MCP (Future) | Model Context Protocol | Core actions as clean standalone functions for future MCP wrapping. Deferred. Not a current build dependency. |
 
 **Application Entry Point:** The operator starts ThoughtForge by running a Node.js server command (e.g., `thoughtforge start` or `node server.js`). This launches the lightweight web chat interface on a local port. The operator accesses the interface via browser. The entry point initializes the config loader, plugin loader, notification layer, and Vibe Kanban adapter (if enabled).
@@ -445,7 +450,9 @@ Each notification is sent as a structured object containing all five fields from
 
 ### Project State Files
 
-**Concurrency Model:** Each project operates on its own isolated directory and state files. No cross-project state sharing exists. Within a single project, the pipeline is single-threaded — only one operation (phase transition, polish iteration, button action) executes at a time. The orchestrator serializes operations per project. Concurrent access to a single project's state files is not supported and does not need locking.
+**Concurrency Model:** Each project operates on its own isolated directory and state files. No cross-project state sharing exists.
+
+**Concurrency limit enforcement:** When the number of active projects (status not `done` or `halted`) reaches `config.yaml` `concurrency.max_parallel_runs`, new project creation is blocked. The chat interface disables the "New Project" action and displays a message: "Maximum parallel projects reached ({N}/{N}). Complete or halt an existing project to start a new one." Enforcement is at the ThoughtForge orchestrator level, not delegated to Vibe Kanban. Within a single project, the pipeline is single-threaded — only one operation (phase transition, polish iteration, button action) executes at a time. The orchestrator serializes operations per project. Concurrent access to a single project's state files is not supported and does not need locking.
 
 **Write Atomicity:** All state file writes (`status.json`, `polish_state.json`, `chat_history.json`) use atomic write — write to a temporary file in the same directory, then rename to the target path. This prevents partial writes from corrupting state on crash. The project state module (Task 3) implements this as the default write behavior for all state files.
 
@@ -462,7 +469,9 @@ Each notification is sent as a structured object containing all five fields from
 
 **ThoughtForge Chat (Built):** Lightweight web chat interface (terminal-based alternative deferred). Primary use: Phases 1–2 (brain dump intake, spec building). Also used for Phase 3 stuck recovery (provide input, terminate) and Phase 4 halt recovery (resume, override, terminate). Per-project chat thread, file/resource dropping, AI messages labeled by phase, corrections via chat, advancement via Confirm button. During stuck and halt recovery, the chat presents the current state context and the available recovery options — no free-form AI conversation. The chat interface includes a project list sidebar showing all active projects with their current phase. The human clicks a project to open its chat thread. New projects are created from this list via a "New Project" action. The active project's chat thread occupies the main panel.
 
-**WebSocket Disconnection:** If the WebSocket connection drops, the chat client automatically attempts to reconnect. On reconnect, the client fetches the current project state from `status.json` and the latest chat messages from `chat_history.json` to restore the UI to the correct state. In-flight AI responses that were streaming when the connection dropped are not replayed — the human sees the last fully-received message and can re-trigger the action (e.g., click Distill again) if the operation did not complete. Pipeline processing continues server-side regardless of client connection state.
+**WebSocket Disconnection:** If the WebSocket connection drops, the chat client automatically attempts to reconnect. On reconnect, the client fetches the current project state from `status.json` and the latest chat messages from `chat_history.json` to restore the UI to the correct state. In-flight AI responses that were streaming when the connection dropped are not replayed — the human sees the last fully-received message. If the server-side operation completed during the disconnect, the reconnect state sync picks up the updated `status.json` and chat history. If the operation did not complete server-side, the human can re-trigger the action (e.g., click Distill again). Pipeline processing continues server-side regardless of client connection state.
+
+**Reconnection behavior:** The client uses exponential backoff starting at 1 second, capped at 30 seconds, with no maximum retry limit. During disconnection, the chat UI displays a visible "Reconnecting..." indicator. On successful reconnect, the indicator is removed and state is synced from the server.
 
 **Project Status on Return:** The project list sidebar shows each project's current phase and status (including halted indicator). When the human opens a project's chat thread, the most recent messages and any pending action buttons (e.g., halt recovery options) are displayed. No separate "catch-up" summary is generated — the chat history and project status serve this purpose.
 

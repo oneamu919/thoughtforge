@@ -46,7 +46,7 @@
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
-| 7 | Build ThoughtForge web chat interface: core chat panel with per-project thread, AI message streaming via WebSocket, messages labeled by phase | — | Task 1a | — | Not Started |
+| 7 | Build ThoughtForge web chat interface: core chat panel with per-project thread, AI message streaming via WebSocket, messages labeled by phase, WebSocket disconnection handling with auto-reconnect and state recovery from `status.json` and `chat_history.json` | — | Task 1a | — | Not Started |
 | 7g | Implement project list sidebar: list active projects with current phase, click to switch, "New Project" action | — | Task 7, Task 2 | — | Not Started |
 | 7h | Implement file/resource dropping in chat interface (upload to `/resources/`). Validate that resolved file paths stay within the project's `/resources/` directory — reject uploads with path traversal components (`..`, absolute paths). | — | Task 7 | — | Not Started |
 | 7a | Externalize all pipeline prompts to `/prompts/` directory as `.md` files (brain-dump-intake, plan-review, code-review, plan-fix, code-fix, plan-build, code-build, spec-building, completeness-gate) | — | Task 1 | — | Not Started |
@@ -68,7 +68,7 @@
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
 | 14 | Create `/plugins/plan/` folder structure | — | Task 6 | — | Not Started |
-| 15 | Implement `builder.js` — Handlebars template-driven document drafting, including template rendering failure handling (halt immediately, no retry) | — | Task 6a, Task 14, Task 15a, Tasks 41–42 | — | Not Started |
+| 15 | Implement `builder.js` — Handlebars template-driven document drafting, including content escaping for Handlebars syntax characters in AI-generated content, including template rendering failure handling (halt immediately, no retry) | — | Task 6a, Task 14, Task 15a, Tasks 41–42 | — | Not Started |
 | 15a | Draft `/prompts/plan-build.md` prompt text | — | Task 7a | — | Not Started |
 | 16 | Create OPA skeleton Handlebars templates (generic, wedding, strategy, engineering) | — | Task 15 | — | Not Started |
 | 17 | Implement `reviewer.js` — Plan review Zod schema + severity definitions | — | Task 14 | — | Not Started |
@@ -103,7 +103,10 @@
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
-| 30 | Implement orchestrator loop: review call → parse → validate → fix call → commit. Guard evaluation in specified order (Termination → Hallucination → Fabrication → Stagnation → Max iterations; first trigger ends evaluation). Count derivation (Task 32), polish state persistence + crash recovery (Task 38), and polish log append (Task 39) are implemented as part of the polish loop orchestrator module — they are listed as separate tasks for tracking but are coded within the orchestrator, not as separate modules. | — | Task 3, Task 6a, Task 6c, Task 17, Task 22, Tasks 30a–30b, Tasks 41–42 | — | Not Started |
+| 30 | Implement orchestrator loop: review call → parse → validate → fix call → commit. Guard evaluation in specified order (Termination → Hallucination → Fabrication → Stagnation → Max iterations; first trigger ends evaluation). | — | Task 3, Task 6a, Task 6c, Task 17, Task 22, Tasks 30a–30b, Tasks 41–42 | — | Not Started |
+
+> **Note:** Tasks 32, 38, and 39 are implemented within the Task 30 orchestrator module, not as separate files. They are listed separately for progress tracking.
+
 | 30a | Draft `/prompts/plan-review.md` and `/prompts/plan-fix.md` prompt text | — | Task 7a | — | Not Started |
 | 30b | Draft `/prompts/code-review.md` and `/prompts/code-fix.md` prompt text | — | Task 7a | — | Not Started |
 | 30c | Implement Code mode iteration cycle: test execution via `test-runner.js` before review, test results passed as reviewer context. Distinguish test runner crashes (process error — retry once, halt on second) from test assertion failures (pass to reviewer as context). | — | Task 24, Task 30 | — | Not Started |

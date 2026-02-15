@@ -357,6 +357,14 @@ Agent-specific adapters handle output format differences and normalize to Though
 
 ---
 
+## Plan Builder — Template Content Escaping
+
+**Used by:** Task 15 (plan builder)
+
+AI-generated content inserted into Handlebars template slots is escaped to prevent Handlebars syntax characters in plan text (e.g., literal `{{` or `}}`) from causing render failures. The plan builder escapes content before template rendering.
+
+---
+
 ## Plan Mode Stuck Signal Schema
 
 **Used by:** Task 15 (plan builder), Task 6c (stuck recovery)
@@ -396,6 +404,19 @@ Each connector module in `/connectors/` implements:
 - Accepts document URLs or IDs
 - Pulls document content as plain text or Markdown via Google Drive API export
 - Saves as `gdrive_{document_id}.md` in `/resources/`
+
+---
+
+## Resource File Processing
+
+**Used by:** Task 8 (Phase 1 brain dump intake)
+
+| Format | Processing Method |
+|---|---|
+| `.md`, `.txt`, code files | Read as plain text, passed to AI as context |
+| `.pdf` | Text extracted via PDF parsing library (e.g., `pdf-parse`). If extraction yields no text (scanned PDF), log a warning and skip the file. OCR is deferred. |
+| Images (`.png`, `.jpg`, `.gif`) | Passed to the AI agent's vision capability if the configured agent supports it. If not, log a warning and skip. |
+| Unsupported formats | Logged as unreadable per Phase 1 error handling |
 
 ---
 
@@ -502,6 +523,7 @@ On crash, chat resumes from last recorded message. Cleared after Phase 1→Phase
 
 **Used by:** Task 3a (operational logging module)
 **Written:** Continuously during pipeline execution
+**Implementation:** Custom structured JSON logger using Node.js `fs` for file append
 
 Each log line is a JSON object:
 
@@ -720,6 +742,35 @@ Same structure as Plan mode, except:
 ## Acceptance Criteria
 {5–10 statements of what the deliverable must contain or do}
 ```
+
+---
+
+## `intent.md` Structure
+
+**Used by:** Task 11 (intent.md generation and locking)
+**Written:** End of Phase 1, locked after write
+
+### Template
+
+    # {Project Name}
+
+    ## Deliverable Type
+    {Plan or Code, with reasoning}
+
+    ## Objective
+    {What the human wants to exist when this is done}
+
+    ## Assumptions
+    {What the human seems to believe is true, both stated and inferred}
+
+    ## Constraints
+    {Limitations: OS, language, tools, budget, timeline, etc.}
+
+    ## Unknowns
+    {Gaps that need to be decided before building}
+
+    ## Open Questions
+    {Up to 5 questions the AI couldn't resolve from the brain dump, prioritized by blocking impact}
 
 ---
 
