@@ -16,210 +16,195 @@ Read all three files before making any edits.
 
 ---
 
-## Changes to Design Spec (`docs/thoughtforge-design-specification.md`)
+## SECTION 1: Replacements (Unclear Writing)
 
-### Change 1 — [Major] Hallucination guard parameter naming mismatch with build spec
+### Change 1 — Design Spec, Phase 1 Step 3, Connector URL Identification (around line 82) [Minor]
 
-**Action:** Find the Hallucination guard row/section that references `hallucination_spike_threshold` and `hallucination_min_trend` as configurable parameters. Replace the description text with:
+**Find this text:**
+> "URLs matching an enabled connector pattern are pulled automatically. URLs matching a disabled connector pattern are ignored. Unrecognized URLs are treated as regular brain dump text."
 
-> Total error count increases by more than 20% from the prior iteration (hardcoded threshold, defined in build spec) after at least 2 consecutive iterations with decreasing total error count (hardcoded minimum trend length, defined in build spec)
-
----
-
-### Change 2 — [Major] Concurrency limit — contradictory definition of "active"
-
-**Action:** Find the Concurrency limit enforcement section. Its first sentence says something like "When the number of active projects (status not `done` or `halted`) reaches max_parallel_runs..." Replace that first sentence with:
-
-> When the number of active projects (status not `done`) reaches `config.yaml` `concurrency.max_parallel_runs`, new project creation is blocked.
-
-This makes it consistent with the "halted counts toward active" interpretation elsewhere in the document.
+**Replace with:**
+> "The AI matches each URL against the known patterns for enabled connectors:
+> - **Match + enabled:** URL is pulled automatically via the connector.
+> - **Match + disabled:** URL is silently ignored (not pulled, not treated as text).
+> - **No match:** URL is treated as regular brain dump text and included in distillation context."
 
 ---
 
-### Change 3 — [Major] `halted` described as "non-terminal" but Terminate also produces `halted`
+### Change 2 — Design Spec, Stagnation Guard description (around line 334) [Minor]
 
-**Action:** Find the `status.json` schema table rows that describe terminal/non-terminal states. Replace the rows for terminal and non-terminal halt with:
+**Find this text:**
+> "The comparison uses total count only — a shift in severity composition at the same total still qualifies as stagnation if the rotation threshold is also met."
 
-> | Terminal | `done` | Convergence or stagnation success. Does not count toward concurrency limit. |
-> | Halt | `halted` | Guard trigger, human terminate, or unrecoverable error. Counts toward concurrency limit until human resumes (returning to active state) or the operator manually deletes the project directory. Terminated projects (`halt_reason: "human_terminated"`) are functionally finished but use the same `halted` state. |
-
----
-
-### Change 4 — [Minor] "No CLI agent execution" in Plan mode safety guardrails
-
-**Action:** Find the Plan Mode Safety Guardrails table row about "No coding agents" or "No CLI agent execution." Replace that row with:
-
-> | No coding agent shell access | No shell commands, package installs, or file system writes to source files during Plan mode Phases 3-4. AI agents are invoked for text generation only — not with coding-agent capabilities. |
+**Replace with:**
+> "Stagnation compares total error count only, not per-severity breakdowns. A shift in severity composition (e.g., fewer criticals but more minors) at the same total still qualifies as stagnation, provided the rotation threshold is also met."
 
 ---
 
-### Change 5 — [Minor] "Realign from here" — unclear matching semantics
+### Change 3 — Design Spec, Fabrication Guard (around line 335) [Minor]
 
-**Action:** Find the section about "realign from here" (Step 9 or similar). After the text describing it as a chat-parsed command, add:
+**Find this text (the inline hardcoded math):**
+> "specifically: critical ≤ 0 (2 × 0), medium ≤ 6 (2 × 3), minor ≤ 10 (2 × 5) using default config values"
 
-> The command is matched as an exact case-insensitive string: the entire chat message must be "realign from here" with no additional text. Messages containing the phrase alongside other text are treated as regular corrections.
-
----
-
-### Change 6 — [Minor] Fabrication guard "2x" phrasing clarity
-
-**Action:** Find the fabrication guard section, specifically the condition about "2x its convergence threshold." Replace that condition text with:
-
-> In at least one prior iteration, every severity category was at or below twice its convergence threshold — specifically: critical ≤ 0 (2 × 0), medium ≤ 6 (2 × 3), minor ≤ 10 (2 × 5) using default config values. This ensures fabrication is only flagged after the deliverable was near-converged.
+**Replace with:**
+> "every severity category was at or below twice its convergence threshold — that is, critical ≤ 2 × `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max` (using default config: ≤0 critical, ≤6 medium, ≤10 minor). These values are derived from `config.yaml` at runtime, not hardcoded."
 
 ---
 
-### Change 7 — [Minor] "Agent layer" never formally defined
+### Change 4 — Design Spec, Phase 3 Code Builder Interaction Model (around line 237) [Minor]
 
-**Action:** Find the Agent Communication section. Before the first paragraph of that section, add:
+**Find this text:**
+> "Since each cycle produces different failing tests, the stuck detector will not trigger on rotating failures."
 
-> **Agent layer** refers to ThoughtForge's built-in agent invocation module — the subprocess-based mechanism for calling AI agent CLIs, capturing output, normalizing responses, and handling failures. This is distinct from Vibe Kanban's agent execution, which wraps agent invocation in task management and worktree isolation.
-
----
-
-### Change 8 — [Major] Missing: When the Plan Completeness Gate fires relative to Phase 3
-
-**Action:** Find the Phase 3 Code Mode section. After step 1 ("Orchestrator loads code plugin" or similar), add a new step:
-
-> 1a. **Plan Completeness Gate:** Before the code builder begins work, the orchestrator runs the Plan Completeness Gate (see dedicated section below). If the gate halts the pipeline, Phase 3 does not proceed. If the gate passes or is skipped (no plan document in `/resources/`), the code builder begins.
+**Replace with:**
+> "If each test-fix cycle produces *different* failing tests (rotating failures rather than the same tests failing repeatedly), the stuck detector does not trigger — it only fires on 3 consecutive cycles with the *identical* set of failing test names."
 
 ---
 
-### Change 9 — [Major] Missing: No `projects/` base directory specified
+### Change 5 — Design Spec, Locked File Behavior section (around line 166) [Minor]
 
-**Action:** Find the Application Entry Point paragraph. Add:
+**Find this text:**
+> "On server restart, the in-memory copies are lost."
 
-> Project directories are created under the path specified by `config.yaml` `projects.directory` (default: `./projects` relative to ThoughtForge's working directory).
-
----
-
-### Change 10 — [Minor] Missing: What happens to Vibe Kanban cards when a project is terminated
-
-**Action:** Find the Vibe Kanban Dashboard section, after the sentence about halted cards displaying a halted indicator. Add:
-
-> Cards with `halt_reason: "human_terminated"` display a distinct visual indicator (e.g., strikethrough or "Terminated" badge) to distinguish permanently stopped projects from recoverable halts that await human action. The specific visual treatment is a UI implementation detail.
+**Replace with:**
+> "On server restart, the orchestrator's in-memory working copies of `spec.md` and `intent.md` (loaded at Phase 3 start) are discarded."
 
 ---
 
-### Change 11 — [Minor] Missing: How ThoughtForge handles missing default agent CLI
+### Change 6 — Execution Plan, Critical Path (around line 192) [Minor]
 
-**Action:** Find the Agent Communication section, after the Failure handling content. Add:
+**Find this text:**
+> "Task 1 → Task 41 → Task 42 → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 16 → Task 30 → Tasks 33–37 → Task 51"
 
-> **Agent availability check:** At server startup, the configured default agent CLI is verified to exist on PATH. If not found, the server logs a warning: "Default agent '{agent}' not found on PATH. Projects will fail at first agent invocation." The server does not exit — other agents may be available, and the operator may install the agent before creating a project. At project creation, no agent availability check is performed — the first agent invocation failure triggers the standard retry-once-then-halt behavior.
-
----
-
-### Change 12 — [Minor] Plan Mode Safety Guardrails — source file extension list belongs in build spec
-
-**Action:** Find the Plan Mode Safety Guardrails table row "No file creation outside plan docs" (or similar wording that lists specific file extensions like `.js`, `.py`, `.ts`, `.sh`). Replace that row with:
-
-> | No source file creation | Only documentation files (`.md`) and operational state files (`.json`) may be created. Source file extensions are defined in `safety-rules.js`. |
+**Replace with:**
+> "Task 1 → Task 41 → Task 42 → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 30 → Tasks 33–37 → Task 51
+>
+> Note: Task 30 depends on Task 17 (plan reviewer) and Task 6c (Phase 3→4 transition), not Task 16 (templates). Task 16 (templates) feeds Task 15 at runtime but is not on the critical path — templates can be created after the builder module. Task 17 runs in parallel with Task 15 and must complete before Task 30."
 
 ---
 
-### Change 13 — [Minor] Button debounce duplicate paragraph
+### Change 7 — Build Spec, Code Builder Task Queue section (around line 208) [Minor]
 
-**Action:** Find and remove the duplicate "Button Debounce" paragraph from the Phase 1 section. The design spec already covers button behavior in the Action Button Behavior section ("Buttons prevent duplicate actions..."). The build spec's detailed implementation section is the right home for UI-level specifics.
+**Find this text:**
+> "The exact parsing and ordering logic is an implementation detail of Task 21, but must produce a deterministic task list from the same `spec.md` input"
 
----
-
-## Changes to Build Spec (`docs/thoughtforge-build-spec.md`)
-
-### Change 14 — [Minor] `config.yaml` template — commented-out `templates:` key
-
-**Action:** Find the `config.yaml` template section. It has a commented-out `templates:` key with a value like `./plugins/plan/templates`. Replace that entire commented block with:
-
-```yaml
-# templates: (reserved for future cross-plugin shared template configuration)
-```
+**Replace with:**
+> "The exact parsing and ordering logic is an implementation detail of Task 21, but must produce a deterministic task list from the same `spec.md` input — this ensures crash recovery (re-deriving the task list after restart) produces the same task ordering and can correctly identify which tasks were already completed."
 
 ---
 
-### Change 15 — [Minor] `PlanBuilderResponse` interface — missing content validation constraint
+### Change 8 — Design Spec, Hallucination Guard notification template (around line 333) [Minor]
 
-**Action:** Find the `PlanBuilderResponse` interface definition. Replace it with:
+**Find the notification message template that says:**
+> "Errors trending down then spiked"
 
-```typescript
-interface PlanBuilderResponse {
-  stuck: boolean;
-  reason?: string;       // Required when stuck is true
-  content: string;       // Non-empty when stuck is false; empty string when stuck is true.
-                         // Orchestrator must validate: if stuck is false and content is empty, treat as malformed response.
-}
-```
+**Replace the notification template with:**
+> `"Project '{name}' — fix-regress cycle detected. Errors decreased for {N} iterations ({trajectory}) then spiked to {X} at iteration {current}. Review needed."`
 
 ---
 
-### Change 16 — [Major] Missing: No `projects/` base directory in config
+## SECTION 2: Additions (Missing Plan-Level Content)
 
-**Action:** Find the `config.yaml` template. Add the following key:
+### Change 9 — Design Spec, Phase 2, after the Unknowns validation gate (step 7 area) [Critical]
 
-```yaml
-# Projects
-projects:
-  directory: "./projects"  # Base directory for all project directories
-```
+**Add the following new subsection:**
+
+> **Acceptance Criteria Validation Gate:** Before Phase 2 Confirm advances to Phase 3, the orchestrator validates that the Acceptance Criteria section of the proposed `constraints.md` contains at least 1 criterion. If the section is empty, the Confirm button is blocked and the AI prompts the human: "At least one acceptance criterion is required before proceeding. Add acceptance criteria or confirm the AI's proposed set." This gate enforces the minimum at creation time only — after `constraints.md` is written, the human may freely edit it (including emptying the section) per the unvalidated-after-creation policy.
 
 ---
 
-### Change 17 — [Minor] Missing: No guidance on code builder task derivation from spec.md
+### Change 10 — Design Spec, Vibe Kanban Integration Interface section, after the toggle behavior table [Major]
 
-**Action:** Find the Code Builder Task Queue section. After the first paragraph, add:
+**Add the following paragraph:**
 
-> **Task derivation guidance:** The code builder parses the Deliverable Structure and Acceptance Criteria sections of `spec.md`. Each architectural component or feature maps to a build task. Each acceptance criterion maps to a test-writing task. The builder orders tasks by dependency (foundational components first, then features, then tests). The exact parsing and ordering logic is an implementation detail of Task 21, but must produce a deterministic task list from the same `spec.md` input.
-
----
-
-### Change 18 — [Minor] Project ID format — extract to its own subsection
-
-**Action:** Find the Project Initialization Sequence section where the project ID format (`{timestamp}-{random}`) is defined inline within a step list. Extract it into its own subsection:
-
-> ### Project ID Format
-> `{timestamp}-{random}`, e.g., `20260214-a3f2`. Timestamp is `YYYYMMDD` from project creation date. Random is a 4-character lowercase hexadecimal string. The combined ID is URL-safe, filesystem-safe, and unique within the projects directory.
+> **Toggle Change During Active Projects:** The `vibekanban.enabled` toggle is read at each operation, not cached at project creation. If VK is disabled after a project was created with VK enabled, subsequent VK status update calls will succeed (updating an existing card) but new project creation will skip card creation. If VK is enabled after a project was created without it, VK status calls will fail (no card exists) and will be logged and ignored per standard VK failure handling. Toggling VK mid-project does not halt or disrupt the pipeline — VK calls are never on the critical path.
 
 ---
 
-## Changes to Execution Plan (`docs/thoughtforge-execution-plan.md`)
+### Change 11 — Design Spec, Phase 4 Error Handling table [Major]
 
-### Change 19 — [Minor] Task 6a — incomplete error handling parenthetical
+**Add a new row to the error handling table:**
 
-**Action:** Find Task 6a's description. It contains the parenthetical "(halt and notify on write failures — no retry)." Replace that parenthetical with:
-
-> (halt and notify on file system failures — both read failures on critical state files and write failures — no retry)
+> | `polish_state.json` unreadable, missing, or invalid at Phase 4 resume | Halt and notify the operator with the file path and the specific error (parse failure, missing file, invalid schema). Do not attempt recovery or partial loading — the operator must fix or recreate the file. Same behavior as `status.json` and `chat_history.json` corruption handling. |
 
 ---
 
-### Change 20 — [Minor] Task 12 — overly detailed description
+### Change 12 — Design Spec, Phase 3 Code Mode, after the test framework selection paragraph [Major]
 
-**Action:** Find Task 12's description (it has 7 numbered sub-steps inline). Replace the entire task description with:
+**Add the following paragraph:**
 
-> Implement Phase 2: spec building per design spec Phase 2 behavior. Includes mode-specific proposal (Plan: OPA structure; Code: architecture with OSS discovery from Task 25), AI challenge of intent decisions, constraint discovery, acceptance criteria extraction, human review/override, Unknown resolution validation gate, and Confirm advancement. Prompt loaded from `/prompts/spec-building.md`.
-
----
-
-### Change 21 — [Major] Missing: No task for Phase 3→4 transition output validation
-
-**Action:** Find Task 6c. Its current description focuses on stuck recovery. Replace or expand the description to:
-
-> Task 6c (expanded): Implement Phase 3→4 automatic transition including output validation (per design spec Phase 3→4 Transition Error Handling: verify expected output files exist and meet `config.yaml` `phase3_completeness` thresholds before entering Phase 4), Phase 3 stuck recovery interaction (Provide Input / Terminate buttons), and milestone notification.
+> **Test Command Discovery:** The code builder's `test-runner.js` does not parse `spec.md` to discover the test command. Instead, the coding agent is instructed (via the `/prompts/code-build.md` prompt) to create a standard `npm test` script in the project's `package.json` (or the language-equivalent test entry point). `test-runner.js` always invokes the project's standard test entry point (`npm test` for Node.js projects). The specific test framework is an implementation detail of the deliverable codebase, not of ThoughtForge's `test-runner.js`. If the test command exits non-zero, `test-runner.js` treats it as test failures and captures stdout/stderr as the `details` field.
 
 ---
 
-### Change 22 — [Minor] Missing: Test framework decision unresolved
+### Change 13 — Execution Plan, Build Stage 2, after Task 8 [Major]
 
-**Action:** Find the Design Decisions section (or add as a pre-build task before Task 1). Add:
+**Add a new task row to the task table:**
 
-> **Pre-build decision: Test framework.** Choose Vitest or Jest before Task 1 begins. Both are compatible. Vitest is recommended for ESM-native support and faster execution with TypeScript projects (no separate compilation step for tests).
+> | 8a | Implement chat-message URL scanning for resource connectors: match URLs in brain dump chat messages against enabled connector URL patterns (from build spec), auto-pull matched URLs via connector layer, ignore matches for disabled connectors, pass unmatched URLs through as brain dump text | — | Task 8, Task 7c | — | Not Started |
+
+---
+
+### Change 14 — Execution Plan, Task 8 description [Minor]
+
+**Append to the existing Task 8 description:**
+
+> "Include ambiguous deliverable type handling per design spec: when brain dump signals both Plan and Code, AI defaults to Plan and flags in Open Questions."
+
+---
+
+### Change 15 — Design Spec, UI section, after the project list sidebar description [Minor]
+
+**Add the following paragraph:**
+
+> **Mid-Stream Project Switch:** If the human switches projects while an AI response is streaming, the client stops rendering the stream for the previous project's chat. Server-side processing continues uninterrupted — the AI response completes and is persisted to `chat_history.json` regardless of client-side display state. When the human returns to the project, the completed response is visible in the chat history.
+
+---
+
+### Change 16 — Execution Plan, Task 6c dependencies [Minor]
+
+**Find Task 6c's "Depends On" value:**
+> `Task 6a, Task 7`
+
+**Replace with:**
+> `Task 5, Task 6a, Task 7`
+
+---
+
+## SECTION 3: Extractions (Move Implementation Details from Design Spec to Build Spec)
+
+### Change 17 — Design Spec → Build Spec: "realign from here" matching rule (around line 92) [Minor]
+
+**In the Design Spec, find this text:**
+> "The command is matched as an exact case-insensitive string: the entire chat message must be 'realign from here' with no additional text."
+
+**Replace that sentence in the Design Spec with:**
+> "The human types 'realign from here' in chat to trigger a re-distillation from the original brain dump plus corrections up to a rollback point. Exact matching rules and algorithm in build spec."
+
+**Then add the removed matching rule to the Build Spec's Realign Algorithm section:**
+> "The command is matched as an exact case-insensitive string: the entire chat message must be 'realign from here' with no additional text."
+
+---
+
+### Change 18 — Design Spec: Stagnation Guard inline parameter values (around line 334) [Minor]
+
+**If the design spec stagnation guard description contains inline parameter values like "70% of issues" or "Levenshtein similarity ≥ 0.8"**, remove those inline values from the design spec. The design spec should say only:
+
+> "Issue rotation detected — old issues resolved, new issues introduced at the same rate (rotation threshold and similarity measure defined in build spec)."
+
+The build spec's Convergence Guard Parameters section already contains these values. Confirm they are present there and do not duplicate them.
 
 ---
 
 ## After All Changes Are Applied
 
 1. Re-read each modified file to confirm no formatting is broken (unclosed tables, orphaned headers, broken markdown).
-2. Git add only the files you modified:
+2. `git status -u` — verify all modified files
+3. `git diff --stat` — confirm changes
+4. Git add only the files you modified:
    ```bash
    git add docs/thoughtforge-design-specification.md docs/thoughtforge-build-spec.md docs/thoughtforge-execution-plan.md
    ```
-3. Commit with message: `Apply review findings`
-4. Push to remote: `git push`
-5. Confirm the push succeeded. Do not leave commits unpushed.
+5. Commit with message: `Apply review findings`
+6. Push to remote: `git push`
+7. `git pull` — confirm sync with remote. Do not leave commits unpushed.
