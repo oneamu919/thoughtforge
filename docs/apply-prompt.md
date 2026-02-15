@@ -17,127 +17,79 @@ Read both files before making any edits.
 
 ## SECTION 1: Replacements (Unclear Writing)
 
-### Change 1 — Design Spec, Phase 1 Step 9: "Realign from here" rollback point [Minor]
+### Change 1 — Design Spec, Phase 2 Acceptance Criteria validation gate (line ~157) [Minor]
 
-**Find** in Phase 1, step 9:
-> Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons to prevent misinterpretation), "realign from here" is a chat-parsed command because it does not advance the pipeline — it re-runs the distillation using the original brain dump plus all corrections up to the identified rollback point. The AI re-distills from the original brain dump plus corrections up to a rollback point. Algorithm details in build spec.
+Find the validation gate text that checks for "at least 1 criterion" before Phase 2 Confirm advances to Phase 3. Replace it with:
 
-**Replace with:**
-> Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons to prevent misinterpretation), "realign from here" is a chat-parsed command because it does not advance the pipeline — it discards AI messages and corrections after the most recent substantive human correction and re-distills from the original brain dump plus corrections up to that point. Exact matching rules and algorithm in build spec.
+> Before Phase 2 Confirm advances to Phase 3, the orchestrator validates that the Acceptance Criteria section of the proposed `constraints.md` contains at least 5 criteria (the minimum of the 5–10 target range). If the section contains fewer than 5, the Confirm button is blocked and the AI prompts the human: "At least 5 acceptance criteria are required before proceeding (current: {N}). Add criteria or confirm the AI's proposed set."
 
----
-
-### Change 2 — Design Spec, Phase 4 Convergence Guards table: Fabrication guard duplicated phrase [Minor]
-
-**Find** in Phase 4 Convergence Guards table, fabrication guard condition 2:
-> AND in at least one prior iteration, every severity category was at or below twice its convergence threshold — every severity category was at or below twice its convergence threshold — that is, critical ≤ 2 × `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max`
-
-**Replace with:**
-> AND in at least one prior iteration, every severity category was at or below twice its convergence threshold — that is, critical ≤ 2 × `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max`
+Alternatively, if the rest of the spec implies a true floor of 1, change the "5–10" language in both the Phase 2 behavior (line ~149) and `constraints.md` structure (line ~210) to "at least 1, target 5–10" so they are consistent. Pick whichever approach aligns with the spec's existing intent.
 
 ---
 
-### Change 3 — Design Spec, Phase 3 Stuck Detection table: Overloaded term [Minor]
+### Change 2 — Build Spec, Code plugin builder return type (line ~185) [Minor]
 
-**Find** the introductory line before the Stuck Detection table:
-> **Stuck Detection (Phase 3):**
+Find the Code plugin's builder return type in the Plugin Interface Contract. Replace the return type description so it no longer includes a `stuck` field. Use this text:
 
-**Replace with:**
-> **Stuck Detection (Phase 3):** Plan mode and Code mode use different stuck detection mechanisms. Plan mode relies on AI self-reporting via a structured response field. Code mode relies on orchestrator-observed failure patterns.
+> **Code plugin** returns `Promise<{ success: boolean, reason?: string }>` — `success` is `false` when the current task invocation failed. The orchestrator tracks consecutive failures per task identifier and determines stuck status externally (2 consecutive non-zero exits on the same task, or 3 consecutive identical test failures). The `stuck` flag pattern is Plan-mode-only.
 
 ---
 
-### Change 4 — Design Spec, Design Decision #3: "git repo" ambiguity [Minor]
+### Change 3 — Design Spec, Phase 1 sub-state transition (after line ~89) [Minor]
 
-**Find** in Design Decision #3:
-> Each project gets its own git repo
+After step 6 in the Phase 1 flow description ("AI distills into structured document"), add:
 
-**Replace with:**
-> Each project gets its own local git repository (git init, no remote)
+> When the AI completes distillation and presents the result in chat, `status.json` transitions from `distilling` to `human_review`. This signals that the AI has finished processing and is awaiting human corrections.
 
 ---
 
-### Change 5 — Design Spec, Phase 3→4 Transition Error Handling: Undefined completeness thresholds [Minor]
+### Change 4 — Design Spec, Vibe Kanban git worktree isolation row (line ~468) [Minor]
 
-**Find:**
-> Phase 3 output exists but is empty or trivially small (below minimum completeness thresholds)
+Find the Vibe Kanban feature table row about "Git worktree isolation." Replace the row content with:
 
-**Replace with:**
-> Phase 3 output exists but is empty or trivially small (below `config.yaml` `phase3_completeness` thresholds)
+> | Git worktree isolation | VK manages worktree-based isolation for its internal task execution. ThoughtForge's per-project git repos (created at project initialization) are independent of VK's worktree model. VK operates within the project's existing repo when executing agent work. |
 
 ---
 
 ## SECTION 2: Additions (Missing Plan-Level Content)
 
-### Change 6 — Design Spec, Phase 3 Plan Mode: Template context window overflow [Major]
+### Change 5 — Design Spec, Phase 3 error handling table: Template selection failure [Major]
 
-**Add** the following paragraph after the "Builder interaction model" paragraph in Phase 3 Plan Mode:
-> **Template Context Window Overflow:** If the partially-filled template exceeds the agent's context window during multi-invocation plan building, the builder passes only the current section's OPA table slot, the `spec.md` context for that section, and the immediately preceding section (for continuity) — not the full partially-filled template. A warning is logged when truncation occurs. The full template is reassembled from the individually-filled sections after all invocations complete.
+Find the Phase 3 error handling table (near line ~280). Add a new row:
 
----
-
-### Change 7 — Design Spec, Phase 4: Zero-issue iteration behavior [Major]
-
-**Add** the following paragraph after the "Fix agent context assembly" paragraph in Phase 4:
-> **Zero-Issue Iteration:** If the review step produces zero issues (empty issues array), the fix step is skipped for that iteration. The orchestrator proceeds directly to convergence guard evaluation. Only the review commit is written — no fix commit.
+> | Type-specific template not found but `generic.hbs` exists | Log a warning: "No template found for plan type '{type}'. Using generic template." Notify the human in chat. Proceed with `generic.hbs`. |
 
 ---
 
-### Change 8 — Design Spec, Notification Content section: Active session awareness [Minor]
+### Change 6 — Design Spec, Phase 2 error handling table: Crash recovery [Major]
 
-**Add** the following to the Notification Content section:
-> **Active Session Awareness:** Notifications are sent regardless of whether the human has the project open in the chat interface. The notification layer does not track client connection state. Suppressing notifications for active sessions is deferred — not a current build dependency.
+Find the Phase 2 error handling table. Add a new row:
 
----
-
-### Change 9 — Design Spec, Phase 4 Halt Recovery section: State continuity on resume [Minor]
-
-**Add** the following to the Phase 4 Halt Recovery section:
-> **State Continuity on Resume:** The convergence trajectory in `polish_state.json` is continuous across the halt boundary — the resumed iteration is numbered sequentially after the last completed iteration. `polish_log.md` receives a log entry for the resume event before the next iteration's entry: `## Resumed at {ISO8601} — Halted by {guard_type} at iteration {N}, resumed by human`.
-
----
-
-### Change 10 — Design Spec, after Phase 4 Convergence Guards table: Halt vs. Terminate clarity [Minor]
-
-**Add** the following paragraph immediately after the Phase 4 Convergence Guards table:
-> **Halt vs. Terminate:** When a convergence guard triggers a halt, the project is recoverable — the human can Resume or Override. When the human explicitly Terminates (via button), the project is permanently stopped (`halt_reason: "human_terminated"`). Both use the `halted` phase value in `status.json`; the `halt_reason` field distinguishes them.
+> | Server crash during Phase 2 conversation | On restart, `status.json` phase is `spec_building` (an interactive state — not auto-halted per Server Restart Behavior). Chat resumes from the last recorded message in `chat_history.json`. The AI re-reads `intent.md` and the chat history to reconstruct the spec-in-progress, then re-presents the current proposal for human review. |
 
 ---
 
 ## SECTION 3: Extractions (Move Implementation Details from Design Spec to Build Spec)
 
-### Change 11 — Design Spec, Phase 1 Step 3: Extract connector URL matching details [Minor]
+### Change 7 — Design Spec, `PlanBuilderResponse` inline schema (line ~255–256) [Minor]
 
-**Find** in Design Spec, Phase 1 step 3:
-> The AI matches each URL against the known patterns for enabled connectors:
-> - **Match + enabled:** URL is pulled automatically via the connector.
-> - **Match + disabled:** URL is silently ignored (not pulled, not treated as text).
-> - **No match:** URL is treated as regular brain dump text and included in distillation context.
+Find the stuck detection table row for Plan mode that references `PlanBuilderResponse` and describes its fields (`stuck: boolean`, `reason` field). Replace it with:
 
-**Replace with:**
-> The AI matches each URL against the known patterns for enabled connectors and pulls content automatically. URL matching rules (enabled/disabled/unmatched behavior) are in the build spec.
-
-Ensure the extracted matching matrix is present in the Build Spec's connector section. If it is already there, no Build Spec change is needed for this item.
+> | Plan | AI includes a stuck signal in every builder response. When the AI reports stuck, the orchestrator halts and notifies with the AI's stated reason. Response schema in build spec (`PlanBuilderResponse`). | Notify and wait |
 
 ---
 
-### Change 12 — Design Spec: Condense Phase 2 Chat History Truncation [Minor]
+### Change 8 — Design Spec, inline button behavior descriptions [Minor]
 
-**Find:**
-> **Phase 2 Chat History Truncation:** If Phase 2 chat history exceeds the agent context window, the agent invocation layer truncates older messages from the beginning of the history, retaining the most recent messages and always retaining the initial AI spec proposal message (the first AI message in Phase 2). Messages between the initial proposal and the retained recent messages are dropped. A warning is logged when truncation occurs. This mirrors the Phase 1 truncation behavior — the initial proposal serves the same anchoring role as the original brain dump.
+In these Design Spec sections, remove the inline button behavior descriptions (including `status.json` effects and confirmation requirements) and replace each with a reference line:
 
-**Replace with:**
-> **Phase 2 Chat History Truncation:** If Phase 2 chat history exceeds the agent context window, older messages are truncated while always retaining the initial AI spec proposal (same anchoring pattern as Phase 1's brain dump retention). Algorithm in build spec.
+- Phase 3 Stuck Recovery section
+- Phase 4 Halt Recovery section
+- Plan Completeness Gate section
 
----
+Replace the inline descriptions in each with:
 
-### Change 13 — Design Spec: Condense Phase 3–4 Chat History Truncation [Minor]
-
-**Find:**
-> **Phase 3–4 Chat History Truncation:** If Phase 3 or Phase 4 recovery chat history exceeds the agent context window, the agent invocation layer truncates older messages from the beginning, retaining the most recent messages. There is no anchoring message for these phases — unlike Phases 1–2, recovery conversations do not have a structural anchor that must be preserved. A warning is logged when truncation occurs.
-
-**Replace with:**
-> **Phase 3–4 Chat History Truncation:** If Phase 3 or Phase 4 recovery chat history exceeds the agent context window, older messages are truncated from the beginning with no anchoring message. Algorithm in build spec.
+> Button behavior and `status.json` effects are specified in the build spec Action Button Behavior inventory.
 
 ---
 
