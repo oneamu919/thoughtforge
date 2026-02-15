@@ -1,162 +1,225 @@
-﻿Now I have a thorough understanding of all four documents. Let me produce the review.
+﻿I've read all four files. Now let me do a thorough review of the three scrutiny documents against the requirements brief and standard engineering practices.
 
 ---
 
-# Project Plan Review ΓÇö ThoughtForge
+# Project Plan Review ΓÇö ThoughtForge Pipeline Tool
 
 Reviewing: `thoughtforge-design-specification.md`, `thoughtforge-build-spec.md`, `thoughtforge-execution-plan.md`
 
 ---
 
-## 1. Writing That's Unclear
+## 1. Writing That's Unclear ΓÇö With Exact Replacement Text
 
-**[Major]** ΓÇö Design Spec, Phase 4, "Code Mode Iteration Cycle" (lines 270): The sentence describes a three-step cycle but labels the steps inconsistently with the two-step cycle described just above it, creating ambiguity about whether "Step 1" in code mode is the test execution or the review.
+**[Minor]** Design Spec, Phase 4, Stagnation Guard (line 270):
 
-**Current text:**
-> Code mode adds a test execution step to each iteration. The full cycle is: (1) Orchestrator runs tests via the code plugin's `test-runner.js` and captures results. (2) Review ΓÇö orchestrator passes the test results as additional context to the reviewer AI alongside the codebase and `constraints.md`. Reviewer outputs JSON error report including test results. (3) Fix ΓÇö orchestrator passes issue list to fixer agent. Git commit after fix.
-
-**Replacement:**
-> Code mode extends the two-step cycle with a test execution step at the beginning. The full Code mode cycle per iteration is: (1) **Test** ΓÇö orchestrator runs tests via the code plugin's `test-runner.js` and captures results. (2) **Review** ΓÇö orchestrator passes test results as additional context to the reviewer AI alongside the codebase and `constraints.md`. Reviewer outputs JSON error report. (3) **Fix** ΓÇö orchestrator passes the issue list to the fixer agent. Git commit after fix. Plan mode uses the two-step cycle (Review ΓåÆ Fix) with no test execution. Both modes commit after the review step and after the fix step.
-
----
-
-**[Major]** ΓÇö Design Spec, Phase 4, git commit timing for Code mode (line 266ΓÇô270): The two-step description says "Git commit after review" and "Git commit after fix," but the Code mode iteration cycle description only mentions "Git commit after fix." It's unclear whether Code mode also commits after the review step or only after the fix step.
-
-**Replacement** (add to end of the Code mode iteration cycle paragraph):
-> Code mode follows the same two-commits-per-iteration pattern: git commit after the review step (captures review JSON and test results) and git commit after the fix step (captures applied fixes).
-
----
-
-**[Major]** ΓÇö Design Spec, Stagnation Guard (line 278): "Total count plateaus across consecutive iterations AND issue rotation detected" ΓÇö the phrasing "issue rotation detected" reads as though rotation is the _normal_ state. What is actually meant is that the issues are _churning_ (different issues each time) while the total stays flat, indicating the loop has reached its ceiling.
-
-**Current text:**
-> Same total error count for 3+ consecutive iterations... AND issue rotation detected (specific issues change between iterations even though the total stays flat ΓÇö the loop has reached the best quality achievable autonomously)
-
-**Replacement:**
 > Same total error count for 3+ consecutive iterations... AND issue churn detected (the specific issues change between iterations even though the total count stays flat ΓÇö indicating the loop is replacing old issues with new ones at the same rate and has reached the best quality achievable autonomously)
 
----
+The ellipsis and parenthetical embedding makes this read like a draft note, not a spec definition. Replace with:
 
-**[Minor]** ΓÇö Design Spec, Phase 1, step 3 (line 80): "If external resource connectors are configured (Notion, Google Drive), the human provides page URLs or document links via chat." This implies the human must always provide URLs via chat, but the Inputs table (line 35ΓÇô36) also lists "config" as a source for URLs. The two descriptions are inconsistent.
-
-**Current text:**
-> the human provides page URLs or document links via chat.
-
-**Replacement:**
-> the human provides page URLs or document links via chat, or the URLs are pre-configured in `config.yaml` (e.g., default Notion pages that should be pulled for every project).
-
-If config-based URLs are not actually supported, remove "or config" from the Inputs table instead.
+> Same total error count for 3+ consecutive iterations AND issue rotation detected ΓÇö the specific issues change between iterations while the total count stays flat. This indicates the loop is replacing old issues with new ones at the same rate and has reached the best quality achievable autonomously.
 
 ---
 
-**[Minor]** ΓÇö Design Spec, Fabrication Guard (line 279): "A severity category spikes well above its recent average, AND the system had previously approached convergence thresholds" ΓÇö "well above" is vague for a design doc. The build spec quantifies this (50% + minimum absolute increase of 2), but the design spec should give the reader a qualitative sense without forcing them to the build spec.
+**[Minor]** Design Spec, Phase 1 step 9, "realign from here" (line 96):
 
-**Current text:**
-> A severity category spikes well above its recent average
+> Human can type "realign from here" as a chat message. The AI identifies the human's most recent substantive correction ΓÇö defined as the last human message that is not a "realign from here" command. All messages after that correction (both AI and human) are excluded from the working context but remain in chat_history.json for audit purposes. The AI re-distills from the original brain dump plus all human corrections up to and including that baseline message. Does not restart from the original brain dump alone. If no human corrections exist yet (i.e., "realign from here" is sent before any corrections), the command is ignored and the AI responds asking the human to provide a correction first.
 
-**Replacement:**
-> A severity category spikes significantly above its trailing 3-iteration average (e.g., >50% increase)
+This is a single run-on paragraph covering five distinct behaviors. Replace with:
 
----
-
-**[Minor]** ΓÇö Design Spec, "Manual Edit Behavior" (line 153): The sentence "manual edits to these files after their respective phases require restarting from that phase (not currently supported; project must be recreated)" is confusing ΓÇö it says restart is required, then says it's not supported, then says recreate. A builder reading this wouldn't know what to actually do.
-
-**Current text:**
-> `spec.md` and `intent.md` are read at Phase 3 start and not re-read ΓÇö manual edits to these files after their respective phases require restarting from that phase (not currently supported; project must be recreated).
-
-**Replacement:**
-> `spec.md` and `intent.md` are read once at Phase 3 start and not re-read during later phases. If the human manually edits these files after their creation phase, the only way to pick up those changes is to create a new project ΓÇö there is no "restart from Phase N" capability in v1.
+> Human can type "realign from here" as a chat message. The behavior is:
+>
+> 1. **Baseline identification:** The AI identifies the human's most recent substantive correction ΓÇö defined as the last human message that is not a "realign from here" command.
+> 2. **Context truncation:** All messages after that correction (both AI and human) are excluded from the working context but remain in `chat_history.json` for audit purposes.
+> 3. **Re-distillation:** The AI re-distills from the original brain dump plus all human corrections up to and including that baseline message. It does not restart from the original brain dump alone.
+> 4. **No-correction guard:** If no human corrections exist yet (i.e., "realign from here" is sent before any corrections), the command is ignored and the AI responds asking the human to provide a correction first.
 
 ---
 
-**[Minor]** ΓÇö Execution Plan, Build Stage 6, Task 30 (line 106): The parenthetical "these tasks extend Task 30, not replace it" is ambiguous about what "extend" means in practice ΓÇö is this subtasking, or are Tasks 32, 38, and 39 literally implemented inside Task 30's codebase?
+**[Minor]** Design Spec, Manual Edit Behavior (line 142):
 
-**Current text:**
-> Includes count derivation from issues array (Task 32), polish state persistence + crash recovery (Task 38), and polish log append (Task 39) as integral orchestrator responsibilities ΓÇö these tasks extend Task 30, not replace it
+> "Locked" means the AI pipeline will not modify these files after their creation phase. However, the pipeline re-reads `constraints.md` at the start of each Phase 4 iteration, so manual human edits to acceptance criteria or review rules are picked up automatically. `spec.md` and `intent.md` are read once at Phase 3 start and not re-read during later phases. If the human manually edits these files after their creation phase, the only way to pick up those changes is to create a new project ΓÇö there is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits.
 
-**Replacement:**
+This conflates two different behaviors (constraints.md is hot-reloaded, spec.md/intent.md are not) in one paragraph without clear delineation. Replace with:
+
+> "Locked" means the AI pipeline will not modify these files after their creation phase.
+>
+> **`constraints.md` (hot-reloaded):** The pipeline re-reads `constraints.md` at the start of each Phase 4 iteration, so manual human edits to acceptance criteria or review rules are picked up automatically.
+>
+> **`spec.md` and `intent.md` (static after creation):** These are read once at Phase 3 start and not re-read during later phases. If the human manually edits these files after their creation phase, the only way to pick up those changes is to create a new project ΓÇö there is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits to any locked file.
+
+---
+
+**[Minor]** Design Spec, WebSocket Disconnection (line 465):
+
+> In-flight AI responses that were streaming when the connection dropped are not replayed ΓÇö the human sees the last fully-received message and can re-trigger the action (e.g., click Distill again) if the operation did not complete.
+
+"If the operation did not complete" is ambiguous ΓÇö complete server-side or complete client-side? Replace with:
+
+> In-flight AI responses that were streaming when the connection dropped are not replayed ΓÇö the human sees the last fully-received message. If the server-side operation completed during the disconnect, the reconnect state sync picks up the updated `status.json` and chat history. If the operation did not complete server-side, the human can re-trigger the action (e.g., click Distill again).
+
+---
+
+**[Major]** Design Spec, Phase 4, Code Mode Iteration Cycle (line 262):
+
+> Code mode follows the same two-commits-per-iteration pattern: git commit after the review step (captures review JSON and test results) and git commit after the fix step (captures applied fixes).
+
+This sentence says the review step commit "captures review JSON and test results" but the review JSON is an AI output ΓÇö it's unclear where the review JSON file is written or what its filename is. The design spec mentions `polish_log.md` (human-readable) and `polish_state.json` (machine state), but neither of those is the review JSON itself. Replace with:
+
+> Code mode follows the same two-commits-per-iteration pattern: git commit after the review step (captures any review artifacts and test results) and git commit after the fix step (captures applied fixes). The review JSON output is persisted as part of the `polish_state.json` update and the `polish_log.md` append that occur at each iteration boundary ΓÇö it is not written as a separate file.
+
+If the intention is for the review JSON to be written as a separate file, add it to the Outputs table and specify the filename and path.
+
+---
+
+**[Minor]** Execution Plan, Task 30 description (line 106):
+
 > Count derivation (Task 32), polish state persistence + crash recovery (Task 38), and polish log append (Task 39) are implemented as part of the polish loop orchestrator module ΓÇö they are listed as separate tasks for tracking but are coded within the orchestrator, not as separate modules.
 
----
+This is a parenthetical about project management methodology embedded in a task description. Replace with a note row after the task table:
 
-**[Minor]** ΓÇö Design Spec, "Confirmation model" paragraph (line 92): "Both use explicit button presses to eliminate misclassification" ΓÇö misclassification of what? This is clear in context if you've read the design philosophy, but the sentence doesn't stand alone.
-
-**Current text:**
-> Both use explicit button presses to eliminate misclassification.
-
-**Replacement:**
-> Both use explicit button presses to eliminate the risk of the AI misinterpreting a chat message as a phase advancement command.
+> **Note:** Tasks 32, 38, and 39 are implemented within the Task 30 orchestrator module, not as separate files. They are listed separately for progress tracking.
 
 ---
 
-## 2. Genuinely Missing Plan-Level Content
+**[Minor]** Design Spec, Stuck Detection table (line 211):
 
-**[Major]** ΓÇö **No WebSocket reconnection or connection loss behavior defined.** The chat interface uses WebSocket for real-time streaming. The plan does not specify what happens when the WebSocket connection drops mid-conversation or mid-streaming (Phase 1 distillation streaming, Phase 4 status updates). For a single-operator local tool, this is still a real scenario (browser tab closed, laptop sleep).
+> AI returns a JSON response. The orchestrator parses this JSON to detect stuck status. Response schema (`PlanBuilderResponse`) defined in build spec.
 
-**Proposed content** (add to Design Spec, UI section, after "Per-project chat thread" paragraph):
-> **WebSocket Disconnection:** If the WebSocket connection drops, the chat client automatically attempts to reconnect. On reconnect, the client fetches the current project state from `status.json` and the latest chat messages from `chat_history.json` to restore the UI to the correct state. In-flight AI responses that were streaming when the connection dropped are not replayed ΓÇö the human sees the last fully-received message and can re-trigger the action (e.g., click Distill again) if the operation did not complete. Pipeline processing continues server-side regardless of client connection state.
+This describes Plan mode stuck detection as "AI returns a JSON response" but doesn't state what triggers the AI to signal stuck versus not-stuck. The Code mode column is clear (non-zero exit after 2 retries, or 3 identical test failures). Replace Plan mode column with:
 
----
-
-**[Major]** ΓÇö **No definition of what "resource reading" means for each supported file type.** Phase 1 says "AI reads all resources (text, PDF, images via vision, code files)" but the plan never specifies how each format is handled ΓÇö particularly PDFs (full text extraction? OCR?) and images (passed to vision model? which model?). A builder would have to make these decisions during implementation.
-
-**Proposed content** (add to Design Spec, Phase 1, after step 5 or to Build Spec as an implementation reference):
-> **Resource File Processing:**
-> | Format | Processing Method |
-> |---|---|
-> | `.md`, `.txt`, code files | Read as plain text, passed to AI as context |
-> | `.pdf` | Text extracted via PDF parsing library (e.g., `pdf-parse`). If extraction yields no text (scanned PDF), log a warning and skip the file. OCR is deferred. |
-> | Images (`.png`, `.jpg`, `.gif`) | Passed to the AI agent's vision capability if the configured agent supports it. If not, log a warning and skip. |
-> | Unsupported formats | Logged as unreadable per Phase 1 error handling |
+> AI includes a `stuck: boolean` flag in every response (per `PlanBuilderResponse` schema in build spec). When `stuck` is `true`, the `reason` field describes what decision is needed. The orchestrator checks this flag after every builder response.
 
 ---
 
-**[Major]** ΓÇö **No concurrency control for the project state module.** The plan specifies up to 3 parallel projects and atomic writes for state files, but does not address what happens if two pipeline operations attempt to write to state files simultaneously (e.g., two projects sharing a notification queue, or the orchestrator and a user-initiated action racing on `status.json`). For file-based state this matters.
+## 2. Genuinely Missing Plan-Level Content ΓÇö With Proposed Content to Add
 
-**Proposed content** (add to Design Spec, Project State Files section):
-> **Concurrency Model:** Each project operates on its own isolated directory and state files. No cross-project state sharing exists. Within a single project, the pipeline is single-threaded ΓÇö only one operation (phase transition, polish iteration, button action) executes at a time. The orchestrator serializes operations per project. Concurrent access to a single project's state files is not supported and does not need locking.
+**[Critical]** Missing: `intent.md` template/structure definition.
 
----
+The design spec specifies exact structures for `spec.md` and `constraints.md`, and the build spec provides their Markdown templates. But `intent.md` ΓÇö the first and most foundational document in the pipeline ΓÇö has no defined structure. The design spec says it contains "Deliverable Type, Objective, Assumptions, Constraints, Unknowns, Open Questions" (line 93) and that the project name comes from its H1 heading (line 74), but there is no structural definition matching the level of detail given to the other documents.
 
-**[Minor]** ΓÇö **No error handling for Handlebars template rendering failures at the content level.** The plan covers template _file_ errors (halt, no retry) but not what happens if the AI returns content that breaks Handlebars syntax (e.g., unescaped `{{` in plan text). This is a real scenario since the AI fills content slots in a Handlebars template.
+**Proposed addition to the build spec** (after the `constraints.md` structure section):
 
-**Proposed content** (add to Design Spec, Phase 3 Plan Mode, or Build Spec):
-> **Template Content Escaping:** AI-generated content inserted into Handlebars template slots is escaped to prevent Handlebars syntax characters in plan text (e.g., literal `{{` or `}}`) from causing render failures. The plan builder escapes content before template rendering.
+```
+## `intent.md` Structure
 
----
+**Used by:** Task 11 (intent.md generation and locking)
+**Written:** End of Phase 1, locked after write
 
-**[Minor]** ΓÇö **No specification for how the human learns about the tool's current state after returning from an absence.** The plan describes notifications for events, but if the human is away for hours and returns to the browser, there's no description of a dashboard summary or project status overview in the ThoughtForge chat UI itself (separate from the Vibe Kanban dashboard).
+### Template
 
-**Proposed content** (add to Design Spec, UI section):
-> **Project Status on Return:** The project list sidebar shows each project's current phase and status (including halted indicator). When the human opens a project's chat thread, the most recent messages and any pending action buttons (e.g., halt recovery options) are displayed. No separate "catch-up" summary is generated ΓÇö the chat history and project status serve this purpose.
+    # {Project Name}
 
----
+    ## Deliverable Type
+    {Plan or Code, with reasoning}
 
-**[Minor]** ΓÇö **Execution Plan has no explicit testing strategy statement.** Build Stage 8 lists specific tests, but there's no high-level statement about testing philosophy ΓÇö unit tests use mocks (not real agents), e2e tests use real agents or stubs, etc. A builder starting Task 45 wouldn't know whether to mock the agent layer or spin up real CLIs.
+    ## Objective
+    {What the human wants to exist when this is done}
 
-**Proposed content** (add to Execution Plan, before Build Stage 8 task table):
-> **Testing Strategy:** Unit tests (Tasks 45ΓÇô50b) use mocked dependencies ΓÇö no real agent CLI calls, no real file system for state tests, no real API calls for connectors. E2e tests (Tasks 51ΓÇô57) run the full pipeline with real agent invocations against a test project. Synthetic convergence guard tests (Task 54) use fabricated `polish_state.json` data, not real polish loop runs.
+    ## Assumptions
+    {What the human seems to believe is true, both stated and inferred}
 
----
+    ## Constraints
+    {Limitations: OS, language, tools, budget, timeline, etc.}
 
-## 3. Build Spec Material That Should Be Extracted
+    ## Unknowns
+    {Gaps that need to be decided before building}
 
-**[Minor]** ΓÇö **Design Spec, Action Button Behavior table (lines 96ΓÇô109).** This table specifies exact `status.json` field updates, button disabled states, spinner behaviors, and confirmation dialog text for every button in the system. This is implementation-level UI specification ΓÇö the design spec should state the _behavior model_ (chat-based corrections, button-based actions, confirmation for destructive operations) and the button inventory, but the exact status.json mutations and UI feedback strings belong in the build spec.
-
-**Why:** A builder needs this table, but it's implementation detail. The design spec already establishes the confirmation model in the paragraph above the table. The table should move to the build spec with a reference from the design spec: "Complete button inventory with `status.json` effects and UI behavior in build spec."
-
----
-
-**[Minor]** ΓÇö **Design Spec, Phase-to-State Mapping table (lines 122ΓÇô131).** This maps pipeline phases to exact `status.json` string enum values and their transitions. The design spec should describe the phase progression conceptually; the exact enum values and transition triggers are build spec material (and are already partially duplicated in the build spec's `status.json` schema).
-
-**Why:** The `status.json` schema in the build spec already defines the valid phase values. Having the mapping in both documents creates a maintenance burden ΓÇö if a phase value changes, both documents need updating. Move the table to the build spec and reference it from the design spec.
+    ## Open Questions
+    {Up to 5 questions the AI couldn't resolve from the brain dump, prioritized by blocking impact}
+```
 
 ---
 
-**[Minor]** ΓÇö **Design Spec, Connector and Notification URL Validation table (lines 543ΓÇô551).** This specifies exact error message strings, startup-vs-runtime timing, and Zod validation approach for URL checking. The design spec should state the validation _policy_ (validate at startup for config issues, handle gracefully at runtime); the exact error messages and implementation approach belong in the build spec.
+**[Major]** Missing: How the Plan Completeness Gate accesses the plan document in Code mode.
 
-**Why:** The build spec already has a "Connector and Notification URL Validation" section (lines 609ΓÇô621) that covers the implementation. The design spec section duplicates this with slightly different wording, creating drift risk.
+The design spec says (line 305): "When a Code mode pipeline starts and a plan document is detected in `/resources/`..." But it doesn't specify how the system identifies which file in `/resources/` is the plan document versus other resource files. If the human drops a plan plus three reference PDFs into `/resources/`, how does the system know which one to evaluate?
+
+**Proposed addition to Design Spec, Plan Completeness Gate section:**
+
+> **Plan document identification:** The gate scans `/resources/` for `.md` files. If exactly one `.md` file is present, it is treated as the plan document. If multiple `.md` files are present, the gate evaluates each and uses the first that appears to be a structured plan (contains OPA table structure or section headings matching the plan template pattern). If no `.md` files are present, the gate is skipped ΓÇö Code mode proceeds without plan evaluation.
 
 ---
 
-That concludes the review. Three lists, sorted by severity within each.
+**[Major]** Missing: WebSocket reconnection strategy specifics.
+
+The design spec says "the chat client automatically attempts to reconnect" (line 465) but doesn't specify the reconnection behavior at a plan level ΓÇö immediate retry, backoff, max attempts, or how the user is informed of disconnection state.
+
+**Proposed addition to Design Spec, WebSocket Disconnection section:**
+
+> **Reconnection behavior:** The client uses exponential backoff starting at 1 second, capped at 30 seconds, with no maximum retry limit. During disconnection, the chat UI displays a visible "Reconnecting..." indicator. On successful reconnect, the indicator is removed and state is synced from the server.
+
+---
+
+**[Major]** Missing: Concurrency enforcement mechanism.
+
+The design spec states `max_parallel_runs: 3` is configurable (line 80) and the execution plan tests parallel execution (Task 56), but neither document specifies how the concurrency limit is enforced. When a fourth project is started while three are running, what happens? Is it queued? Rejected? Does Vibe Kanban enforce this, or does ThoughtForge?
+
+**Proposed addition to Design Spec, Concurrency Model subsection:**
+
+> **Concurrency limit enforcement:** When the number of active projects (status not `done` or `halted`) reaches `config.yaml` `concurrency.max_parallel_runs`, new project creation is blocked. The chat interface disables the "New Project" action and displays a message: "Maximum parallel projects reached ({N}/{N}). Complete or halt an existing project to start a new one." Enforcement is at the ThoughtForge orchestrator level, not delegated to Vibe Kanban.
+
+---
+
+**[Minor]** Missing: Execution Plan has no task for Handlebars template content escaping.
+
+The design spec says (line 191): "The plan builder escapes content before template rendering." This is a specific implementation requirement but has no corresponding task in the execution plan. It could be subsumed under Task 15, but given that it's a distinct defensive behavior that prevents rendering failures, it warrants explicit mention.
+
+**Proposed addition:** Add to Task 15 description in the Execution Plan:
+
+> Implement `builder.js` ΓÇö Handlebars template-driven document drafting, **including content escaping for Handlebars syntax characters in AI-generated content,** including template rendering failure handling (halt immediately, no retry)
+
+---
+
+**[Minor]** Missing: Execution Plan has no task for WebSocket reconnection and state recovery.
+
+The design spec defines reconnection behavior (line 465) but no execution plan task covers implementing it. The closest is Task 7 (web chat interface) but its description says "core chat panel with per-project thread, AI message streaming via WebSocket" ΓÇö no mention of disconnect handling or state recovery.
+
+**Proposed addition:** Add to Task 7 description:
+
+> Build ThoughtForge web chat interface: core chat panel with per-project thread, AI message streaming via WebSocket, messages labeled by phase, **WebSocket disconnection handling with auto-reconnect and state recovery from `status.json` and `chat_history.json`**
+
+---
+
+**[Minor]** Missing: What happens when git operations fail during Phase 4.
+
+The Phase 4 error handling table covers "File system error during git commit after fix" (halt and notify), but doesn't address git commit failure after the review step. Since the design calls for two commits per iteration, the review-step commit failure case is unaddressed.
+
+**Proposed addition to Design Spec, Phase 4 Error Handling table:**
+
+| Condition | Action |
+|---|---|
+| Git commit failure after review step | Halt and notify human immediately. The review JSON is preserved in memory for the current iteration. `polish_state.json` for the current iteration is not written. On resume, the review step is re-attempted from the beginning. |
+
+---
+
+## 3. Build Spec Material That Should Be Extracted ΓÇö Identify Each Section and Why
+
+**[Minor]** Design Spec, Phase 1, Resource File Processing table (lines 86ΓÇô91).
+
+This table specifies implementation-level file format handling (`pdf-parse` library, OCR deferred, vision capability detection). The plan-level content is: "Resources are processed by format ΓÇö text read directly, PDFs extracted, images via AI vision if supported, unsupported formats logged and skipped." The library recommendations and capability-detection logic belong in the build spec.
+
+---
+
+**[Minor]** Design Spec, Stagnation Guard, Issue Rotation Detection details (lines 284ΓÇô285 of the build spec).
+
+The build spec already has the full algorithmic parameters. However, the design spec (line 270) also embeds the parenthetical "(i.e., for each current issue, check if any prior issue has Levenshtein similarity ΓëÑ 0.8 on the `description` field ΓÇö if fewer than 70% of current issues find a match, rotation is detected)" ΓÇö wait, that's in the build spec, not the design spec. On re-check, the design spec only says "issue churn detected." The build spec has the detail. This is correctly placed. **Retracted ΓÇö no extraction needed.**
+
+---
+
+**[Minor]** Design Spec, Template Content Escaping (line 191):
+
+> AI-generated content inserted into Handlebars template slots is escaped to prevent Handlebars syntax characters in plan text (e.g., literal `{{` or `}}`) from causing render failures. The plan builder escapes content before template rendering.
+
+This is implementation detail about string escaping during template rendering. The plan-level content is the requirement: "AI-generated content must not break template rendering." The how (escape before rendering, which characters) belongs in the build spec. Move to build spec under the Plan builder section.
+
+---
+
+**[Minor]** Design Spec, Operational Logging component in Stack table (line 365):
+
+> Structured JSON logger (custom, using Node.js `fs` for file append)
+
+The technology choice ("custom, using Node.js `fs` for file append") is build-level detail. The plan-level entry should be: "Structured JSON logger ΓÇö per-project operational log for debugging." The implementation approach belongs in the build spec.
+
+---
+
+That concludes the review. Three lists, findings sorted by severity within each.
