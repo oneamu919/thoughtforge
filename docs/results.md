@@ -1,184 +1,199 @@
-﻿Now I have all four documents. Let me produce the review.
+﻿Now I have all four documents fully read. Let me produce the review.
 
 ---
 
-# Project Plan Review — ThoughtForge Execution Plan
+# Plan Review — ThoughtForge Pipeline Tool
 
-Review performed against: `thoughtforge-execution-plan.md`, informed by the design specification, build spec, and requirements brief.
+Reviewing: `thoughtforge-design-specification.md`, `thoughtforge-build-spec.md`, `thoughtforge-execution-plan.md`
+(Requirements brief read for context.)
 
 ---
 
 ## 1. Writing That's Unclear
 
-**[Minor] — "Task 21a depends on Task 7a but has no dependency on Task 21's other dependencies"**
+**[Minor]** Design spec, Phase 1, step 11b — "derived from the Deliverable Type section of the confirmed `intent.md`" is ambiguous about *how* derivation works.
 
-The execution plan lists Task 21a (Draft `/prompts/code-build.md`) as depending only on Task 7a, but it sits visually inside Build Stage 4 alongside Task 21, creating ambiguity about whether it should start before or after Task 20. Same applies to Task 15a inside Build Stage 3. The "Depends On" column is correct, but the visual grouping misleads.
-
-**Replacement:** Add a note above Build Stages 3 and 4 (matching the style of the cross-stage dependency note already used in Stage 1):
-
-> **Prompt drafting tasks** (15a, 21a) depend only on Task 7a (prompt file directory), not on the surrounding stage tasks. They can begin as soon as Task 7a completes.
+> **Current:** "The `deliverable_type` field in `status.json` is set to `"plan"` or `"code"`, derived from the Deliverable Type section of the confirmed `intent.md`."
+>
+> **Replacement:** "The `deliverable_type` field in `status.json` is set to `"plan"` or `"code"` by parsing the Deliverable Type section of the confirmed `intent.md`. The AI's distillation always states exactly one of 'Plan' or 'Code' as the first word of this section. The orchestrator string-matches that word to set the field."
 
 ---
 
-**[Minor] — Build Stage 8 testing strategy mixes unit and e2e definitions**
+**[Minor]** Design spec, Phase 4, Stagnation guard description — the relationship between "same total error count" and "issue replacement" is confusing because the stagnation guard is described as a *success* outcome but the conditions read like a problem.
 
-The line "Unit tests (Tasks 45–50b) use mocked dependencies" groups Task 50b but also 50c alongside tasks in the 45-50 range, yet Tasks 58a–58k are also labeled "Unit tests." The numeric grouping creates a false impression that 45–50 range and 58 range serve different test tiers.
-
-**Replacement text for the testing strategy note:**
-
-> **Testing Strategy:** Unit tests (Tasks 45–50c, 58–58k) use mocked dependencies — no real agent CLI calls, no real file system for state tests, no real API calls for connectors. End-to-end tests (Tasks 51–57) run the full pipeline with real agent invocations against a test project. Synthetic convergence guard tests (Task 54) use fabricated `polish_state.json` data, not real polish loop runs.
+> **Current:** "Same total error count persisting for a number of consecutive iterations equal to or greater than the configured stagnation limit AND issue replacement detected (rotation threshold and similarity measure defined in build spec). This indicates the reviewer is finding new issues to replace resolved ones, producing a plateau rather than genuine progress."
+>
+> **Replacement:** "Same total error count for a configured number of consecutive iterations (stagnation limit) AND issue rotation detected (old issues resolved, new issues introduced at the same rate — rotation threshold and similarity measure defined in build spec). This combination indicates the deliverable has reached a quality plateau where the reviewer is cycling through cosmetic or subjective issues rather than finding genuine regressions. Treated as converged."
 
 ---
 
-**[Minor] — "Test parallel execution with multiple concurrent projects" (Task 29, Build Stage 5) vs. Task 56 (Build Stage 8)**
+**[Minor]** Design spec, Fabrication guard — "the system had previously reached counts no greater than a configured multiplier of the convergence thresholds" is hard to parse.
 
-Task 29 says "Test parallel execution with multiple concurrent projects" and Task 56 says "Test parallel execution (3 concurrent projects, different agents)." It's unclear whether Task 29 is an integration smoke test and Task 56 is the real e2e test, or if they duplicate.
-
-**Replacement for Task 29 description:**
-
-> Integration test: Vibe Kanban adapter handles concurrent card creation, status updates, and agent execution for 2+ projects without interference
-
-This distinguishes it from Task 56 (full e2e pipeline parallelism).
+> **Current:** "the system had previously reached counts no greater than a configured multiplier of the convergence thresholds in at least one prior iteration"
+>
+> **Replacement:** "in at least one prior iteration, every severity category was at or below 2x its convergence threshold (e.g., critical ≤0, medium ≤6, minor ≤10) — indicating the deliverable was near-converged"
 
 ---
 
-**[Minor] — Cross-stage dependency note in Build Stage 1 says "Stage 1 Tasks 2–6e and Stage 7 Tasks 41–44 can proceed in parallel"**
+**[Minor]** Design spec, Locked File Behavior — the sentence about `constraints.md` being "hot-reloaded" and then the long clause about what happens if the human restructures it runs on for too long. Break it into two behaviors.
 
-This overstates parallelism. Tasks 6c, 6d depend on Task 7 (Stage 2). Task 6b depends on 6d. These can't proceed until Stage 2 begins. The note should be scoped to the tasks that genuinely parallelize with Stage 7.
-
-**Replacement text:**
-
-> **Cross-stage dependency:** Agent Layer (Build Stage 7, Tasks 41–44) provides the core agent invocation mechanism used by Stages 2–6. Task 41 depends only on Task 1 (foundation), so Build Stage 7 should begin as soon as Task 1 completes. Stage 1 foundation tasks (2–6a) and Stage 7 tasks (41–44) can proceed in parallel. Tasks 6b–6e have dependencies into Stages 2 and 7 — see individual task "Depends On" columns. Any task that invokes an AI agent (Tasks 8, 12, 15, 21, 30) must wait for Tasks 41–42 to complete.
+> **Current (single paragraph starting with):** "`constraints.md` (hot-reloaded): The pipeline re-reads `constraints.md` at the start of each Phase 4 iteration..."
+>
+> **Replacement — split into two sub-bullets:**
+>
+> - **`constraints.md` — hot-reloaded:** The pipeline re-reads `constraints.md` at the start of each Phase 4 iteration. Manual human edits to acceptance criteria or review rules are picked up automatically. If `constraints.md` is unreadable or missing at the start of a Phase 4 iteration, the iteration halts and the human is notified.
+> - **`constraints.md` — unvalidated after creation:** If the human restructures the file (missing sections, reordered content, added sections), ThoughtForge passes it to the AI reviewer as-is without schema validation. If the human empties the Acceptance Criteria section, the reviewer proceeds with whatever criteria remain (which may be none). This is treated as an intentional human override — the pipeline does not validate criteria presence after the initial Phase 2 write.
 
 ---
 
-**[Minor] — "All Build Stage 1 tasks done" as exit criteria for "Foundation complete" milestone**
+**[Minor]** Execution plan, Dependencies & Blockers table, last row — "Language: TypeScript" with resolution "Implied by Zod schemas and interface definitions in build spec. Confirm or document as JavaScript-only with JSDoc types" is an unresolved question sitting in a dependency table.
 
-Build Stage 1 includes Tasks 6c and 6d, which depend on the chat interface (Task 7, Build Stage 2). This means the "Foundation complete" milestone can never be reached before Stage 2 work begins, contradicting the milestone's purpose as a gate for starting Stage 2.
+> **Current:** "Language: TypeScript | Dependency | — | — | Implied by Zod schemas and interface definitions in build spec. Confirm or document as JavaScript-only with JSDoc types."
+>
+> **Replacement:** Remove from Dependencies table. Add to the build spec Technical Design section or the execution plan as a design decision: "**Implementation language:** The codebase uses TypeScript. Zod schemas and interface definitions in the build spec use TypeScript syntax. The build toolchain includes `tsc` compilation. (If JavaScript-only is preferred, replace TypeScript interfaces with JSDoc type annotations and use Zod's runtime-only validation.)"
 
-**Replacement for the Foundation Complete milestone row:**
+---
 
-| Foundation complete | TBD | Project scaffolding, state module, config, notifications, plugin loader, orchestrator core | Tasks 1–6a, 3a, and 4–5 done. Tasks 6b–6e complete after their Stage 2 dependencies. |
+**[Minor]** Design spec, Phase 2 — "AI derives 5–10 acceptance criteria from the objective, assumptions, and constraints in `intent.md`" does not clarify whether these are specific to Plan vs. Code mode or universal.
+
+> **Current:** "AI derives 5–10 acceptance criteria from the objective, assumptions, and constraints in `intent.md`"
+>
+> **Replacement:** "AI derives 5–10 acceptance criteria from the objective, assumptions, and constraints in `intent.md`. For Plan mode, criteria assess document completeness, logical coherence, and actionability. For Code mode, criteria assess functional requirements that map to testable acceptance tests in Phase 3."
+
+---
+
+**[Major]** Design spec, Agent Communication section — "Agent-specific adapters normalize output format differences" doesn't clarify what "internal format" the adapters normalize *to*. The build spec's "Output Normalization" section also says adapters "normalize to ThoughtForge's internal format" without defining it.
+
+> **Current (build spec):** "Agent-specific adapters handle output format differences and normalize to ThoughtForge's internal format."
+>
+> **Replacement (add to build spec, Agent Communication section, after the Output Normalization subsection):**
+>
+> **Normalized Agent Response:**
+> ```typescript
+> interface AgentResponse {
+>   success: boolean;      // true if agent exited 0 and produced non-empty output
+>   output: string;        // Cleaned agent stdout — wrapper text and metadata stripped
+>   exitCode: number;      // Raw process exit code
+>   timedOut: boolean;     // true if killed by timeout
+> }
+> ```
+> All agent adapters return this structure. The orchestrator and plugins consume only `AgentResponse`, never raw subprocess output.
+
+---
+
+**[Minor]** Design spec, Chat UI Frontend — "Server-rendered HTML + vanilla JavaScript" — it's unclear whether this means SSR with page refreshes or an SPA with initial HTML that the JS takes over.
+
+> **Current:** "Server-rendered HTML + vanilla JavaScript"
+>
+> **Replacement:** "Server-rendered initial HTML page with vanilla JavaScript for dynamic UI updates. The chat interface is a single page — navigation between projects and settings is handled client-side via JavaScript DOM manipulation. No full-page reloads after initial load."
 
 ---
 
 ## 2. Genuinely Missing Plan-Level Content
 
-**[Major] — No critical path identification**
+**[Critical]** No error handling or behavior defined for what happens when the **AI returns content that cannot be parsed as JSON** during non-review steps (Phase 1 distillation, Phase 2 spec proposals, Phase 3 plan builder responses). The review JSON has Zod validation with retry. But the `PlanBuilderResponse` schema, distillation output, and spec-building responses have no specified validation or retry behavior.
 
-The execution plan has 8 build stages, 70+ tasks, and multiple cross-stage dependencies, but does not identify the critical path — the longest chain of dependent tasks that determines minimum build duration. Without this, the builder cannot prioritize and the risk of delayed completion is high.
-
-**Proposed content to add (new section after "Task Breakdown"):**
-
-> ## Critical Path
+> **Proposed addition (Design spec, Agent Communication section, after Failure handling):**
 >
-> The longest dependency chain determines the minimum build duration regardless of parallelism:
->
-> **Task 1 → Task 41 → Task 42 → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 16 → Task 30 → Tasks 33–37 → Task 51**
->
-> This chain runs from foundation through agent layer, human interaction, plan plugin, polish loop, to plan-mode e2e validation.
->
-> **Secondary critical chain (Code mode):** Task 1 → Task 26 → Task 27 → Task 21 → Task 30c → Task 52
->
-> Build schedule and parallelism decisions should optimize for keeping the critical path unblocked.
+> **Structured Response Validation (Non-Review):**
+> Phase 3 plan builder responses must conform to the `PlanBuilderResponse` schema. The orchestrator validates the response after each builder invocation. On parse failure: retry once. On second failure: halt and notify human. Phase 1 distillation and Phase 2 spec-building responses are natural language (not structured JSON) and do not require schema validation — the AI's output is presented directly in chat for human review and correction.
 
 ---
 
-**[Major] — No acceptance criteria or definition of done for individual tasks**
+**[Major]** No specification of **what test framework or test runner** is used for ThoughtForge's own unit and e2e tests (Build Stage 8). The build spec describes the *deliverable's* test runner (`test-runner.js` in the code plugin) but not the tool's own testing infrastructure.
 
-The plan defines completion checklist items for the entire project but has no acceptance criteria per task. When an AI coder picks up Task 8 ("Implement Phase 1: brain dump intake"), there is no stated definition of when that task is done. The "depends on" column tells ordering but not exit conditions.
-
-**Proposed content to add (new section after "Task Breakdown" or as a note within it):**
-
-> ## Task Acceptance Criteria
+> **Proposed addition (Execution plan, before Task Breakdown, or as a new section "Build Toolchain"):**
 >
-> Each task is complete when:
-> 1. The described functionality works as specified in the design specification and build spec sections referenced by the task
-> 2. The task's own unit tests (if a corresponding test task exists in Build Stage 8) pass with mocked dependencies
-> 3. Any logging events produced by the task are routed through the operational logging module (Task 3a)
-> 4. The implementation follows the interface contracts defined in the build spec (plugin interface, connector interface, notification payload, state file schemas)
->
-> AI coders should reference the "Used by" annotations in the build spec to identify the authoritative specification for each task.
+> **ThoughtForge Build Toolchain:**
+> - Test framework: Vitest (or Jest — decide before build starts)
+> - Test execution: `npm test` runs all unit tests; `npm run test:e2e` runs end-to-end tests
+> - E2E tests require at least one configured agent CLI on PATH
+> - All unit tests use mocked dependencies (no real agent calls, no real file I/O for state tests)
 
 ---
 
-**[Minor] — No rollback or revert strategy**
+**[Major]** The design spec describes the **Vibe Kanban CLI commands** in the build spec as "assumed from Vibe Kanban documentation. Verify actual CLI matches before build." But there is no task in the execution plan to actually verify the VK CLI interface before building against it. This is listed as a risk but has no corresponding pre-build verification task.
 
-The design spec establishes git commits at every milestone and twice per polish iteration, explicitly for rollback capability. The execution plan never states how a failed task or bad build is reverted. For a build executed by AI agents, this matters.
-
-**Proposed content to add (new section after Risk Register):**
-
-> ## Rollback Strategy
+> **Proposed addition (Execution plan, Build Stage 5, insert as first task):**
 >
-> Each project's per-milestone git commits enable rollback at the project level. For ThoughtForge's own codebase during build:
-> - Each completed task should be committed to the ThoughtForge repo before starting the next task
-> - If a task introduces regressions (breaks previously passing tests), revert the task's commit and reattempt
-> - The builder should not proceed to the next task if the current task's tests fail
+> | # | Task | Owner | Depends On | Estimate | Status |
+> |---|------|-------|------------|----------|--------|
+> | 25a | Verify Vibe Kanban CLI interface: confirm actual commands, flags, and output format match assumed interface in build spec. Update build spec if discrepancies found. | — | — | — | Not Started |
 
 ---
 
-**[Minor] — No mention of development environment setup or prerequisites for the builder**
+**[Major]** No defined behavior for **what happens when a project's git operations fail** during project initialization (Task 2 — `git init`). The design spec covers git commit failures during Phase 3→4 transition and Phase 4 iterations, but initialization-time git failure is unaddressed.
 
-The Dependencies & Blockers table lists runtime dependencies (Node.js, agent CLIs, Vibe Kanban) but does not state what the AI coder or human builder needs before starting Task 1 — for example, which Node.js version, whether to use npm or another package manager, whether TypeScript is used (Zod and the TypeScript interfaces in the build spec imply yes, but it's never stated).
+> **Proposed addition (Design spec, Phase 1, step 0, after "Project Initialization"):**
+>
+> **Git Initialization Failure:** If `git init` fails during project creation (permissions error, disk space, git not installed), project creation is aborted. The partially created directory is deleted. The human is notified: "Project creation failed: git initialization error. Verify git is installed and the projects directory is writable." No project state files are written.
 
-**Proposed content to add to Dependencies & Blockers section:**
+---
 
-| Node.js version ≥18 LTS | Dependency | — | — | Required for native fetch, stable ES module support |
-| Package manager: npm | Dependency | — | — | Default Node.js package manager, no additional install |
-| Language: TypeScript | Dependency | — | — | Implied by Zod schemas and interface definitions in build spec. Confirm or document as JavaScript-only with JSDoc types. |
+**[Minor]** No guidance on **how the AI identifies the "Deliverable Type" when brain dump content is ambiguous** — e.g., the human describes both a plan and implementation work in the same dump. The distillation prompt says to "State which one and why you think so" but doesn't say what to do when it's genuinely ambiguous.
+
+> **Proposed addition (Design spec, Phase 1, after step 6, or in the brain dump intake prompt):**
+>
+> **Ambiguous Deliverable Type:** If the brain dump contains signals for both Plan and Code, the AI defaults to Plan and flags the ambiguity in the Open Questions section: "Brain dump describes both planning and implementation. Classified as Plan — confirm or change to Code." The human resolves during the correction cycle.
+
+---
+
+**[Minor]** No defined behavior for **what happens when the human manually deletes a project directory** while the server is running and the project is active.
+
+> **Proposed addition (Design spec, Project Lifecycle After Completion section):**
+>
+> **Manual Project Deletion (Active Project):** If a project directory is deleted while the server is running and the project is in a non-terminal state, the server will encounter file system errors on the next operation for that project. These are handled by the existing cross-cutting file system error handling: halt and notify. The project list sidebar will show the project until the server is restarted (server restart scans `/projects/` and removes stale entries). Graceful handling of mid-run directory deletion is deferred — not a current build dependency.
+
+---
+
+**[Minor]** The execution plan's **Critical Path** section lists the longest chain but doesn't note that the secondary critical chain (Code mode) shares the same foundation bottleneck (Task 1) and that Tasks 41-42 gate almost everything.
+
+> **Proposed addition (Execution plan, Critical Path section, after secondary critical chain):**
+>
+> **Parallelism note:** Tasks 41-42 (agent invocation layer) gate every task that calls an AI agent. These should be prioritized immediately after Task 1 completes, as they are the single biggest bottleneck across both critical paths. All Build Stage 1 foundation tasks (2-6a) and Stage 7 tasks (41-44) can run in parallel once Task 1 is done.
+
+(Note: this is partially stated in the cross-stage dependency note under Build Stage 1, but it deserves explicit emphasis in the Critical Path section where a builder would look for scheduling guidance.)
 
 ---
 
 ## 3. Build Spec Material That Should Be Extracted
 
-**[Minor] — Task 1 description includes implementation detail: "exit with descriptive error on missing file, invalid YAML, or schema violations"**
+**[Minor]** Design spec, Phase 1, step 9 — the "realign from here" algorithm description includes implementation-level detail (scan backwards, exclude messages, re-distill scope). This is already properly extracted to the build spec's "Realign Algorithm" section, but the design spec *also* contains the full algorithm. The design spec version should be reduced to behavior-level description only.
 
-This behavior is already fully specified in the build spec's config validation section and the design spec's Config Validation paragraph. The execution plan task description should reference what to build, not replicate how it behaves on error.
-
-**Replacement task description:**
-
-> Initialize Node.js project, folder structure, `config.yaml` loader with Zod schema validation (per design spec Config Validation and build spec `config.yaml` Template sections)
-
----
-
-**[Minor] — Task 2 description includes implementation detail: "unique ID generation, `/projects/{id}/` directory scaffolding (including `/docs/` and `/resources/`), git repo init, initial `status.json` write"**
-
-This sequence is already documented in the build spec's Project Initialization Sequence section. The execution plan task should reference that section rather than duplicate the steps.
-
-**Replacement task description:**
-
-> Implement project initialization sequence (per build spec Project Initialization Sequence): ID generation, directory scaffolding, git init, initial state, Vibe Kanban card (if enabled), chat thread creation
+> **Current (design spec):** "Human can type 'realign from here' in chat. The AI resets to the most recent substantive correction, excluding all subsequent conversation from the working context (retained in `chat_history.json` for audit trail), and re-distills from the original brain dump plus all corrections up to and including that baseline correction. If no corrections exist yet, the command is ignored with a prompt to provide a correction first. Implementation algorithm in build spec."
+>
+> **This is acceptable** — it already references the build spec. However, the sentence "excluding all subsequent conversation from the working context (retained in `chat_history.json` for audit trail)" is implementation detail that belongs only in the build spec. Shorten to:
+>
+> **Replacement:** "Human can type 'realign from here' in chat. The AI rolls back to the most recent substantive correction and re-distills from the original brain dump plus all corrections up to that point. If no corrections exist yet, the command is ignored with a prompt to provide a correction first. Implementation algorithm in build spec."
 
 ---
 
-**[Minor] — Task 1c description includes full recovery algorithm: "scan `/projects/` for non-terminal projects, resume human-interactive states, halt autonomous states (`distilling`, `building`, `polishing`) with `halt_reason: server_restart`, notify human for each halted project"**
+**[Minor]** Design spec, Phase 4, Convergence Guards table — includes specific algorithmic parameters like "spike threshold" and "similarity measure" alongside references to "defined in build spec." The design spec should state the *behavior* (what the guard detects), and all parameter values should live exclusively in the build spec.
 
-This is the full Server Restart Behavior algorithm from the design spec. In an execution plan, the task should state what to implement and reference where the spec lives, not re-state the algorithm.
-
-**Replacement task description:**
-
-> Implement server restart recovery (per design spec Server Restart Behavior): resume interactive-state projects, halt autonomous-state projects, notify human for halted projects
+> The design spec already says "Algorithmic parameters for each guard... are defined in the build spec." But individual guard descriptions in the design spec still mention "spike threshold," "trailing average," "window size" as if they're defined there. These terms are acceptable as behavioral descriptions since the actual *values* are correctly in the build spec. **No extraction needed** — this is borderline but acceptable as written.
 
 ---
 
-**[Minor] — Task 9 includes algorithm detail: "discard post-correction AI revisions, re-distill from brain dump + corrections up to baseline message"**
+**[Minor]** Design spec, `status.json` and `polish_state.json` field descriptions are duplicated between the design spec's "Project State Files" section and the build spec schemas. The design spec should describe what each file tracks conceptually; the full schemas with TypeScript interfaces should live only in the build spec.
 
-The Realign Algorithm is fully specified in the build spec. The task description should reference it, not repeat it.
-
-**Replacement task description:**
-
-> Implement correction loop: chat-based revisions with AI re-presentation, and "realign from here" command (per build spec Realign Algorithm)
+> **Current (design spec, `polish_state.json` description):** "Iteration number, error counts, convergence trajectory, tests passed (null for plan mode), completed flag, halt reason, timestamp. Full schema in build spec."
+>
+> This is **already handled correctly** — the design spec gives a summary and references the build spec for the full schema. No change needed.
 
 ---
 
-**[Minor] — Task 30 description replicates guard evaluation order: "(Termination → Hallucination → Fabrication → Stagnation → Max iterations; first trigger ends evaluation)"**
+**[Minor]** Build spec, `config.yaml` Template — the inline comments explaining `supports_vision` behavior are implementation guidance embedded in a config template. This is acceptable for a build spec but the comment block after the `agents.available` section reads more like design rationale than config documentation.
 
-This is fully specified in the build spec's Guard Evaluation Order section. The task should reference that, not repeat the sequence.
-
-**Replacement task description:**
-
-> Implement orchestrator loop: review call → parse → validate → fix call → commit. Guard evaluation per build spec Guard Evaluation Order (first trigger ends evaluation).
+> **Current:** "# The `supports_vision` field determines whether image resources are passed to this agent. If `false` or absent, image files are logged as skipped."
+>
+> This is fine as a config file comment. **No extraction needed.**
 
 ---
 
-That concludes the review. The plan is comprehensive and well-structured. The two Major findings (critical path identification and per-task acceptance criteria) are the most important additions before build begins. The rest are clarity and deduplication improvements.
+**[Minor]** Design spec, Notification Content section — the full JSON example object at the bottom (`{ project_id: "{id}", project_name: "Wedding Plan"... }`) is implementation-level detail that belongs in the build spec alongside the `NotificationPayload` TypeScript interface.
+
+> **Recommendation:** Move the JSON example to the build spec's "Notification Payload Schema" section. Keep only the summary-string examples in the design spec.
+
+---
+
+End of review. Total findings: 16 (1 Critical, 4 Major, 11 Minor).
