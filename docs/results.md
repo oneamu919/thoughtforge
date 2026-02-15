@@ -1,150 +1,190 @@
-﻿Now I have all four documents. Let me perform the detailed review as specified.
+﻿I've read all four documents thoroughly. Now let me produce the review.
 
 ---
 
-# Project Plan Review ΓÇö ThoughtForge
-
----
+# ThoughtForge Plan Review ΓÇö Findings
 
 ## 1. Writing That's Unclear
 
-**[Minor]** Design Spec, Phase 4, "Code Mode Iteration Cycle" paragraph (lines 264): This is a single dense paragraph that describes the full code mode iteration cycle, commit strategy, and review JSON persistence. It buries critical sequencing information in a wall of text.
+**[Minor] Design Spec, Phase 4 ΓÇö Stagnation guard "done (success)" vs. Fabrication "halt" language is inconsistent with guard action terminology.**
+
+The design spec uses "Done" and "Halt" as guard outcomes, but the stagnation guard says "Done (success)" while hallucination and fabrication say "Halt." The convergence guard table uses "Done. Notify human." and "Halt. Notify human." ΓÇö but the Halt Recovery section only addresses halted states. A reader implementing this will ask: does "Done" from stagnation trigger the same notification path as "Done" from termination? The answer is yes (based on context), but the language should be explicit.
+
+**Replacement (Design Spec, Phase 4 Convergence Guards table, Stagnation row, Action column):**
+> Done (success). Notify human ΓÇö same notification path as Termination success: status set to `done`, human notified with final error counts and iteration summary.
+
+---
+
+**[Minor] Design Spec, Phase 4 ΓÇö "issue rotation detected" definition is split between two documents.**
+
+The design spec says "fewer than 70% of current issues match prior iteration issues by description similarity" but the match definition (Levenshtein similarity ΓëÑ 0.8) only appears in the build spec. The design spec should state what "match" means at the concept level.
+
+**Replacement (Design Spec, Phase 4 Convergence Guards table, Stagnation row, Condition column):**
+> Same total error count for 3+ consecutive iterations AND issue rotation detected ΓÇö fewer than 70% of current issues match prior iteration issues (match = issues with substantially similar descriptions, as determined by string similarity). Algorithmic parameters (similarity threshold, window sizes) defined in build spec.
+
+---
+
+**[Minor] Design Spec, Phase 2 ΓÇö "challenges weak or risky decisions present in `intent.md`" is vague about what constitutes "weak."**
+
+Step 2 says the AI "challenges weak or risky decisions" but doesn't define what qualifies. The examples (missing dependencies, unrealistic constraints, scope gaps, contradictions) are parenthetical and feel like illustrations rather than the definition. A builder implementing the Phase 2 prompt will need clearer guidance.
+
+**Replacement (Design Spec, Phase 2, step 2):**
+> AI evaluates `intent.md` for: missing dependencies, unrealistic constraints, scope gaps, internal contradictions, unvalidated assumptions, and ambiguous priorities. Each flagged issue is presented to the human with specific reasoning. The AI does not rubber-stamp ΓÇö it must surface concerns even if the human's intent seems clear.
+
+---
+
+**[Minor] Design Spec, "Manual Edit Behavior" ΓÇö The phrase "silently ignored" for `spec.md` and `intent.md` manual edits is misleading.**
+
+It says changes are "silently ignored for the remainder of the pipeline run." This could be read as the pipeline detecting edits and choosing to ignore them, when the reality is simpler: the files are just not re-read. The word "silently" implies detection without action.
 
 **Replacement:**
-
-> **Code Mode Iteration Cycle:** Code mode extends the two-step cycle with a test execution step. The full cycle per iteration is:
->
-> 1. **Test** ΓÇö Orchestrator runs tests via the code plugin's `test-runner.js` and captures results.
-> 2. **Review** ΓÇö Orchestrator passes test results as additional context to the reviewer AI alongside the codebase and `constraints.md`. Reviewer outputs a JSON error report.
-> 3. **Fix** ΓÇö Orchestrator passes the issue list to the fixer agent.
->
-> Plan mode uses the two-step cycle (Review ΓåÆ Fix) with no test execution.
->
-> **Commit pattern:** Both modes commit twice per iteration ΓÇö once after the review step (captures review artifacts and test results) and once after the fix step (captures applied fixes). This enables rollback of a bad fix while preserving the review that identified the issues.
->
-> **Review JSON persistence:** The review JSON output is persisted as part of the `polish_state.json` update and the `polish_log.md` append at each iteration boundary ΓÇö it is not written as a separate file.
+> **`spec.md` and `intent.md` (static after creation):** These are read once at Phase 3 start and not re-read during later phases. If the human manually edits these files after their creation phase, the pipeline will not see those changes ΓÇö it works from its in-memory copy. There is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits to any locked file.
 
 ---
 
-**[Minor]** Design Spec, Phase 4 Stagnation guard description (line 272): The phrase "the specific issues change between iterations while the total count stays flat" is a natural-language description that doesn't match the algorithmic definition in the Build Spec (70% rotation threshold with Levenshtein similarity). A builder reading only the Design Spec would not know what "issue rotation detected" means concretely.
+**[Minor] Design Spec, Phase 1 ΓÇö Step 4 says "Human clicks Distill button" but the button hasn't been introduced yet in the document flow.**
+
+The Distill button first appears in step 4 of Phase 1, but its definition and confirmation model appear later in the "Confirmation model" and "Action Button Behavior" sections. A reader may not understand what "Distill button" is at that point.
+
+**Replacement (add before step 1 or after step 0):**
+> **Interaction model:** Phase 1 uses two explicit actions: a **Distill** button (signals that all inputs are provided and the AI should begin processing) and a **Confirm** button (advances to Phase 2). Both use button presses, not chat commands ΓÇö see Confirmation Model below.
+
+---
+
+**[Minor] Design Spec, "Server Restart Behavior" ΓÇö "autonomous states" list omits `building` context.**
+
+The restart section says projects in `distilling`, `building`, `polishing` are set to `halted`. But `building` spans both Code mode (which is autonomous) and Plan mode (which is also autonomous). This is correct, but it reads as if it might be Phase 2 `spec_building` since that's also "building" colloquially. The list is fine ΓÇö but confirming `spec_building` is in the human-interactive list (it is) makes the distinction clearer.
 
 **Replacement:**
-
-> **Stagnation** | Same total error count for 3+ consecutive iterations AND issue rotation detected ΓÇö fewer than 70% of current issues match prior iteration issues by description similarity, indicating the loop is replacing old issues with new ones at the same rate. | Done (success). Notify human: "Polish sufficient. Ready for final review."
-
----
-
-**[Minor]** Design Spec, Phase 1, step 9 "realign from here" (lines 89ΓÇô94): The description of "baseline identification" says "the last human message that is not a 'realign from here' command" but doesn't clarify what happens if there are multiple "realign from here" commands in sequence. The current wording could be read as only excluding the final one.
-
-**Replacement for step 9.1:**
-
-> 1. **Baseline identification:** The AI identifies the human's most recent substantive correction ΓÇö defined as the last human message that is not a "realign from here" command. If multiple "realign from here" commands were sent in sequence, all of them are skipped to find the substantive message.
+> Projects in human-interactive states (`brain_dump`, `human_review`, `spec_building`) resume normally ΓÇö they are waiting for human input and no action is needed. Projects in autonomous states (`distilling`, `building`, `polishing`) ΓÇö where the AI was actively processing without human interaction ΓÇö are set to `halted` with `halt_reason: "server_restart"` and the human is notified.
 
 ---
 
-**[Minor]** Design Spec, "Manual Edit Behavior" section (lines 140ΓÇô144): The statement about `spec.md` and `intent.md` says "the only way to pick up those changes is to create a new project" but doesn't say this clearly enough for a builder. It could be read as "there is a mechanism to restart" rather than "there is no mechanism."
+**[Minor] Execution Plan, Task 19 description is confusingly similar to Task 18 but for a different plugin.**
 
-**Replacement:**
+Task 18: "Implement `safety-rules.js` ΓÇö hard-block all code execution in plan mode." Task 19: "Implement Code mode safety-rules validation at orchestrator level." Task 23: "Implement `safety-rules.js` ΓÇö Code mode permissions." The distinction between Task 19 (orchestrator-side enforcement) and Task 23 (plugin-side rule definition) is clear to someone who read the design spec carefully, but the task descriptions alone don't make it obvious.
 
-> **`spec.md` and `intent.md` (static after creation):** These are read once at Phase 3 start and not re-read during later phases. If the human manually edits these files after their creation phase, the changes are silently ignored for the remainder of the pipeline run. There is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits to any locked file.
-
----
-
-**[Minor]** Design Spec, Concurrency limit enforcement (line 455): The paragraph says "Within a single project, the pipeline is single-threaded ΓÇö only one operation executes at a time. The orchestrator serializes operations per project." It doesn't clarify whether this means the orchestrator uses a lock, a queue, or simply assumes single-threaded Node.js event loop semantics.
-
-**Replacement (append to existing sentence):**
-
-> Within a single project, the pipeline is single-threaded ΓÇö only one operation (phase transition, polish iteration, button action) executes at a time. This is enforced by the sequential nature of the pipeline: each phase awaits completion before the next begins, and button presses are ignored while an operation is in progress. No explicit locking is required.
-
----
-
-**[Minor]** Execution Plan, Task 2a description (line 29): "Phase 4 per-iteration commits are handled separately in Task 40" ΓÇö but the task list shows Task 40 as "Implement git auto-commit after each review and fix step." A builder could be confused about whether Task 2a or Task 40 handles the Phase 3ΓåÆ4 transition commit.
-
-**Replacement for Task 2a:**
-
-> Implement git commit at pipeline milestones: `intent.md` lock (end of Phase 1), `spec.md` and `constraints.md` lock (end of Phase 2), Phase 3 build completion (including the Phase 3ΓåÆ4 transition commit). Phase 4 per-iteration commits (after each review step and after each fix step) are handled in Task 40.
-
----
-
-**[Minor]** Design Spec, "Fabrication Guard" description (line 273): The phrase "the system had previously approached convergence thresholds" is vague. The Build Spec defines "within 2├ù of the termination thresholds" but the Design Spec doesn't reference this.
-
-**Replacement:**
-
-> **Fabrication** | A severity category spikes significantly above its trailing 3-iteration average, AND the system had previously reached within 2├ù of convergence thresholds in at least one prior iteration ΓÇö suggesting the reviewer is manufacturing issues because nothing real remains | Halt. Notify human.
+**Replacement (Task 19):**
+> Implement orchestrator-level safety-rules enforcement for Code mode: before each Phase 3/4 agent invocation, call the code plugin's `safety-rules.js` `validate(operation)` and block disallowed operations. This is the enforcement mechanism; the rules themselves are defined in Task 23.
 
 ---
 
 ## 2. Genuinely Missing Plan-Level Content
 
-**[Major]** Design Spec ΓÇö No error handling or behavior defined for concurrent button presses or rapid re-clicks. If a human clicks "Confirm" twice in rapid succession, or clicks "Distill" while distillation is already running, the behavior is unspecified. This will cause bugs at build time.
+**[Critical] Design Spec ΓÇö No specification of how the concurrency limit interacts with server restart recovery.**
 
-**Proposed content to add (under "Action Button Behavior"):**
+On restart, the server scans `/projects/` for non-terminal projects and halts autonomous ones. But there's no mention of what happens if the number of non-terminal projects exceeds `max_parallel_runs` after restart. If three projects were running, two were halted by restart, and two new projects were created before the halted ones were resolved ΓÇö the concurrency model needs to state whether halted projects count toward the limit.
 
-> **Button Debounce:** Once an action button is pressed, it is immediately disabled in the UI and remains disabled until the triggered operation completes or fails. A second click on a disabled button has no effect. If the server receives a duplicate action request for a button that has already been processed (e.g., due to a race condition between client and server), the server ignores the duplicate and returns the current project state.
-
----
-
-**[Major]** Design Spec and Execution Plan ΓÇö No definition of what "project deletion" or "project cleanup" looks like, even as a deferred item. The plan says "Project archival, deletion, and re-opening are deferred" but does not specify what happens to the `/projects/` directory over time. A builder needs to know whether to worry about disk space, stale project directories, or directory listing performance.
-
-**Proposed content to add (under "Project Lifecycle After Completion"):**
-
-> **Disk management:** Project directories accumulate indefinitely in v1. The operator is responsible for manually deleting completed or halted project directories when no longer needed. ThoughtForge does not track or limit total disk usage. Automated project archival and cleanup are deferred ΓÇö not a current build dependency.
+**Proposed content (add to "Concurrency limit enforcement" paragraph in Design Spec):**
+> **Halted projects and concurrency:** Projects with `halted` status count toward the active project limit until the human either resumes them (returning to active pipeline state) or terminates them (setting them to terminal state). This prevents the operator from creating unlimited projects while ignoring halted ones.
 
 ---
 
-**[Major]** Design Spec ΓÇö No behavior defined for what happens when the operator restarts the ThoughtForge server while projects are mid-pipeline. Projects in `building` or `polishing` state may have been mid-operation when the server stopped. The plan needs to specify whether the server resumes those projects automatically on restart or waits for human action.
+**[Major] Design Spec ΓÇö No specification of how Phase 3 Code mode "stuck" detection tracks "same task" or "same tests."**
 
-**Proposed content to add (new section under Technical Design, after "Application Entry Point"):**
+The stuck condition for Code mode says "2 consecutive non-zero exits on the same task" and "3 consecutive identical test failures." But neither the design spec nor the build spec defines what "same task" means in this context (same prompt? same file? same build step?) or what "identical test failures" means (same test name? same error message? same failing test count?).
 
-> **Server Restart Behavior:** On startup, the server scans `/projects/` for projects with non-terminal `status.json` states (`brain_dump`, `distilling`, `human_review`, `spec_building`, `building`, `polishing`). Projects in human-interactive states (`brain_dump`, `human_review`, `spec_building`) resume normally ΓÇö they are waiting for human input and no action is needed. Projects in autonomous states (`distilling`, `building`, `polishing`) are set to `halted` with `halt_reason: "server_restart"` and the human is notified. The human must explicitly resume these projects. The server does not automatically re-enter autonomous pipeline phases after a restart.
-
----
-
-**[Minor]** Design Spec ΓÇö No specification for the project ID format. The plan says "Generate a unique project ID" but doesn't specify format (UUID, timestamp-based, slug, sequential). This affects directory naming, URL routing, and Vibe Kanban card IDs.
-
-**Proposed content to add (under Phase 1, step 0.1):**
-
-> **Project ID format:** A URL-safe, filesystem-safe string. Format: `{timestamp}-{random}` (e.g., `20260214-a3f2`). The timestamp prefix enables chronological sorting of project directories. The random suffix ensures uniqueness. No spaces, no special characters beyond hyphens.
+**Proposed content (add to Design Spec Phase 3 Stuck Detection table, Code row, or to Build Spec as a new section):**
+> **Code mode stuck tracking:** "Same task" means consecutive agent invocations with the same prompt intent (e.g., "implement feature X" or "fix test Y") ΓÇö tracked by the code builder's internal task queue. "Identical test failures" means the same set of test names appear in the failed list across consecutive fix-and-retest cycles, compared by exact test name string match.
 
 ---
 
-**[Minor]** Execution Plan ΓÇö No testing task for the Plan Completeness Gate. Task 53 tests "Plan ΓåÆ Code chaining" but doesn't explicitly test the gate's pass/fail/override/terminate paths. The gate has non-trivial logic (multi-file scanning, AI assessment, two button paths) that warrants its own test coverage.
+**[Major] Design Spec / Build Spec ΓÇö No specification of how the Plan builder structures multi-turn interaction for large plans.**
 
-**Proposed content to add (new task after Task 53):**
+Phase 3 Plan mode says the builder "fills every section ΓÇö no placeholders, no TBD." For a complex plan (e.g., a wedding plan with 20+ OPA sections), a single AI call may not produce the full document. The design spec doesn't address whether the builder calls the agent once (with the full template), iteratively per section, or in chunks. The stuck signal schema (`PlanBuilderResponse`) implies single-response interaction, but doesn't prohibit multi-turn. This matters for implementation.
 
-> | 53a | End-to-end test: Plan Completeness Gate (pass with complete plan, fail with incomplete plan, Override proceeds to build, Terminate halts project) | ΓÇö | Task 6d, Task 53 | ΓÇö | Not Started |
-
----
-
-**[Minor]** Design Spec ΓÇö No specification for maximum brain dump size or resource file size limits. If a user drops a 500MB file or pastes a 100,000-word brain dump, the behavior is undefined. This will affect agent prompt construction and could cause agent timeouts or failures.
-
-**Proposed content to add (under Phase 1 Error Handling):**
-
-> | Brain dump text exceeds agent context window | AI processes in chunks if the configured agent supports it, otherwise truncates to the agent's maximum input size with a warning in chat: "Brain dump exceeds maximum input size. Processing first {N} characters." |
-> | Resource file exceeds reasonable size (>50MB) | Log a warning, skip the file, and notify the human in chat: "File '{filename}' exceeds 50MB size limit and was skipped." |
+**Proposed content (add to Design Spec Phase 3, Plan Mode, after step 5):**
+> **Builder interaction model:** The plan builder may invoke the AI agent multiple times to fill the complete template ΓÇö for example, one invocation per major section or group of sections. The builder tracks which sections are complete and passes the partially-filled template as context for subsequent invocations. Each invocation returns a `PlanBuilderResponse`. The builder is complete when all template sections are filled with non-placeholder content.
 
 ---
 
-**[Minor]** Design Spec ΓÇö The WebSocket reconnection section specifies client-side behavior thoroughly but doesn't mention server-side session tracking. The server needs to know which project a reconnecting client was viewing in order to send the correct state on reconnect.
+**[Major] Execution Plan ΓÇö No task for implementing the concurrency limit enforcement described in the design spec.**
 
-**Proposed content to add (append to WebSocket Disconnection section):**
+The design spec specifies: "When the number of active projects reaches `max_parallel_runs`, new project creation is blocked. The chat interface disables the 'New Project' action." No task in the execution plan covers implementing this enforcement logic ΓÇö neither in Task 2 (project initialization), Task 7g (project list sidebar), nor anywhere else.
 
-> **Server-side session:** The server does not maintain persistent WebSocket session state. On reconnect, the client sends the project ID it was viewing. The server responds with the current `status.json` and latest `chat_history.json` for that project. If the project ID is invalid, the server responds with the project list.
+**Proposed content (add to Build Stage 1 or Build Stage 2):**
+> | 2b | Implement concurrency limit enforcement: block new project creation when active (non-terminal) project count reaches `config.yaml` `concurrency.max_parallel_runs`, disable "New Project" action in sidebar with message, re-enable when a project reaches terminal state | ΓÇö | Task 2, Task 7g | ΓÇö | Not Started |
+
+---
+
+**[Major] Execution Plan ΓÇö No task for implementing server restart behavior (scan projects, halt autonomous ones, notify).**
+
+The design spec describes detailed restart behavior ΓÇö scanning `/projects/`, categorizing states, halting autonomous ones. No task covers this.
+
+**Proposed content (add to Build Stage 1):**
+> | 1c | Implement server restart recovery: on startup, scan `/projects/` for non-terminal projects, resume human-interactive states, halt autonomous states (`distilling`, `building`, `polishing`) with `halt_reason: "server_restart"`, notify human for each halted project | ΓÇö | Task 1a, Task 3, Task 5 | ΓÇö | Not Started |
+
+---
+
+**[Major] Execution Plan ΓÇö No task for implementing WebSocket disconnection handling on the server side.**
+
+Task 7 mentions "WebSocket disconnection handling with auto-reconnect" which sounds client-side. The design spec describes server-side behavior: "The server does not maintain persistent WebSocket session state. On reconnect, the client sends the project ID... The server responds with current `status.json` and latest `chat_history.json`." This server-side reconnection endpoint/handler is not explicitly a separate task, and could be buried in Task 7, but the design spec's level of detail warrants a visible task.
+
+**Proposed content (add to Build Stage 2):**
+> | 7i | Implement server-side WebSocket reconnection handler: on client reconnect receive project ID, respond with current `status.json` and `chat_history.json`, handle invalid project ID by returning project list | ΓÇö | Task 7, Task 3 | ΓÇö | Not Started |
+
+---
+
+**[Major] Design Spec ΓÇö No specification for what happens if Vibe Kanban CLI calls fail.**
+
+The design spec and build spec define the VK adapter and toggle behavior, but never specify error handling for VK CLI failures. If `vibekanban task create` or `vibekanban task update` returns non-zero, what happens? Is it a halt? A warning? The notification layer has defined failure handling (log and continue), but VK does not.
+
+**Proposed content (add to Design Spec, Vibe Kanban Integration Interface section):**
+> **Vibe Kanban CLI failure handling:** If a VK CLI call fails (non-zero exit, timeout, command not found), the adapter logs the error. For visualization-only calls (card creation, status updates), the failure is logged as a warning and the pipeline continues ΓÇö VK is not on the critical path. For agent execution calls (`vibekanban task run` in Code mode), the failure is treated as an agent failure and follows the standard agent retry-once-then-halt behavior.
+
+---
+
+**[Minor] Design Spec ΓÇö No mention of what test framework or runner is expected for Code mode.**
+
+Phase 3 Code mode says "Writes tests: unit, integration, and acceptance" and `test-runner.js` executes them. But there's no guidance on what test framework is expected. Since the codebase being built could be any language/framework, the design spec should state that the test framework is determined during Phase 2 spec building (as part of the proposed architecture), and `test-runner.js` invokes whatever was decided.
+
+**Proposed content (add to Design Spec, Code Mode Testing Requirements, or Phase 3 Code Mode):**
+> **Test framework selection:** The test framework is determined during Phase 2 as part of the proposed architecture (language, tools, dependencies). The `test-runner.js` module executes tests using the framework specified in `spec.md`. It is not prescriptive about which framework ΓÇö it adapts to whatever was decided during spec building.
+
+---
+
+**[Minor] Execution Plan ΓÇö No task for implementing the button debounce behavior described in the design spec.**
+
+The design spec says: "Once an action button is pressed, it is immediately disabled in the UI and remains disabled until the triggered operation completes or fails. A second click on a disabled button has no effect. If the server receives a duplicate action request..." This is UI + server-side behavior. Task 10 covers "Implement action buttons: Distill and Confirm" but doesn't mention debounce. The build spec's action button table mentions "Button disabled" as UI behavior but no task explicitly covers the server-side duplicate detection.
+
+**Proposed content (add to Task 10 description):**
+> Implement action buttons: Distill (Phase 1 intake trigger) and Confirm (phase advancement mechanism). Include button debounce: disable on press until operation completes, server-side duplicate request detection (ignore duplicates, return current state).
 
 ---
 
 ## 3. Build Spec Material That Should Be Extracted
 
-**[Minor]** Design Spec, Phase 1 step 0 ΓÇö Project Initialization sequence (lines 63ΓÇô76): The numbered sub-steps (1-6) describing the exact initialization sequence ΓÇö generate ID, create directories, init git, write initial status.json, create Kanban card, open chat thread ΓÇö are implementation ordering instructions. The plan should state what initialization produces, not the exact sequence. The sequence belongs in the build spec alongside Task 2's implementation details.
+**[Minor] Design Spec, Phase 1 ΓÇö "realign from here" behavior (steps 9.1ΓÇô9.4) contains implementation-level algorithmic detail.**
+
+Steps 9.1ΓÇô9.4 describe a specific algorithm: baseline identification by scanning backwards for non-"realign" messages, context truncation with audit trail preservation, re-distillation from original + corrections, and the no-correction guard. This is the *how*, not the *what*. The design spec should say "Human can realign by discarding AI revisions after their last substantive correction and re-distilling from that point. Implementation details in build spec."
+
+**Specifically extract to build spec:**
+- Baseline identification logic (scanning backwards past sequential "realign from here" commands)
+- Context truncation mechanics (excluded from working context but retained in `chat_history.json`)
+- Re-distillation scope (original brain dump + corrections up to baseline)
+- No-correction guard (ignore if no corrections exist)
+
+**Replacement in design spec (step 9):**
+> Human can type "realign from here" in chat. The AI identifies the most recent substantive correction, discards all AI and human messages after that point from the working context (retaining them in `chat_history.json` for audit), and re-distills from the original brain dump plus all corrections up to that baseline. If no corrections exist yet, the command is ignored with a prompt to provide a correction first. Implementation algorithm in build spec.
 
 ---
 
-**[Minor]** Design Spec, "Reconnection behavior" (lines 473ΓÇô474): The specific exponential backoff parameters (starting at 1 second, capped at 30 seconds, no maximum retry limit) are implementation-level configuration, not plan-level design decisions. The plan should state "auto-reconnect with backoff." The specific parameters belong in the build spec.
+**[Minor] Design Spec ΓÇö Project ID format specification is implementation detail.**
+
+"Format: `{timestamp}-{random}` (e.g., `20260214-a3f2`). The timestamp prefix enables chronological sorting. The random suffix ensures uniqueness." This belongs in the build spec alongside the initialization sequence. The design spec should say "URL-safe, filesystem-safe, unique project identifier" and leave the format to the build spec.
+
+**The build spec already has a Project Initialization Sequence section that references this format, so the detail is already duplicated.** Remove the format specification from the design spec and keep it only in the build spec.
+
+**Replacement in design spec (Phase 1, step 0):**
+> **Project ID format:** A URL-safe, filesystem-safe, unique string identifier. Format defined in build spec.
 
 ---
 
-**[Minor]** Design Spec, "Project Name Derivation" (lines 74): The rule "uses the first heading (H1) of the distilled document" and the fallback "generates a short descriptive name (2-4 words)" are implementation-level details about how name extraction works. The plan should state "project name is derived from the distilled intent." The extraction algorithm belongs in the build spec.
+**[Minor] Design Spec ΓÇö WebSocket reconnection details (exponential backoff, "Reconnecting..." indicator) are implementation detail.**
+
+The design spec describes the client reconnection strategy: "exponential backoff," "visible Reconnecting... indicator," "state synced from server." The reconnection *behavior* is plan-level (auto-reconnect and recover state), but the specific client UX and backoff strategy belong in the build spec (which already has a "WebSocket Reconnection Parameters" section with the exact numbers).
+
+**Replacement in design spec:**
+> **Reconnection behavior:** The client auto-reconnects on disconnection. During disconnection, the chat UI displays a visible connection status indicator. On successful reconnect, state is synced from the server. Reconnection parameters (backoff strategy, timing) are in the build spec.
 
 ---
-
-That concludes the review. The plan is thorough and well-structured. The critical and major items above are the ones that would cause real builder confusion or rework if left unaddressed before implementation begins.
