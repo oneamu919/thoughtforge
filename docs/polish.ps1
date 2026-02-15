@@ -130,14 +130,14 @@ while ($count -lt $MaxIterations) {
         Send-Notify "[APPLY] $(Format-Duration $applyTime)"
 
         $iterTime = $reviewTime + $checkTime + $applyTime
-        $iterLine = "Iteration $count`: Critical: $($counts.Critical), Major: $($counts.Major), Minor: $($counts.Minor) ($(Format-Duration $iterTime))"
+        $iterLine = "Iteration $count`: Critical: $($counts.Critical), Major: $($counts.Major), Minor: $($counts.Minor) ($(Format-Duration $iterTime)) (Review: $(Format-Duration $reviewTime), Check: $(Format-Duration $checkTime), Apply: $(Format-Duration $applyTime))"
         Send-Notify $iterLine
         $iterationLog += $iterLine
         Write-Status
     } else {
         # Converged
         $iterTime = $reviewTime + $checkTime
-        $iterLine = "Iteration $count`: Critical: $($counts.Critical), Major: $($counts.Major), Minor: $($counts.Minor) ($(Format-Duration $iterTime))"
+        $iterLine = "Iteration $count`: Critical: $($counts.Critical), Major: $($counts.Major), Minor: $($counts.Minor) ($(Format-Duration $iterTime)) (Review: $(Format-Duration $reviewTime), Check: $(Format-Duration $checkTime))"
         Send-Notify $iterLine
         $iterationLog += $iterLine
         $converged = $true
