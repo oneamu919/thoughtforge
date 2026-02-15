@@ -454,6 +454,14 @@ Each connector module in `/connectors/` implements:
 - Saves as `notion_{page_id}.md` in `/resources/`
 - **URL patterns:** `notion.so/`, `notion.site/`
 
+### URL Matching Behavior
+
+| Condition | Behavior |
+|---|---|
+| Match + enabled | URL is pulled automatically via the connector. |
+| Match + disabled | URL is silently ignored (not pulled, not treated as text). |
+| No match | URL is treated as regular brain dump text and included in distillation context. |
+
 ### Google Drive Connector (`/connectors/google_drive.js`)
 
 - Authenticates via `config.yaml` `connectors.google_drive.credentials_path`

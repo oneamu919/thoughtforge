@@ -79,10 +79,7 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 1. Human brain dumps into chat — one or more messages of freeform text
 2. Human drops files/resources into `/resources/` directory (optional, can happen before or after the brain dump messages)
 3. If external resource connectors are configured (Notion, Google Drive), the human provides page URLs or document links via chat, or the URLs are pre-configured in `config.yaml` (e.g., default Notion pages that should be pulled for every project). ThoughtForge pulls the content and saves it to `/resources/` as local files. Connectors are optional — if none are configured, this step is skipped.
-   **Step 3 Detail — Connector URL Identification:** The AI identifies connector URLs in chat messages by matching against known URL patterns for each enabled connector. Pattern definitions are in the build spec. The AI matches each URL against the known patterns for enabled connectors:
-> - **Match + enabled:** URL is pulled automatically via the connector.
-> - **Match + disabled:** URL is silently ignored (not pulled, not treated as text).
-> - **No match:** URL is treated as regular brain dump text and included in distillation context.
+   **Step 3 Detail — Connector URL Identification:** The AI identifies connector URLs in chat messages by matching against known URL patterns for each enabled connector. The AI matches each URL against the known patterns for enabled connectors and pulls content automatically. URL matching rules (enabled/disabled/unmatched behavior) are in the build spec.
 
 4. Human clicks **Distill** button — signals that all inputs (brain dump text, files, connector URLs) have been provided and the AI should begin processing. This follows the same confirmation model as phase advancement: explicit button press, not chat-parsed.
 5. AI reads all resources (text, PDF, images via vision, code files) and the brain dump
@@ -92,7 +89,7 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 6. AI distills into structured document: Deliverable Type, Objective, Assumptions, Constraints, Unknowns, Open Questions (max 5)
 7. AI presents distillation to human in chat
 8. Human corrects via chat → AI revises and re-presents
-9. Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons to prevent misinterpretation), "realign from here" is a chat-parsed command because it does not advance the pipeline — it re-runs the distillation using the original brain dump plus all corrections up to the identified rollback point. The AI re-distills from the original brain dump plus corrections up to a rollback point. Algorithm details in build spec.
+9. Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons to prevent misinterpretation), "realign from here" is a chat-parsed command because it does not advance the pipeline — it discards AI messages and corrections after the most recent substantive human correction and re-distills from the original brain dump plus corrections up to that point. Exact matching rules and algorithm in build spec.
 
 The human types "realign from here" in chat to trigger a re-distillation from the original brain dump plus corrections up to a rollback point. Exact matching rules and algorithm in build spec. Messages containing the phrase alongside other text are treated as regular corrections.
 10. Human clicks **Confirm** button → advances to Phase 2
@@ -128,9 +125,9 @@ Every action button in the chat interface follows these rules: (a) specific `sta
 
 **`chat_history.json` Error Handling:** If `chat_history.json` is unreadable or missing, the pipeline halts and notifies the human — same behavior as `status.json` corruption. The human must fix or recreate the file. Chat history size is bounded by the phase-clearing behavior (cleared on Phase 1→2 and Phase 2→3 transitions). If a single phase's chat history exceeds the agent's context window, the agent invocation layer truncates older messages while always retaining the original brain dump and the most recent messages. Truncation algorithm in build spec. A warning is logged when truncation occurs.
 
-**Phase 2 Chat History Truncation:** If Phase 2 chat history exceeds the agent context window, the agent invocation layer truncates older messages from the beginning of the history, retaining the most recent messages and always retaining the initial AI spec proposal message (the first AI message in Phase 2). Messages between the initial proposal and the retained recent messages are dropped. A warning is logged when truncation occurs. This mirrors the Phase 1 truncation behavior — the initial proposal serves the same anchoring role as the original brain dump.
+**Phase 2 Chat History Truncation:** If Phase 2 chat history exceeds the agent context window, older messages are truncated while always retaining the initial AI spec proposal (same anchoring pattern as Phase 1's brain dump retention). Algorithm in build spec.
 
-**Phase 3–4 Chat History Truncation:** If Phase 3 or Phase 4 recovery chat history exceeds the agent context window, the agent invocation layer truncates older messages from the beginning, retaining the most recent messages. There is no anchoring message for these phases — unlike Phases 1–2, recovery conversations do not have a structural anchor that must be preserved. A warning is logged when truncation occurs.
+**Phase 3–4 Chat History Truncation:** If Phase 3 or Phase 4 recovery chat history exceeds the agent context window, older messages are truncated from the beginning with no anchoring message. Algorithm in build spec.
 
 **Phase-to-State Mapping:** Phase-to-state enum mapping and transition triggers are defined in the build spec's `status.json` schema.
 
@@ -224,6 +221,8 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 
 **Builder interaction model:** The plan builder may invoke the AI agent multiple times to fill the complete template — for example, one invocation per major section or group of sections. The builder tracks which sections are complete and passes the partially-filled template as context for subsequent invocations. Each invocation returns a `PlanBuilderResponse`. The builder is complete when all template sections are filled with non-placeholder content.
 
+**Template Context Window Overflow:** If the partially-filled template exceeds the agent's context window during multi-invocation plan building, the builder passes only the current section's OPA table slot, the `spec.md` context for that section, and the immediately preceding section (for continuity) — not the full partially-filled template. A warning is logged when truncation occurs. The full template is reassembled from the individually-filled sections after all invocations complete.
+
 **Template Content Escaping:** AI-generated content must not break template rendering.
 
 6. **NEVER creates source files, runs commands, installs packages, scaffolds projects, or executes anything. Document drafting only. Enforced at orchestrator level via plugin safety rules.**
@@ -249,7 +248,7 @@ The plan deliverable filename is `plan.md`, written to `/projects/{id}/docs/plan
 6. If stuck: notifies and waits
 7. Output: working but unpolished codebase
 
-**Stuck Detection (Phase 3):**
+**Stuck Detection (Phase 3):** Plan mode and Code mode use different stuck detection mechanisms. Plan mode relies on AI self-reporting via a structured response field. Code mode relies on orchestrator-observed failure patterns.
 
 | Mode | Stuck Condition | Action |
 |---|---|---|
@@ -287,7 +286,7 @@ Recovery follows the same confirmation model as Phase 4: explicit button presses
 | Condition | Action |
 |---|---|
 | Phase 3 builder reports success but expected output files are missing (Plan mode: no `.md` deliverable in `/docs/`; Code mode: no source files in project directory) | Halt. Set `status.json` to `halted` with `halt_reason: "phase3_output_missing"`. Notify human: "Phase 3 reported success but deliverable files are missing. Review project directory." Do not enter Phase 4. |
-| Phase 3 output exists but is empty or trivially small (below minimum completeness thresholds) | Halt. Set `status.json` to `halted` with `halt_reason: "phase3_output_incomplete"`. Notify human: "Phase 3 deliverable appears incomplete. Review before proceeding." Do not enter Phase 4. |
+| Phase 3 output exists but is empty or trivially small (below `config.yaml` `phase3_completeness` thresholds) | Halt. Set `status.json` to `halted` with `halt_reason: "phase3_output_incomplete"`. Notify human: "Phase 3 deliverable appears incomplete. Review before proceeding." Do not enter Phase 4. |
 | `status.json` write fails during transition (cannot update phase to `polishing`) | Halt. Notify human with file path and error. The Phase 3 git commit has already been written — the deliverable is preserved. The operator must fix the file system issue and manually update `status.json` to resume. |
 | Milestone notification fails during transition | Log the notification failure. Proceed with Phase 4 — notification failure is not blocking. The phase transition and deliverable are the critical path, not the notification. |
 
@@ -315,6 +314,8 @@ Recovery follows the same confirmation model as Phase 4: explicit button presses
 
 **Fix agent context assembly:** The fix agent receives the JSON issue list and the relevant deliverable context. For Plan mode: the current plan document. For Code mode: the current codebase files referenced in the issue `location` fields, plus `constraints.md` for scope awareness. The fix agent does not receive the prior review JSON from previous iterations — only the current iteration's issue list. Full context assembly is specified in the fix prompts (`plan-fix.md`, `code-fix.md`).
 
+**Zero-Issue Iteration:** If the review step produces zero issues (empty issues array), the fix step is skipped for that iteration. The orchestrator proceeds directly to convergence guard evaluation. Only the review commit is written — no fix commit.
+
 **Plan mode fix interaction:** The fix agent receives the full plan document and the JSON issue list. It returns the complete updated plan document with fixes applied. The orchestrator replaces the existing plan file with the returned content. The fix agent does not return diffs or partial documents — full document replacement ensures structural integrity of the OPA template.
 
 **Code mode fix interaction:** The fix agent operates as a coding agent with write access to the project directory. It reads the issue list, modifies the relevant source files directly, and exits. The orchestrator then runs `git add` and commits the changes. The fix agent does not return modified file content — it applies changes in-place, consistent with how coding agents operate during Phase 3.
@@ -340,10 +341,12 @@ Plan mode uses the two-step cycle (Review → Fix) with no test execution.
 | Termination (success) | Error counts within configured thresholds (+ all tests pass for code). Thresholds in `config.yaml`. | Done. Notify human. |
 | Hallucination | Total error count increases by more than 20% from the prior iteration (hardcoded threshold, defined in build spec) after at least 2 consecutive iterations with decreasing total error count (hardcoded minimum trend length, defined in build spec) | Halt. Notify human: "Project '{name}' — fix-regress cycle detected. Errors decreased for {N} iterations ({trajectory}) then spiked to {X} at iteration {current}. Review needed." |
 | Stagnation | **Stagnation:** Two conditions must both be true: (1) Same total error count (sum of critical + medium + minor) for a configured number of consecutive iterations (stagnation limit). (2) Issue rotation detected — old issues resolved, new issues introduced at the same rate (rotation threshold and similarity measure defined in build spec). Stagnation compares total error count only, not per-severity breakdowns. A shift in severity composition (e.g., fewer criticals but more minors) at the same total still qualifies as stagnation, provided the rotation threshold is also met. When both conditions are true, the deliverable has reached a quality plateau where the reviewer is cycling through cosmetic issues rather than finding genuine regressions. Treated as converged. | Done (success — treated as converged plateau). Notify human with final error counts and iteration summary. |
-| Fabrication | A severity category spikes significantly above its trailing average (window size defined in build spec), AND in at least one prior iteration, every severity category was at or below twice its convergence threshold — every severity category was at or below twice its convergence threshold — that is, critical ≤ 2 × `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max` (using default config: ≤0 critical, ≤6 medium, ≤10 minor). These values are derived from `config.yaml` at runtime, not hardcoded. This ensures fabrication is only flagged after the deliverable was near-converged. | Halt. Notify human. |
+| Fabrication | A severity category spikes significantly above its trailing average (window size defined in build spec), AND in at least one prior iteration, every severity category was at or below twice its convergence threshold — that is, critical ≤ 2 × `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max` (using default config: ≤0 critical, ≤6 medium, ≤10 minor). These values are derived from `config.yaml` at runtime, not hardcoded. This ensures fabrication is only flagged after the deliverable was near-converged. | Halt. Notify human. |
 | Max iterations | Hard ceiling reached (configurable, default 50) | Halt. Notify human: "Max [N] iterations reached. Avg flaws/iter: [X]. Lowest: [Y] at iter [Z]. Review needed." |
 
 Algorithmic parameters for each guard (spike thresholds, similarity measures, window sizes) are defined in the build spec.
+
+**Halt vs. Terminate:** When a convergence guard triggers a halt, the project is recoverable — the human can Resume or Override. When the human explicitly Terminates (via button), the project is permanently stopped (`halt_reason: "human_terminated"`). Both use the `halted` phase value in `status.json`; the `halt_reason` field distinguishes them.
 
 **Loop State Persistence:** `polish_state.json` written after each iteration. Full field list in the Project State Files section under Technical Design. On crash, resumes from last completed iteration.
 
@@ -360,6 +363,8 @@ When a convergence guard halts the loop, the human is notified with context (gua
 Recovery is initiated through the ThoughtForge chat interface. The halted card remains in the Polishing column with a visual halted indicator until the human acts.
 
 **Halt Recovery Interaction:** When the chat interface presents a halted state, it displays three action buttons: Resume, Override, and Terminate. These follow the same confirmation model as phase advancement — explicit button presses, not chat-parsed commands. Before Override or Terminate, the interface prompts the human to confirm the action (single confirmation step).
+
+**State Continuity on Resume:** The convergence trajectory in `polish_state.json` is continuous across the halt boundary — the resumed iteration is numbered sequentially after the last completed iteration. `polish_log.md` receives a log entry for the resume event before the next iteration's entry: `## Resumed at {ISO8601} — Halted by {guard_type} at iteration {N}, resumed by human`.
 
 **Phase 4 Error Handling:**
 
@@ -541,6 +546,8 @@ Every phase transition pings the human with a status update. Every notification 
 - `"Project 'API Backend' — Phase 3 complete. Deliverable built. Polish loop starting."`
 - `"Project 'CLI Tool' — Phase 2 spec building. AI stuck on ambiguity: should auth use JWT or session cookies? Decision needed."`
 
+**Active Session Awareness:** Notifications are sent regardless of whether the human has the project open in the chat interface. The notification layer does not track client connection state. Suppressing notifications for active sessions is deferred — not a current build dependency.
+
 ### Project State Files
 
 **Concurrency Model:** Each project operates on its own isolated directory and state files. No cross-project state sharing exists.
@@ -604,7 +611,7 @@ Orchestrator core actions (create project, check status, read polish log, trigge
 |---|----------|-----------|
 | 1 | Dual deliverable types: Plan and Code | Tool handles both documents and software via plugin architecture |
 | 2 | Pipeline chaining: Plan must be complete before Code | Two separate runs. Plan polished and human-approved before becoming code input |
-| 3 | Each project gets its own git repo | Clean isolation, no shared mutable state |
+| 3 | Each project gets its own local git repository (git init, no remote) | Clean isolation, no shared mutable state |
 | 4 | Chat-based corrections, button-based confirmation | Natural corrections, unambiguous phase advancement |
 | 5 | Acceptance criteria in `constraints.md` | Prevents polish loop from missing what was asked for |
 | 6 | Zod for structured output validation | Single-source schema, auto-validation, clear errors |
