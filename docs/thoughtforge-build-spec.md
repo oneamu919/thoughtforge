@@ -205,7 +205,7 @@ Return type varies by plugin:
 
 ### Code Builder Task Queue
 
-**Task derivation guidance:** The code builder parses the Deliverable Structure and Acceptance Criteria sections of `spec.md`. Each architectural component or feature maps to a build task. Each acceptance criterion maps to a test-writing task. The builder orders tasks by dependency (foundational components first, then features, then tests). The exact parsing and ordering logic is an implementation detail of Task 21, but must produce a deterministic task list from the same `spec.md` input.
+**Task derivation guidance:** The code builder parses the Deliverable Structure and Acceptance Criteria sections of `spec.md`. Each architectural component or feature maps to a build task. Each acceptance criterion maps to a test-writing task. The builder orders tasks by dependency (foundational components first, then features, then tests). The exact parsing and ordering logic is an implementation detail of Task 21, but must produce a deterministic task list from the same `spec.md` input — this ensures crash recovery (re-deriving the task list after restart) produces the same task ordering and can correctly identify which tasks were already completed.
 
 The code builder maintains an ordered list of build tasks derived from `spec.md` (e.g., implement feature X, write tests for Y). Each task has a string identifier used for stuck detection — consecutive agent invocations against the same task identifier increment the retry counter. The task list format and derivation logic are internal to the code builder and are not persisted to state files. On crash recovery, the code builder re-derives the task list from `spec.md` and the current state of files in the project directory (e.g., which source files and test files already exist).
 
@@ -417,6 +417,8 @@ interface PlanBuilderResponse {
 ## Realign Algorithm
 
 **Used by:** Task 9 (correction loop — "realign from here" command)
+
+**Command Matching:** The command is matched as an exact case-insensitive string: the entire chat message must be "realign from here" with no additional text.
 
 **Realign Algorithm (Phase 1, step 9):**
 1. **Baseline identification:** Scan backwards through `chat_history.json` past any sequential "realign from here" commands to find the most recent substantive human correction.
