@@ -33,6 +33,25 @@ function Send-Notify($message) {
     Write-Host $message
 }
 
+function Format-Duration($ts) {
+    return "{0}m {1:D2}s" -f [int][math]::Floor($ts.TotalMinutes), $ts.Seconds
+}
+
+function Parse-Counts($text) {
+    $c = 0; $ma = 0; $mi = 0
+    if ($text -match 'Critical:\s*(\d+)') { $c  = [int]$matches[1] }
+    if ($text -match 'Major:\s*(\d+)')    { $ma = [int]$matches[1] }
+    if ($text -match 'Minor:\s*(\d+)')    { $mi = [int]$matches[1] }
+    return @{ Critical = $c; Major = $ma; Minor = $mi }
+}
+
+# -- Timing accumulators --
+$totalReview = [TimeSpan]::Zero
+$totalCheck  = [TimeSpan]::Zero
+$totalApply  = [TimeSpan]::Zero
+$firstCounts = $null
+$lastCounts  = $null
+
 if (Test-Path $COUNTER_FILE) {
     $count = [int](Get-Content $COUNTER_FILE)
     Send-Notify "[RESUMED] Polish resuming from iteration $count (max $MaxIterations)"
@@ -47,32 +66,62 @@ while ($count -lt $MaxIterations) {
     Send-Notify "[ITERATION $count/$MaxIterations]"
 
     # -- Step 1: Review --
+    $t1 = Get-Date
     & "$scriptDir\review.ps1"
     if ($LASTEXITCODE -ne 0) {
-        Send-Notify "[POLISH STOPPED] Failed at iteration $count"
+        Send-Notify "[POLISH STOPPED] Review failed at iteration $count"
         exit 1
     }
+    $reviewTime = (Get-Date) - $t1
+    $totalReview += $reviewTime
+    Send-Notify "[REVIEW] $(Format-Duration $reviewTime)"
 
     # -- Step 2: Check --
+    $t2 = Get-Date
     & "$scriptDir\check.ps1"
     if ($LASTEXITCODE -ne 0) {
-        Send-Notify "[POLISH STOPPED] Failed at iteration $count"
+        Send-Notify "[POLISH STOPPED] Check failed at iteration $count"
         exit 1
     }
+    $checkTime = (Get-Date) - $t2
+    $totalCheck += $checkTime
+    Send-Notify "[CHECK] $(Format-Duration $checkTime)"
+
+    # -- Parse counts --
+    $checkResult = Get-Content "resultscheck.md" -Raw
+    $counts = Parse-Counts $checkResult
+    if (-not $firstCounts) { $firstCounts = $counts }
+    $lastCounts = $counts
 
     # -- Step 3: Decide --
-    $checkResult = Get-Content "resultscheck.md" -Raw
     if ($checkResult -match 'result:\s*true') {
         # Still needs updates -- apply fixes
+        $t3 = Get-Date
         & "$scriptDir\apply.ps1"
         if ($LASTEXITCODE -ne 0) {
-            Send-Notify "[POLISH STOPPED] Failed at iteration $count"
+            Send-Notify "[POLISH STOPPED] Apply failed at iteration $count"
             exit 1
         }
+        $applyTime = (Get-Date) - $t3
+        $totalApply += $applyTime
+        Send-Notify "[APPLY] $(Format-Duration $applyTime)"
+
+        $iterTime = $reviewTime + $checkTime + $applyTime
+        Send-Notify "Iteration $count`: Critical: $($counts.Critical), Major: $($counts.Major), Minor: $($counts.Minor) ($(Format-Duration $iterTime))"
     } else {
         # Converged
+        $iterTime = $reviewTime + $checkTime
+        Send-Notify "Iteration $count`: Critical: $($counts.Critical), Major: $($counts.Major), Minor: $($counts.Minor) ($(Format-Duration $iterTime))"
+
+        $totalTime = $totalReview + $totalCheck + $totalApply
         if (Test-Path $COUNTER_FILE) { Remove-Item $COUNTER_FILE }
-        Send-Notify "[CONVERGED] Polish converged at iteration $count. No more updates needed."
+
+        $summary = "[CONVERGED] Polish converged at iteration $count/$MaxIterations.`n"
+        $summary += "Start:  Critical: $($firstCounts.Critical), Major: $($firstCounts.Major), Minor: $($firstCounts.Minor)`n"
+        $summary += "Final:  Critical: $($counts.Critical), Major: $($counts.Major), Minor: $($counts.Minor)`n"
+        $summary += "Total: $(Format-Duration $totalTime) (Review: $(Format-Duration $totalReview), Check: $(Format-Duration $totalCheck), Apply: $(Format-Duration $totalApply))"
+        Send-Notify $summary
+
         Write-Host "========================================================"
         Write-Host "  CONVERGED at iteration $count"
         Write-Host "========================================================"
@@ -81,9 +130,17 @@ while ($count -lt $MaxIterations) {
 }
 
 # -- Max iterations --
+$totalTime = $totalReview + $totalCheck + $totalApply
 if (Test-Path $COUNTER_FILE) { Remove-Item $COUNTER_FILE }
-Send-Notify "[MAX ITERATIONS] Polish hit $MaxIterations iterations without converging."
+
+$summary = "[MAX ITERATIONS] Polish hit $MaxIterations iterations without converging.`n"
+$summary += "Start:  Critical: $($firstCounts.Critical), Major: $($firstCounts.Major), Minor: $($firstCounts.Minor)`n"
+$summary += "Final:  Critical: $($lastCounts.Critical), Major: $($lastCounts.Major), Minor: $($lastCounts.Minor)`n"
+$summary += "Total: $(Format-Duration $totalTime) (Review: $(Format-Duration $totalReview), Check: $(Format-Duration $totalCheck), Apply: $(Format-Duration $totalApply))"
+Send-Notify $summary
+
 Write-Host "========================================================"
 Write-Host "  MAX ITERATIONS ($MaxIterations) reached"
 Write-Host "  Check results.md for remaining findings."
 Write-Host "========================================================"
+exit 1
