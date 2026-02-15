@@ -21,6 +21,7 @@ $TELEGRAM_CHAT_ID = $env:TELEGRAM_CHAT_ID
 $COUNTER_FILE     = "reviewcount.txt"
 $STATUS_FILE      = "polish-status.md"
 $LOG_FILE         = "polish-log.txt"
+$BRANCH_FILE      = "polish-branch.txt"
 $scriptDir        = $PSScriptRoot
 
 function Send-Notify($message) {
@@ -106,10 +107,18 @@ if (Test-Path $COUNTER_FILE) {
     }
 
     Send-Notify "[RESUMED] Polish resuming from iteration $count (max $MaxIterations)"
+    if (Test-Path $BRANCH_FILE) {
+        $branchName = (Get-Content $BRANCH_FILE -Raw).Trim()
+        git checkout $branchName
+    }
 } else {
     $count = 0
     if (Test-Path $LOG_FILE) { Remove-Item $LOG_FILE }
-    Send-Notify "[STARTED] Polish loop running (max $MaxIterations iterations)"
+    $branchName = "polish/$(Get-Date -Format 'yyyy-MM-dd-HHmmss')"
+    $branchName | Set-Content -Path $BRANCH_FILE -Encoding UTF8
+    git checkout -b $branchName
+    git push -u origin $branchName
+    Send-Notify "[STARTED] Polish loop running on branch $branchName (max $MaxIterations iterations)"
 }
 
 $retries = 0
