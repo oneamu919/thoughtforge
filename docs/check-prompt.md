@@ -10,6 +10,6 @@ Write your answer in this format:
 - Your counts of critical, major, and minor findings
 - One sentence explaining your reasoning
 
-If result is true, extract the consolidated prompt block from results.md and create or overwrite the file apply-prompt.md with that content. The apply-prompt.md file MUST exist on disk before you finish. If no consolidated prompt block exists in results.md, do NOT fabricate one — instead write your output as: result: error — review output is missing the consolidated prompt block
+If result is true, create or overwrite the file apply-prompt.md with a prompt that instructs an AI coder to apply every change from the findings in results.md — replacements, additions, and extractions — to the source files. Be explicit about what changes go where. No interpretation required on the coder's end. The prompt must conclude by instructing the AI coder to git commit and sync to remote once all changes have been applied. The apply-prompt.md file MUST exist on disk before you finish.
 
 If result is false, do not modify apply-prompt.md.

@@ -1,5 +1,4 @@
-﻿
-read these files to understand the Project
+﻿read these files to understand the Project
 thoughtforge-requirements-brief.md
 
 scrutinize  these files and follow this prompt
@@ -34,7 +33,3 @@ Three output lists only. Each finding within each list must be prefixed with its
 1. **Writing that's unclear** -- with exact replacement text.
 2. **Genuinely missing plan-level content** -- with proposed content to add.
 3. **Build spec material that should be extracted** -- identify each section and why it belongs in a build spec, not the plan.
-
-## Final Output:
-- Generate a single consolidated prompt I can hand directly to an AI coder. That prompt must instruct the coder to apply every change from your review -- replacements, additions, and extractions -- to the source files. Be explicit about what changes go where. No interpretation required on the coder's end. The prompt must conclude by instructing the AI coder to git commit and sync to remote once all changes have been applied.
-
