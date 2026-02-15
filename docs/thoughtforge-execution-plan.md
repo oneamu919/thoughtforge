@@ -33,7 +33,7 @@
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
 | 1 | Initialize Node.js project, folder structure, `config.yaml` loader with Zod schema validation (per design spec Config Validation and build spec `config.yaml` Template sections) | — | — | — | Not Started |
-| 1a | Implement application entry point: Node.js server startup, config initialization, local web server for chat interface | — | Task 1 | — | Not Started |
+| 1a | Implement application entry point: Node.js server startup, config initialization, local web server for chat interface. Including graceful shutdown handler: on SIGTERM/SIGINT, send WebSocket close frame (code 1001) to all connected clients, wait for in-progress agent subprocesses (up to configured timeout), then exit. | — | Task 1 | — | Not Started |
 | 1b | Implement first-run setup: `config.yaml.example` copied to `config.yaml` on first run if missing (with comment guidance), prerequisite check (Node.js ≥18 LTS, agent CLIs on PATH), startup validation summary | — | Task 1 | — | Not Started |
 | 1c | Implement server restart recovery (per design spec Server Restart Behavior): resume interactive-state projects, halt autonomous-state projects, notify human for halted projects | — | Task 1a, Task 3, Task 5 | — | Not Started |
 | 2 | Implement project initialization sequence (per build spec Project Initialization Sequence): ID generation, directory scaffolding, git init, initial state, Vibe Kanban card (if enabled), chat thread creation | — | Task 1 | — | Not Started |
@@ -71,7 +71,7 @@
 | 8 | Implement Phase 1: brain dump intake (including empty/trivially-short input guard — block distillation and prompt for more detail), resource reading (log and skip unreadable files, notify human, proceed with available inputs), distillation prompt (loaded from `/prompts/brain-dump-intake.md`), Phase 1 sub-state transitions in `status.json` (`brain_dump` → `distilling` on Distill button → `human_review` on distillation complete). Connector integration (Task 7c) is optional — Phase 1 functions fully without connectors. Include ambiguous deliverable type handling per design spec: when brain dump signals both Plan and Code, AI defaults to Plan and flags in Open Questions. | — | Task 6a, Task 7, Task 7a, Tasks 41–42 | — | Not Started |
 | 8a | Implement chat-message URL scanning for resource connectors: match URLs in brain dump chat messages against enabled connector URL patterns (from build spec), auto-pull matched URLs via connector layer, ignore matches for disabled connectors, pass unmatched URLs through as brain dump text | — | Task 8, Task 7c | — | Not Started |
 | 9 | Implement correction loop: chat-based revisions with AI re-presentation, and "realign from here" command (per build spec Realign Algorithm) | — | Task 8 | — | Not Started |
-| 9a | Implement `chat_history.json` persistence: append after each chat message, clear on Phase 1→2 and Phase 2→3 confirmation only (NOT on Phase 3→4 automatic transition), resume from last recorded message on crash. Include context window truncation logic per build spec Chat History Truncation Algorithm: Phase 1 retains brain dump messages, Phase 2 retains initial AI proposal, Phase 3–4 truncate from beginning with no anchor. Log a warning when truncation occurs. | — | Task 3, Task 7 | — | Not Started |
+| 9a | Implement `chat_history.json` persistence: append after each chat message, clear on Phase 1→2 and Phase 2→3 confirmation only (NOT on Phase 3→4 automatic transition), resume from last recorded message on crash. Include context window truncation logic per build spec Chat History Truncation Algorithm: Phase 1 retains brain dump messages, Phase 2 retains initial AI proposal, Phase 3–4 truncate from beginning with no anchor. Log a warning when truncation occurs. **Include error handling: halt and notify on unreadable, missing, or invalid `chat_history.json` (same behavior as `status.json` corruption).** Include context window truncation logic per build spec Chat History Truncation Algorithm. | — | Task 3, Task 7 | — | Not Started |
 | 10 | Implement action buttons: Distill (Phase 1 intake trigger) and Confirm (phase advancement mechanism). Include button debounce: disable on press until operation completes, server-side duplicate request detection (ignore duplicates, return current state). | — | Task 7 | — | Not Started |
 | 11 | Implement intent.md generation and locking, project name derivation (extract from H1 or AI-generate), `deliverable_type` derivation (from Deliverable Type section of confirmed intent.md — `"plan"` or `"code"` in status.json), status.json `project_name` and `deliverable_type` update, and Vibe Kanban card name update (if enabled). Include deliverable type parse failure handling: reject values other than "Plan" or "Code", notify human in chat, do not advance. | — | Task 9, Task 2a, Task 26, Tasks 41–42 | — | Not Started |
 | 12 | Implement Phase 2: spec building per design spec Phase 2 behavior. Includes mode-specific proposal (Plan: OPA structure; Code: architecture with OSS discovery from Task 25), AI challenge of intent decisions, constraint discovery, acceptance criteria extraction, human review/override, Unknown resolution validation gate, and Confirm advancement. Prompt loaded from `/prompts/spec-building.md`. | — | Task 6a, Task 10, Task 11, Task 7a, Task 7f, Task 25, Tasks 41–42 | — | Not Started |
@@ -129,6 +129,7 @@
 | 31 | Implement Zod validation flow (safeParse, retry on failure, halt after max retries) | — | Task 30 | — | Not Started |
 | 32 | Implement count derivation from issues array (ignore top-level counts) — extends Task 30 orchestrator | — | Task 30 | — | Not Started |
 | 33 | Implement convergence guard: termination (success) | — | Task 30 | — | Not Started |
+| 33a | Implement convergence guard: fix regression (per-iteration check — compare post-fix error count to pre-fix review count, warn on single occurrence, halt on 2 consecutive regressions). Evaluated immediately after each fix step, before other guards. | — | Task 30 | — | Not Started |
 | 34 | Implement convergence guard: hallucination detection | — | Task 30 | — | Not Started |
 | 35 | Implement convergence guard: stagnation (count + issue rotation via Levenshtein) | — | Task 30 | — | Not Started |
 | 36 | Implement convergence guard: fabrication detection | — | Task 30 | — | Not Started |
@@ -155,7 +156,8 @@
 |---|------|-------|------------|----------|--------|
 | 45 | Unit tests: project state module (`status.json`, `polish_state.json` read/write, crash recovery) | — | Task 3, Task 38 | — | Not Started |
 | 46 | Unit tests: plugin loader (interface contract validation, missing plugin handling) | — | Task 6 | — | Not Started |
-| 47 | Unit tests: convergence guards (termination, hallucination, stagnation, fabrication, max iterations — each with synthetic inputs) | — | Tasks 33–37 | — | Not Started |
+| 47 | Unit tests: convergence guards (termination, hallucination, stagnation, fabrication, max iterations — each with synthetic inputs) | — | Tasks 33–37, Task 33a | — | Not Started |
+| 47b | Unit tests: fix regression guard (single regression logs warning, 2 consecutive regressions halt, non-consecutive regressions reset counter, first iteration has no prior to compare) | — | Task 33a | — | Not Started |
 | 47a | Unit tests: count derivation (derives counts from issues array, ignores top-level count fields, handles empty issues array, handles mismatched top-level counts) | — | Task 32 | — | Not Started |
 | 48 | Unit tests: agent adapters (output normalization, failure handling, timeout) | — | Tasks 41–44 | — | Not Started |
 | 49 | Unit tests: resource connectors (pull success, auth failure, not found — with mocked API responses) | — | Tasks 7c–7e | — | Not Started |
@@ -194,7 +196,7 @@ The longest dependency chain determines the minimum build duration regardless of
 
 **Task 1 → Task 41 → Task 42 → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 6c → Task 30 → Tasks 33–37 → Task 51**
 
-Note: Task 13 is not a declared code dependency of Task 6c, but Task 6c cannot be meaningfully tested without Phase 2 outputs (spec.md, constraints.md) existing. Task 15 (plan builder) must complete before Task 6c can be exercised in Plan mode. The critical path reflects the functional chain, not just the task-level code dependencies.
+The functional critical path includes Task 13 → Task 15 → Task 6c even though Task 6c's code dependency is on Task 6a, because Phase 3→4 transition cannot be exercised without Phase 2 outputs (spec.md, constraints.md) and a Phase 3 builder producing deliverables.
 
 This chain runs from foundation through agent layer, human interaction, plan plugin, polish loop, to plan-mode e2e validation.
 

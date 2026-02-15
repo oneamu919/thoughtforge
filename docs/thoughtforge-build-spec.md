@@ -204,7 +204,7 @@ Return type varies by plugin:
 
 ### Code Builder Task Queue
 
-The code builder maintains an ordered list of build tasks derived from `spec.md`. Each task has a string identifier used for stuck detection. On crash recovery, the code builder attempts to re-derive the task list from `spec.md` and the current state of files in the project directory. If the re-derived task list differs from the pre-crash list (non-deterministic ordering), the code builder persists the initial task list to `task_queue.json` in the project directory at derivation time, and uses the persisted list for crash recovery. Whether to persist is a Task 21 implementation decision — but crash recovery must produce a compatible task ordering.
+The code builder persists the initial task list to `task_queue.json` in the project directory at derivation time. On crash recovery, the builder re-reads `task_queue.json` rather than re-deriving from `spec.md`, ensuring deterministic task ordering across restarts.
 
 ### Operation Type Taxonomy
 
@@ -302,6 +302,7 @@ If no guard triggers, the loop proceeds to the next iteration.
 - **Plateau window:** Same total error count for 3+ consecutive iterations (configurable via `config.yaml` `polish.stagnation_limit`)
 - **Issue rotation detection:** Fewer than 70% of issues in the current iteration have a matching issue in the prior iteration (i.e., for each current issue, check if any prior issue has Levenshtein similarity ≥ 0.8 on the `description` field — if fewer than 70% of current issues find a match, rotation is detected)
 - **Match definition:** Two issues "match" when their `description` fields have Levenshtein similarity ≥ 0.8
+- **Levenshtein similarity formula:** Similarity is computed as `1 - (levenshtein_distance(a, b) / max(a.length, b.length))`. A result of 1.0 means identical strings; 0.0 means completely different. The ≥ 0.8 threshold means two descriptions match if they differ by no more than 20% of the longer string's length.
 - Trigger: plateau AND rotation both true → done (success)
 
 ### Fabrication Guard
@@ -384,6 +385,10 @@ All agent adapters return this structure. The orchestrator and plugins consume o
 - Non-zero exit, timeout, or empty output → retry once
 - Second failure → halt and notify human
 - Timeout configurable via `config.yaml` (`agents.call_timeout_seconds`, default 300)
+
+### Token Estimation
+
+ThoughtForge estimates tokens as `character_count / 4` (a standard rough heuristic).
 
 ---
 
@@ -705,7 +710,7 @@ Each iteration is appended as a Markdown section:
 ## Build Toolchain
 
 **ThoughtForge Build Toolchain:**
-- Test framework: Vitest (or Jest — decide before build starts)
+- Test framework: Vitest
 - Test execution: `npm test` runs all unit tests; `npm run test:e2e` runs end-to-end tests
 - E2E tests require at least one configured agent CLI on PATH
 - All unit tests use mocked dependencies (no real agent calls, no real file I/O for state tests)

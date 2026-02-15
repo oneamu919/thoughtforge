@@ -8,7 +8,7 @@
 
 **What is being designed:** An autonomous pipeline tool that takes a human brain dump and produces a polished deliverable (plan document or working code) through structured phases with convergence-based polish loops.
 
-**Terminology:** "Human" and "operator" are used interchangeably throughout this document to refer to the solo user operating the tool. "Human" is used in pipeline flow descriptions (brain dump, corrections, confirmation). "Operator" is used in system administration contexts (config, startup, file system).
+**Terminology convention (applies throughout all ThoughtForge documents):** "Human" and "operator" refer to the same person — the solo user. "Human" is used in pipeline flow descriptions. "Operator" is used in system administration contexts.
 
 ---
 
@@ -16,7 +16,7 @@
 
 ### OPA Framework
 
-Plan mode deliverables use an **OPA Table** structure — **Objective → Plan → Assessment** — for every major section. This is unrelated to the OPA (Outcome • Purpose • Action) framework used in the Requirements Brief, which follows Tony Robbins' RPM System for document organization. The deliverable OPA Table is a content structure for plan sections:
+Plan mode deliverables use an **OPA Table** structure — **Objective → Plan → Assessment** — for every major section. This is distinct from the requirements brief's use of "OPA" (Outcome • Purpose • Action, Tony Robbins' RPM System), which is a document organization framework, not a deliverable content structure. To avoid ambiguity: "OPA Table" always refers to the deliverable structure; "OPA Framework" in the requirements brief refers to the brief's own organization.
 
 | Column | Purpose |
 |---|---|
@@ -62,9 +62,7 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 
 0. **Project Initialization:**
 
-   Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project" command or button). **Project initialization** creates the project directory structure, initializes version control, writes the initial project state, registers the project on the Kanban board, and opens the chat interface.
-
-   **Project ID format:** A URL-safe, filesystem-safe, unique string identifier. Format defined in build spec.
+   Project initialization creates the project directory structure, initializes version control, writes the initial project state, optionally registers on the Kanban board, and opens the chat interface. The full initialization sequence is in the build spec.
 
    **Project ID Collision:** If the generated project directory already exists (extremely unlikely with timestamp + random), generate a new random suffix and retry. If the directory still exists after 3 retries, halt with error: "Could not generate unique project ID. Check projects directory for stale entries."
 
@@ -113,7 +111,7 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 
 **Action Button Behavior (All Buttons):**
 
-Every action button in the chat interface follows these rules: (a) specific `status.json` update, (b) defined chat UI feedback, (c) stated confirmation requirement. Complete button inventory with `status.json` effects and UI behavior is specified in the build spec.
+Every action button follows the behavior contract defined in the build spec's Action Button Behavior inventory, which specifies `status.json` effects, UI feedback, and confirmation requirements for each button.
 
 **Phase 1 Error Handling:**
 
@@ -168,6 +166,8 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 
 **`constraints.md` — readability definition:** "Unreadable" means the file cannot be read from disk (permission error, I/O error) or is not valid UTF-8 text. A file that is readable but contains unexpected content (empty, restructured, nonsensical) is passed to the reviewer as-is per the unvalidated-after-creation policy. If the file exceeds the agent's context window when combined with other review context, it is truncated with a warning logged.
 
+**`constraints.md` truncation strategy:** If `constraints.md` exceeds the available context budget when combined with other review context, it is truncated from the middle — the Context and Deliverable Type sections (top) and the Acceptance Criteria section (bottom) are preserved, and middle sections (Priorities, Exclusions, Severity Definitions, Scope) are removed in reverse order until the file fits. A warning is logged identifying which sections were removed.
+
 - **`spec.md` and `intent.md` (static after creation):**
   - Read at Phase 3 start and used by the Phase 3 builder. Not re-read during Phase 4 iterations — Phase 4 uses `constraints.md` and the deliverable itself.
   - Manual human edits during active pipeline execution have no effect — the pipeline works from its Phase 3 context.
@@ -191,16 +191,7 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 
 **Code Mode behavior:** Proposes build spec (language, OS, framework, tools, dependencies, architecture). Runs Open Source Discovery before proposing custom-built components. Every OSS recommendation includes the 8-signal qualification scorecard (signals, red flags, and minimum qualification threshold defined in build spec).
 
-**`spec.md` structure:**
-
-| Section | Description |
-|---|---|
-| Deliverable Overview | What is being built/planned, restated from `intent.md` Objective |
-| Deliverable Structure | Proposed structure of the deliverable (plan sections or code architecture) |
-| Key Decisions | Each decision the AI made or the human confirmed, with rationale |
-| Resolved Unknowns | Every Unknown and Open Question from `intent.md`, with resolution and source (AI-reasoned or human-provided) |
-| Dependencies | External tools, services, data, or prerequisites required |
-| Scope Boundaries | What is explicitly included and excluded |
+**`spec.md` structure:** See build spec `spec.md` Structure section for the full template. Contains: Deliverable Overview, Deliverable Structure, Key Decisions, Resolved Unknowns, Dependencies, and Scope Boundaries.
 
 Plan mode: Deliverable Structure contains proposed plan sections following OPA Framework. Code mode: Deliverable Structure contains proposed architecture, language, framework, and tools (including OSS qualification results where applicable).
 
@@ -248,7 +239,7 @@ The plan deliverable filename is `plan.md`, written to `/projects/{id}/docs/plan
 
 **Code builder context assembly:** The code builder passes the following files to the coding agent as build context: `spec.md` (architecture, decisions, dependencies), `constraints.md` (acceptance criteria, scope, priorities), and optionally the plan document from `/resources/` if one was identified by the Plan Completeness Gate. `intent.md` is not passed — its content is already distilled into `spec.md`. Resource files from `/resources/` (other than a chained plan document) are not passed to the code builder — they were consumed during Phase 1 distillation.
 
-**Code builder interaction model:** The code builder passes the full `spec.md` (architecture, dependencies, acceptance criteria) to the coding agent as a single build prompt. The agent is responsible for scaffolding, implementation, and initial test writing in a single invocation or multi-turn session, depending on how Vibe Kanban executes the task (if VK is enabled) or as a single invocation (if VK is disabled). The code builder then enters a test-fix cycle: run tests, pass failures back to the agent, agent fixes, re-run tests — repeating until all tests pass or stuck detection triggers. Unlike Phase 4 iterations, the Phase 3 test-fix cycle does not commit after each cycle — a single git commit is written when Phase 3 completes successfully. This is a coarser-grained interaction model than the plan builder's section-by-section approach, reflecting that coding agents (Claude Code, Codex) operate best with full project context rather than isolated function-level prompts. The Phase 3 test-fix cycle does not have its own iteration cap — it terminates only via stuck detection (3 consecutive identical test failures or 2 consecutive non-zero exits on the same task). If each test-fix cycle produces *different* failing tests (rotating failures rather than the same tests failing repeatedly), the stuck detector does not trigger — it only fires on 3 consecutive cycles with the *identical* set of failing test names. In practice, the code builder's test-fix cycle is bounded by the stuck detector (which fires on repeated identical failures) and the human's ability to terminate via the Phase 3 stuck recovery buttons. A test-fix cycle that produces rotating failures (different tests failing each cycle) will not trigger stuck detection and will continue indefinitely until the human intervenes or the agent timeout kills a single invocation. A hard cap on Phase 3 test-fix cycles is deferred — not a current build dependency.
+**Code builder interaction model:** The code builder passes the full `spec.md` (architecture, dependencies, acceptance criteria) to the coding agent as a single build prompt. The agent is responsible for scaffolding, implementation, and initial test writing in a single invocation or multi-turn session, depending on how Vibe Kanban executes the task (if VK is enabled) or as a single invocation (if VK is disabled). The code builder then enters a **test-fix cycle** (distinct from Phase 4's review-fix iterations): run tests, pass failures back to the agent, agent fixes, re-run tests — repeating until all tests pass or stuck detection triggers. Unlike Phase 4 iterations, the Phase 3 test-fix cycle does not commit after each cycle — a single git commit is written when Phase 3 completes successfully. This is a coarser-grained interaction model than the plan builder's section-by-section approach, reflecting that coding agents (Claude Code, Codex) operate best with full project context rather than isolated function-level prompts. The Phase 3 test-fix cycle does not have its own iteration cap — it terminates only via stuck detection (3 consecutive identical test failures or 2 consecutive non-zero exits on the same task). If each test-fix cycle produces *different* failing tests (rotating failures rather than the same tests failing repeatedly), the stuck detector does not trigger — it only fires on 3 consecutive cycles with the *identical* set of failing test names. In practice, the code builder's test-fix cycle is bounded by the stuck detector (which fires on repeated identical failures) and the human's ability to terminate via the Phase 3 stuck recovery buttons. A test-fix cycle that produces rotating failures (different tests failing each cycle) will not trigger stuck detection and will continue indefinitely until the human intervenes or the agent timeout kills a single invocation. A hard cap on Phase 3 test-fix cycles is deferred — not a current build dependency.
 
 2. Codes the project using configured agent via Vibe Kanban (when enabled) or direct agent invocation (when disabled — see Vibe Kanban toggle behavior)
 3. Instructs the coding agent to implement structured logging in the deliverable codebase (mandatory requirement in the build prompt). Logging approach and framework are determined by the Phase 2 spec.
@@ -296,6 +287,7 @@ Button behavior and `status.json` effects are specified in the build spec Action
 | Phase 3 output exists but is empty or trivially small (below `config.yaml` `phase3_completeness` criteria) | Halt. Set `status.json` to `halted` with `halt_reason: "phase3_output_incomplete"`. Notify human: "Phase 3 deliverable appears incomplete. Review before proceeding." Do not enter Phase 4. |
 | `status.json` write fails during transition (cannot update phase to `polishing`) | Halt. Notify human with file path and error. The Phase 3 git commit has already been written — the deliverable is preserved. The operator must fix the file system issue and manually update `status.json` to resume. |
 | Milestone notification fails during transition | Log the notification failure. Proceed with Phase 4 — notification failure is not blocking. The phase transition and deliverable are the critical path, not the notification. |
+| `constraints.md` missing or unreadable at Phase 3→4 transition | Halt. Set `status.json` to `halted` with `halt_reason: "file_system_error"`. Notify human: "constraints.md missing or unreadable. Cannot start polish loop. Review project `/docs/` directory." Do not enter Phase 4. |
 
 **Code Mode Testing Requirements:**
 
@@ -308,6 +300,8 @@ Button behavior and `status.json` effects are specified in the build spec Action
 **Test framework selection:** The test framework is determined during Phase 2 as part of the proposed architecture (language, tools, dependencies). The `test-runner.js` module executes tests using the framework specified in `spec.md`. It is not prescriptive about which framework — it adapts to whatever was decided during spec building.
 
 **Test Command Discovery:** The code builder's `test-runner.js` does not parse `spec.md` to discover the test command. Instead, the coding agent is instructed (via the `/prompts/code-build.md` prompt) to create a standard `npm test` script in the project's `package.json` (or the language-equivalent test entry point). `test-runner.js` always invokes the project's standard test entry point (`npm test` for Node.js projects). The specific test framework is an implementation detail of the deliverable codebase, not of ThoughtForge's `test-runner.js`. If the test command exits non-zero, `test-runner.js` treats it as test failures and captures stdout/stderr as the `details` field.
+
+**Non-Node.js projects:** For deliverables in languages other than Node.js, the coding agent is instructed (via the `/prompts/code-build.md` prompt) to create a standard test entry point appropriate to the language (e.g., `Makefile` with `make test`, `pyproject.toml` with `pytest`, etc.). `test-runner.js` reads the project's `spec.md` Deliverable Structure section to determine the language and invokes the language-appropriate test command. The mapping from language to test command is a configuration in `test-runner.js`, not hardcoded to `npm test`.
 
 #### Phase 4 — Polish Loop (Fully Automated)
 
@@ -346,9 +340,9 @@ Plan mode uses the two-step cycle (Review → Fix) with no test execution.
 | Guard | Condition | Action |
 |---|---|---|
 | Termination (success) | Error counts within configured thresholds (+ all tests pass for code). Thresholds in `config.yaml`. | Done. Notify human. |
-| Fix Regression (per-iteration) | After each fix step, if the total error count increases compared to the review that prompted the fix (i.e., the fix made things worse), log a warning. If the fix step increases total error count in 2 back-to-back iterations (the two most recent consecutive fix steps both made things worse), halt and notify: "Fix step is introducing more issues than it resolves. Review needed." This guard evaluates per-iteration, not per-trend, and fires before the trend-based guards. | Warn (single occurrence) or Halt (2 consecutive). Notify human. |
+| Fix Regression (per-iteration) | After each fix step, if the total error count increases compared to the review that prompted the fix (i.e., the fix made things worse), log a warning. If the fix step increases total error count in 2 consecutive iterations (the two most recent fix steps both produced higher error counts than their respective review inputs), halt and notify: "Fix step is introducing more issues than it resolves. Review needed." This guard evaluates per-iteration, not per-trend, and fires before the trend-based guards. | Warn (single occurrence) or Halt (2 consecutive). Notify human. |
 | Hallucination | Total error count increases by more than 20% from the prior iteration (hardcoded threshold, defined in build spec) after at least 2 consecutive iterations with decreasing total error count (hardcoded minimum trend length, defined in build spec) | Halt. Notify human: "Project '{name}' — fix-regress cycle detected. Errors decreased for {N} iterations ({trajectory}) then spiked to {X} at iteration {current}. Review needed." |
-| Stagnation | Same total error count for a configured number of consecutive iterations (stagnation limit), AND issue rotation detected (fewer than 70% of issues in the current iteration have a Levenshtein similarity ≥ 0.8 match on `description` against the immediately prior iteration's issues). When both conditions are true, the deliverable has reached a quality plateau. Parameters in build spec. | Done (success — treated as converged plateau). Notify human with final error counts and iteration summary. |
+| Stagnation | Same total error count for a configured number of consecutive iterations (stagnation limit), AND issue rotation is detected when fewer than 70% of current-iteration issues can be matched (Levenshtein similarity ≥ 0.8 on `description`) to any issue in the immediately prior iteration — meaning more than 30% of issues are new, indicating the reviewer is cycling rather than converging. When both conditions are true, the deliverable has reached a quality plateau. Parameters in build spec. | Done (success — treated as converged plateau). Notify human with final error counts and iteration summary. |
 | Fabrication | A severity category spikes significantly above its trailing average (window size defined in build spec), AND in at least one prior iteration, every severity category was at or below twice its convergence threshold (i.e., critical ≤ 2 × `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max`). These multipliers are derived from `config.yaml` at runtime, not hardcoded. This ensures fabrication is only flagged after the deliverable was near-converged. Parameters in build spec. | Halt. Notify human. |
 | Max iterations | Hard ceiling reached (configurable, default 50) | Halt. Notify human: "Max [N] iterations reached. Avg flaws/iter: [X]. Lowest: [Y] at iter [Z]. Review needed." |
 
@@ -369,6 +363,8 @@ When a convergence guard halts the loop, the human is notified with context (gua
 Recovery is initiated through the ThoughtForge chat interface. The halted card remains in the Polishing column with a visual halted indicator until the human acts.
 
 Button behavior and `status.json` effects are specified in the build spec Action Button Behavior inventory.
+
+**Button display order:** Recovery buttons are displayed left-to-right: Resume, Override, Terminate. Terminate is visually distinguished (e.g., red or separated by a divider) as the destructive option.
 
 **State Continuity on Resume:** The convergence trajectory in `polish_state.json` is continuous across the halt boundary — the resumed iteration is numbered sequentially after the last completed iteration. `polish_log.md` receives a log entry for the resume event before the next iteration's entry: `## Resumed at {ISO8601} — Halted by {guard_type} at iteration {N}, resumed by human`.
 
@@ -464,6 +460,10 @@ Project directories are created under the path specified by `config.yaml` `proje
 
 **WebSocket Shutdown:** During graceful shutdown, the server sends a WebSocket close frame (code 1001, "Server shutting down") to all connected clients before stopping the HTTP listener. Clients receive the close event and display a "Server stopped" message instead of triggering the auto-reconnect loop. On server restart, clients reconnect normally.
 
+**Interactive state shutdown:** For projects in human-interactive states (`brain_dump`, `human_review`, `spec_building`), no server-side processing is interrupted — the server is waiting for human input. The WebSocket close frame is sent as described above. Any chat message the human was composing but had not yet sent is lost (client-side only). The last persisted message in `chat_history.json` is the recovery point on restart.
+
+**Hard crash (ungraceful termination):** If the server process terminates without sending a WebSocket close frame (kill -9, OOM, power loss), the client detects the dropped TCP connection via WebSocket `onerror` or `onclose` events. The same auto-reconnect behavior applies. The key difference from graceful shutdown: any agent subprocess that was running is killed by the OS (orphaned child process cleanup is OS-dependent). On restart, Server Restart Behavior applies — autonomous-state projects are halted. The client reconnects and syncs state normally.
+
 **Git Commit Strategy:** Each project's git repo is initialized at project creation. Commits occur at: `intent.md` lock (end of Phase 1), `spec.md` and `constraints.md` lock (end of Phase 2), Phase 3 build completion, and twice per Phase 4 iteration — once after the review step (captures the review JSON) and once after the fix step (captures applied fixes). Two commits per iteration enables rollback of a bad fix while preserving the review that identified the issues. This ensures rollback capability at every major pipeline milestone.
 
 ### Vibe Kanban (Execution Layer — Integrated, Not Built)
@@ -508,7 +508,7 @@ Plugin interface contract (function signatures, parameters, return types) define
 
 **Review JSON structure:** Both modes produce a JSON error report with per-severity issue counts and an issues array. Each issue includes severity, description, location, and recommendation. Code mode additionally includes test results (total, passed, failed). Exact Zod schemas in build spec.
 
-**Validation flow:** Parse AI response as JSON → validate via Zod safeParse → on failure: retry (max configurable, default 2) → on repeated failure: halt and notify human.
+**Validation flow:** Review JSON is validated against the Zod schema for the active deliverable type. Malformed responses are retried up to a configurable limit, then the pipeline halts and notifies the human. Validation flow and retry logic are in the build spec.
 
 ### Agent Communication
 
@@ -516,7 +516,7 @@ Plugin interface contract (function signatures, parameters, return types) define
 
 ThoughtForge invokes agents via CLI subprocess calls, passing prompts via file or stdin. Agent-specific adapters normalize output format differences. Invocation details in build spec.
 
-**Context window awareness:** Each agent's context window size is configured in `config.yaml` `agents.available.{agent}.context_window_tokens`. ThoughtForge uses this value to determine when to truncate chat history, plan builder context, and code review context. The token count is an approximation — ThoughtForge estimates tokens as `character_count / 4` (a standard rough heuristic). Exact tokenization is agent-specific and not worth the complexity for truncation decisions.
+**Context window awareness:** Each agent's context window size is configured in `config.yaml` `agents.available.{agent}.context_window_tokens`. ThoughtForge uses this value to determine when to truncate chat history, plan builder context, and code review context. The token count is an approximation — the exact estimation method is in the build spec.
 
 **Shell safety:** Prompt content is passed via stdin pipe or file — never through shell argument expansion. This prevents shell metacharacters in brain dump text or resource files from causing accidental command execution.
 
