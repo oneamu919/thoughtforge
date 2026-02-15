@@ -1,7 +1,5 @@
-﻿Done. Here's the summary:
+﻿- **result: true** — still needs updates
+- Critical: 0, Major: 3, Minor: 11
+- The review has 3 major findings (meets threshold of "fewer than 3" requires strictly less than 3) and 11 minor findings (far exceeds the "fewer than 5" threshold), so convergence criteria are not met and updates are still needed.
 
-- **result: true** — still needs updates
-- **Critical: 0 | Major: 3 | Minor: 7**
-- The review exceeds convergence thresholds on both major (3, need <3) and minor (7, need <5) findings, so updates are still required.
-
-`apply-prompt.md` has been written with 10 explicit changes mapping every non-withdrawn finding from results.md to its target file, with exact find/replace text and insertion instructions.
+`apply-prompt.md` has been written with all 14 changes mapped to specific files and locations.
