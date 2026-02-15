@@ -18,169 +18,166 @@ Read all three files before making any edits.
 
 ## Changes to Apply
 
-### Change 1 — Design Spec: Stagnation guard description (Minor)
+### Change 1 — Design Spec: Stagnation Guard wording (Minor)
 
-**Location:** Phase 4 Convergence Guards, Stagnation guard.
+**Location:** Phase 4 Convergence Guards, Stagnation Guard description.
 
 **Find:**
-> Same total error count for 3+ consecutive iterations AND issue rotation detected — fewer than 70% of current issues match prior iteration issues by description similarity.
-
-**Replace with:**
 > Same total error count for 3+ consecutive iterations AND issue rotation detected — fewer than 70% of current issues match issues from the immediately prior iteration by description similarity.
 
----
-
-### Change 2 — Design Spec: Phase 1 step 9 "realign from here" (Minor)
-
-**Location:** Phase 1 step 9.
-
-**Find:**
-> The AI resets to the most recent substantive correction, discarding subsequent conversation, and re-distills from the original brain dump plus all corrections up to that point.
-
 **Replace with:**
-> The AI resets to the most recent substantive correction, excluding subsequent conversation from the working context (retained in `chat_history.json` for audit trail), and re-distills from the original brain dump plus all corrections up to that point.
+> Same total error count for 3+ consecutive iterations AND issue replacement detected — fewer than 70% of current issues have a matching issue in the immediately prior iteration by description similarity. This indicates the reviewer is finding new issues to replace resolved ones, producing a plateau rather than genuine progress.
 
 ---
 
-### Change 3 — Design Spec: Phase 4 Hallucination guard (Minor)
+### Change 2 — Design Spec: Fabrication Guard wording (Minor)
 
-**Location:** Phase 4 Convergence Guards, Hallucination guard.
+**Location:** Phase 4 Convergence Guards, Fabrication Guard description.
 
-**Find:**
-> Error count spikes sharply after a sustained downward trend
+**Find the text containing:**
+> A severity category spikes significantly above its trailing 3-iteration average, AND the system had previously reached within 2× of convergence thresholds in at least one prior iteration — suggesting the reviewer is manufacturing issues because nothing real remains
 
 **Replace with:**
-> Error count increases significantly (threshold defined in build spec) after a consecutive downward trend (minimum trend length defined in build spec)
+> A severity category spikes significantly above its trailing 3-iteration average, AND the system had previously reached counts within 2× of the termination thresholds (i.e., critical ≤ 0, medium ≤ 6, minor ≤ 10) in at least one prior iteration — suggesting the reviewer is manufacturing issues because nothing real remains
 
 ---
 
-### Change 4 — Design Spec: Phase 3 Code Mode structured logging (Minor)
+### Change 3 — Design Spec: Connector URL identification formatting (Minor)
 
-**Location:** Phase 3 Code Mode.
+**Location:** Phase 1 step 3, the "Connector URL identification" paragraph that follows step 3.
 
-**Find:**
-> Implements structured logging throughout the codebase (mandatory) — sufficient for production debugging.
+**Action:** Prefix the paragraph explicitly to clarify it belongs to step 3. Change the opening to:
 
-**Replace with:**
-> Instructs the coding agent to implement structured logging in the deliverable codebase (mandatory requirement in the build prompt). Logging approach and framework are determined by the Phase 2 spec.
+> **Step 3 Detail — Connector URL Identification:** The AI identifies connector URLs in chat messages by matching against known URL patterns...
+
+Keep the rest of the paragraph text intact. Only add the bold prefix and indent it under step 3.
 
 ---
 
-### Change 5 — Design Spec: Locked File Behavior, `constraints.md` (Minor)
+### Change 4 — Design Spec: Locked File Behavior wording (Minor)
 
-**Location:** Locked File Behavior section, `constraints.md` paragraph.
+**Location:** Locked File Behavior section.
 
 **Find:**
-> If the file is readable but has modified structure (missing sections, unexpected content), the AI reviewer processes it as-is — the reviewer prompt is responsible for handling structural variations. ThoughtForge does not validate `constraints.md` structure at reload time.
-
-**Replace with:**
 > If the file is readable but has modified structure, ThoughtForge passes it to the AI reviewer without structural validation. The reviewer processes whatever content it receives — no special handling is required for structural variations.
 
+**Replace with:**
+> If the file is readable but has been restructured by the human (missing sections, reordered content, added sections), ThoughtForge passes it to the AI reviewer as-is without validating that it matches the original `constraints.md` schema. The reviewer processes whatever content it receives.
+
 ---
 
-### Change 6 — Execution Plan: Build Stage 1 cross-stage dependency note (Minor)
+### Change 5 — Execution Plan: Cross-stage dependency note (Minor)
 
 **Location:** Build Stage 1 cross-stage dependency note.
 
 **Find:**
-> Tasks 41–42 must be complete before any agent-invoking task begins (Tasks 8, 12, 15, 19, 21, and 30).
+> Agent Layer (Build Stage 7, Tasks 41–44) provides the core agent invocation mechanism used by Stages 2–6. Task 41 depends on Task 1 (foundation), so Build Stage 7 should begin as soon as Task 1 completes, overlapping with the remainder of Build Stage 1.
 
 **Replace with:**
-> Tasks 41–42 must be complete before any agent-invoking task begins (Tasks 8, 12, 15, 21, and 30).
-
-Note: Task 19 does not exist. This removes the stale reference.
+> Agent Layer (Build Stage 7, Tasks 41–44) provides the core agent invocation mechanism used by Stages 2–6. Task 41 depends only on Task 1 (foundation), so Build Stage 7 should begin as soon as Task 1 completes. Stage 1 Tasks 2–6e and Stage 7 Tasks 41–44 can proceed in parallel. Any task that invokes an AI agent (Tasks 8, 12, 15, 21, 30) must wait for Tasks 41–42 to complete.
 
 ---
 
-### Change 7 — Design Spec: Phase 2 "realign from here" absence (Minor)
+### Change 6 — Design Spec: Server Restart Behavior explanation (Minor)
 
-**Location:** Phase 2 Conversation Mechanics.
+**Location:** Server Restart Behavior section.
 
 **Find:**
-> There is no 'realign from here' in Phase 2 — the scope of each element is small enough that targeted corrections suffice.
+> Projects in autonomous states (`distilling`, `building`, `polishing`) — where the AI was actively processing without human interaction — are set to `halted` with `halt_reason: "server_restart"` and the human is notified.
 
 **Replace with:**
-> The 'realign from here' command is not supported in Phase 2. If issued, it is ignored. Targeted corrections via chat handle all Phase 2 revisions.
+> Projects in autonomous states (`distilling`, `building`, `polishing`) are set to `halted` with `halt_reason: "server_restart"`. These are not auto-resumed because the server cannot safely re-enter a mid-execution agent invocation or polish iteration — the prior subprocess is dead and its partial output is unknown. The human must explicitly resume.
 
 ---
 
-### Change 8 — Design Spec: Phase 1 Error Handling table — add malformed URL row (Major)
+### Change 7 — Design Spec: Add Access Control statement (Major)
 
-**Location:** Phase 1 Error Handling table (the table listing conditions like auth failure, target not found, etc.).
+**Location:** Under Technical Design → ThoughtForge Stack, after the Server entry.
 
-**Action:** Add this row to the existing table:
+**Action:** Insert this new subsection:
 
-| Human provides malformed or unparseable connector URL in chat | AI responds in chat: "Could not parse URL: '{url}'. Please provide a valid Notion page URL or Google Drive document link." Does not halt. Does not attempt to pull. |
-
----
-
-### Change 9 — Design Spec: Connector URL identification (Major)
-
-**Location:** Immediately after Phase 1 step 3 (where the human provides page URLs or document links via chat).
-
-**Action:** Add this content after step 3:
-
-> **Connector URL identification:** The AI identifies connector URLs in chat messages by matching against known URL patterns for each enabled connector (e.g., `notion.so/` or `notion.site/` for Notion, `docs.google.com/` or `drive.google.com/` for Google Drive). URLs matching an enabled connector pattern are pulled automatically. URLs matching a disabled connector pattern are ignored. Unrecognized URLs are treated as regular brain dump text. Pattern definitions are in the build spec.
+> **Access Control:** When bound to localhost (`127.0.0.1`), no authentication is required — only the local operator can access the interface. If the operator changes the bind address to allow network access (`0.0.0.0` or a specific network interface), a warning is logged at startup: "Server bound to network interface. No authentication is configured — any network client can access ThoughtForge." Authentication and access control are deferred — not a current build dependency. The operator assumes responsibility for network security when binding to non-localhost addresses.
 
 ---
 
-### Change 10 — Execution Plan: Add resource file processing test task (Major)
+### Change 8 — Design Spec: Add Connector failure during distillation note (Major)
 
-**Location:** Execution Plan, Build Stage 8 task table.
+**Location:** Phase 1 Error Handling table, as a clarifying note below the table.
 
-**Action:** Add this row:
+**Action:** Insert below the Phase 1 Error Handling table:
 
-| 58i | Unit tests: resource file processing (text read, PDF extraction, image vision routing, unsupported format skip, file size limit enforcement) | — | Task 8 | — | Not Started |
-
----
-
-### Change 11 — Design Spec/Build Spec: Add `supports_vision` agent config field (Minor)
-
-**Location A:** In the `config.yaml` template under `agents.available`, for each agent entry. Add the `supports_vision` field. Example for Claude:
-
-```yaml
-    claude:
-      command: "claude"
-      flags: "--print"
-      supports_vision: true
-```
-
-**Location B:** In the Build Spec's agent config section, add this sentence:
-
-> The `supports_vision` field determines whether image resources are passed to this agent. If `false` or absent, image files are logged as skipped.
+> **Connector failure during distillation:** If a connector fails after the human clicks Distill, the distillation proceeds automatically using all successfully retrieved inputs. The human is notified of the connector failure in chat but does not need to re-click Distill. The failed connector resources are simply absent from the distillation context.
 
 ---
 
-### Change 12 — Build Spec: Add Operation Type Taxonomy (Minor)
+### Change 9 — Design Spec: Add Browser Compatibility statement (Minor)
 
-**Location:** Build Spec, after the Plugin Interface Contract section.
+**Location:** Under UI → ThoughtForge Chat section.
 
-**Action:** Add this new subsection:
+**Action:** Insert this new entry:
 
-> **Operation Type Taxonomy**
->
-> Every orchestrator action in Phase 3/4 is classified into one of these operation types before calling `safety-rules.js` `validate()`:
->
-> | Operation Type | Description | Example Actions |
-> |---|---|---|
-> | `shell_exec` | Execute a shell command or subprocess (excluding agent invocations) | Run build script, install package |
-> | `file_create_source` | Create a source code file (`.js`, `.py`, `.ts`, `.sh`, etc.) | Scaffold project, write boilerplate |
-> | `file_create_doc` | Create a documentation file (`.md`) | Write plan section, draft document |
-> | `file_create_state` | Create or update a state file (`.json`) | Write `status.json`, `polish_state.json` |
-> | `agent_invoke` | Invoke an AI agent for content generation | Call Claude for plan section, call Codex for code |
-> | `package_install` | Install a dependency via package manager | `npm install`, `pip install` |
-> | `test_exec` | Execute a test suite | Run `npm test`, `pytest` |
-> | `git_commit` | Create a git commit | Milestone commit, iteration commit |
+> **Browser Compatibility:** The chat interface targets modern evergreen browsers (Chrome, Firefox, Edge, Safari — current and previous major version). No IE11 or legacy browser support. ES6+ JavaScript features and native WebSocket API are assumed available.
 
 ---
 
-### Change 13 — Execution Plan: Completion Checklist — add connector testing (Minor)
+### Change 10 — Design Spec: Add Concurrent edit handling statement (Minor)
 
-**Location:** Execution Plan, Completion Checklist section.
+**Location:** Under UI → Prompt Management section.
 
-**Action:** Add this checklist item:
+**Action:** Insert:
 
-> - [ ] Resource connectors: Notion and Google Drive pull, auth failure handling, disabled connector behavior
+> **Concurrent edit handling:** The prompt editor uses a last-write-wins model with no conflict detection. Since this is a single-operator tool, concurrent tab edits are the operator's responsibility.
+
+---
+
+### Change 11 — Design Spec: Add log rotation note (Minor)
+
+**Location:** Under Functional Design → Phase 1 → Disk management paragraph. Append to end of existing paragraph.
+
+**Action:** Append:
+
+> Operational logs (`thoughtforge.log`) also accumulate without rotation or size limits in v1. The operator is responsible for manual log management. Automated log rotation is deferred — not a current build dependency.
+
+---
+
+### Change 12 — Design Spec: Remove Levenshtein threshold (extraction) (Minor)
+
+**Location:** Phase 4, Stagnation Guard description (same area as Change 1).
+
+**Find** (after Change 1 has been applied) the text:
+> Levenshtein similarity ≥ 0.8 on the `description` field
+
+**Replace the surrounding clause so it reads:**
+> fewer than 70% of current issues match issues from the immediately prior iteration by description similarity (match threshold defined in build spec)
+
+Do NOT modify the build spec — it already contains "Levenshtein similarity ≥ 0.8 on the `description` field" at ~lines 303-304.
+
+---
+
+### Change 13 — Design Spec: Replace threshold numbers in Convergence Guards table (extraction) (Minor)
+
+**Location:** Convergence Guards table (~lines 295-301).
+
+In the **Stagnation guard** row, replace:
+- "Same total error count for 3+ consecutive iterations" → "Same total error count for consecutive iterations exceeding the configured stagnation limit"
+- "fewer than 70% of current issues match" → "issue replacement detected (rotation threshold and similarity measure defined in build spec)"
+
+In the **Fabrication guard** row, replace:
+- "trailing 3-iteration average" → "trailing average (window size defined in build spec)"
+- "within 2× of convergence thresholds" → "within a multiplier of convergence thresholds (multiplier defined in build spec)"
+
+Do NOT change the Hallucination guard row — it is already correctly written without inline numbers.
+
+---
+
+### Change 14 — Design Spec: Remove default values from Configuration table (extraction) (Minor)
+
+**Location:** Configuration table (~lines 573-584).
+
+In the "Defaults" column of every row, replace each specific default value with:
+> See `config.yaml` template in build spec
+
+Keep the "What's Configurable" column unchanged — that is plan-level content.
 
 ---
 
