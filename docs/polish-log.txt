@@ -7,3 +7,4 @@ Iteration 7: Critical: 0, Major: 2, Minor: 12 (8m 37s) (Review: 1m 38s, Check: 2
 Iteration 8: Critical: 2, Major: 8, Minor: 9 (11m 17s) (Review: 2m 41s, Check: 2m 43s, Apply: 5m 53s)
 Iteration 9: Critical: 0, Major: 0, Minor: 0 (10m 07s) (Review: 2m 19s, Check: 2m 47s, Apply: 4m 59s)
 Iteration 10: Critical: 0, Major: 0, Minor: 0 (10m 45s) (Review: 2m 04s, Check: 2m 24s, Apply: 6m 17s)
+Iteration 11: Critical: 1, Major: 4, Minor: 13 (10m 51s) (Review: 1m 52s, Check: 2m 59s, Apply: 5m 59s)
