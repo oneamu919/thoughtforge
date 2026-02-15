@@ -1,6 +1,8 @@
 Read these files:
 results.md
 
+Before evaluating convergence, verify that results.md contains actual structured findings (the three numbered lists). If results.md is empty, malformed, contains conversational responses, or does not contain the expected output format, report: result: error — results.md does not contain valid review output.
+
 Based on what you read, do these project files still need updates or not?
 
 The convergence criteria is: 0 critical findings, fewer than 3 major findings, fewer than 5 minor findings. If the review meets that criteria, updates are not necessary. If it does not, updates are still needed.
