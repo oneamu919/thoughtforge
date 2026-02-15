@@ -72,7 +72,7 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 
 **Git Initialization Failure:** If `git init` fails during project creation (permissions error, disk space, git not installed), project creation is aborted. The partially created directory is deleted. The human is notified: "Project creation failed: git initialization error. Verify git is installed and the projects directory is writable." No project state files are written.
 
-**Agent Assignment:** The agent specified in `config.yaml` `agents.default` is assigned to the project at initialization and stored in `status.json` as the `agent` field. This determines which AI agent is used for all pipeline phases. Per-project agent override is deferred — not a current build dependency. At project initialization, `config.yaml` `agents.default` is copied to the project's `status.json` `agent` field. This value is used for all pipeline phases of that project. There is no mechanism to change the agent mid-project or override it per-project in v1.
+**Agent Assignment:** The agent specified in `config.yaml` `agents.default` is assigned to the project at initialization and stored in `status.json` as the `agent` field. This determines which AI agent is used for all pipeline phases. Per-project agent override is deferred — not a current build dependency. At project initialization, `config.yaml` `agents.default` is copied to the project's `status.json` `agent` field and used for all pipeline phases of that project.
 
 **Interaction model:** Phase 1 uses two explicit actions: a **Distill** button (signals that all inputs are provided and the AI should begin processing) and a **Confirm** button (advances to Phase 2). Both use button presses, not chat commands — see Confirmation Model below.
 
@@ -89,7 +89,7 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 6. AI distills into structured document: Deliverable Type, Objective, Assumptions, Constraints, Unknowns, Open Questions (max 5)
 7. AI presents distillation to human in chat
 8. Human corrects via chat → AI revises and re-presents
-9. Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons to prevent misinterpretation), "realign from here" is a chat-parsed command because it does not advance the pipeline — it re-processes within the current phase. The AI rolls back to the most recent substantive correction and re-distills from the original brain dump plus all corrections up to that point. If no corrections exist yet, the command is ignored with a prompt to provide a correction first. Implementation algorithm in build spec.
+9. Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons to prevent misinterpretation), "realign from here" is a chat-parsed command because it does not advance the pipeline — it re-runs the distillation using the original brain dump plus all corrections up to the identified rollback point. The AI rolls back to the most recent substantive correction and re-distills from the original brain dump plus all corrections up to that point. If no corrections exist yet, the command is ignored with a prompt to provide a correction first. Implementation algorithm in build spec.
 10. Human clicks **Confirm** button → advances to Phase 2
 11a. Output: `intent.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline.
 
@@ -125,6 +125,8 @@ Every action button in the chat interface follows these rules: (a) specific `sta
 
 **`chat_history.json` Error Handling:** If `chat_history.json` is unreadable or missing, the pipeline halts and notifies the human — same behavior as `status.json` corruption. The human must fix or recreate the file. Chat history size is bounded by the phase-clearing behavior (cleared on Phase 1→2 and Phase 2→3 transitions). If a single phase's chat history grows large enough to exceed the agent's context window, the agent invocation layer truncates older messages from the beginning of the history, retaining the most recent messages and always retaining the original brain dump. The original brain dump messages are identified as all human messages before the first Distill button press in the chat history. During truncation, these messages are always retained at the beginning of the context, followed by the most recent messages that fit within the remaining window. Messages between the brain dump and the retained recent messages are dropped. A warning is logged when truncation occurs.
 
+**Phase 2 Chat History Truncation:** If Phase 2 chat history exceeds the agent context window, the agent invocation layer truncates older messages from the beginning of the history, retaining the most recent messages and always retaining the initial AI spec proposal message (the first AI message in Phase 2). Messages between the initial proposal and the retained recent messages are dropped. A warning is logged when truncation occurs. This mirrors the Phase 1 truncation behavior — the initial proposal serves the same anchoring role as the original brain dump.
+
 **Phase-to-State Mapping:** Phase-to-state enum mapping and transition triggers are defined in the build spec's `status.json` schema.
 
 Vibe Kanban columns correspond to these `status.json` phase values, except `halted` — which is a card state indicator, not a separate column. See the UI section for full column mapping.
@@ -156,6 +158,8 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 
 - **`constraints.md` — hot-reloaded:** The pipeline re-reads `constraints.md` at the start of each Phase 4 iteration. Manual human edits to acceptance criteria or review rules are picked up automatically. If `constraints.md` is unreadable or missing at the start of a Phase 4 iteration, the iteration halts and the human is notified.
 - **`constraints.md` — unvalidated after creation:** If the human restructures the file (missing sections, reordered content, added sections), ThoughtForge passes it to the AI reviewer as-is without schema validation. If the human empties the Acceptance Criteria section, the reviewer proceeds with whatever criteria remain (which may be none). This is treated as an intentional human override — the pipeline does not validate criteria presence after the initial Phase 2 write.
+
+**`constraints.md` — readability definition:** "Unreadable" means the file cannot be read from disk (permission error, I/O error) or is not valid UTF-8 text. A file that is readable but contains unexpected content (empty, restructured, nonsensical) is passed to the reviewer as-is per the unvalidated-after-creation policy. If the file exceeds the agent's context window when combined with other review context, it is truncated with a warning logged.
 
 - **`spec.md` and `intent.md` (static after creation):** These are read once at Phase 3 start and not re-read during later phases. If the human manually edits these files after their creation phase, the pipeline will not see those changes — it works from its in-memory copy. There is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits to any locked file. On server restart, the in-memory copies are lost. When the human resumes a halted Phase 4 project, the orchestrator re-reads `spec.md` and `intent.md` from disk to reconstruct working context. If the human manually edited these files while the project was halted, the resumed pipeline will use the edited versions. This is an acceptable side effect of the restart recovery model.
 
@@ -315,7 +319,7 @@ Plan mode uses the two-step cycle (Review → Fix) with no test execution.
 |---|---|---|
 | Termination (success) | Error counts within configured thresholds (+ all tests pass for code). Thresholds in `config.yaml`. | Done. Notify human. |
 | Hallucination | Total error count increases by more than the configured spike threshold after at least the configured minimum number of consecutive iterations with decreasing total error count | Halt. Notify human: "Fix-regress cycle detected. Errors trending down then spiked. Iteration [N]: [X] total (was [Y]). Review needed." |
-| Stagnation | **Stagnation:** Same total error count (sum of critical + medium + minor) for a configured number of consecutive iterations (stagnation limit) AND issue rotation detected (old issues resolved, new issues introduced at the same rate — rotation threshold and similarity measure defined in build spec). The comparison uses total count only, not per-severity breakdown — a shift in severity composition at the same total is still treated as stagnation if the rotation threshold is also met. This combination indicates the deliverable has reached a quality plateau where the reviewer is cycling through cosmetic or subjective issues rather than finding genuine regressions. Treated as converged. | Done (success — treated as converged plateau). Notify human with final error counts and iteration summary. |
+| Stagnation | **Stagnation:** Two conditions must both be true: (1) Same total error count (sum of critical + medium + minor) for a configured number of consecutive iterations (stagnation limit). (2) Issue rotation detected — old issues resolved, new issues introduced at the same rate (rotation threshold and similarity measure defined in build spec). The comparison uses total count only — a shift in severity composition at the same total still qualifies as stagnation if the rotation threshold is also met. When both conditions are true, the deliverable has reached a quality plateau where the reviewer is cycling through cosmetic issues rather than finding genuine regressions. Treated as converged. | Done (success — treated as converged plateau). Notify human with final error counts and iteration summary. |
 | Fabrication | A severity category spikes significantly above its trailing average (window size defined in build spec), AND in at least one prior iteration, every severity category was at or below 2x its convergence threshold (e.g., critical ≤0, medium ≤6, minor ≤10) — indicating the deliverable was near-converged, and subsequent spikes likely represent manufactured issues | Halt. Notify human. |
 | Max iterations | Hard ceiling reached (configurable, default 50) | Halt. Notify human: "Max [N] iterations reached. Avg flaws/iter: [X]. Lowest: [Y] at iter [Z]. Review needed." |
 
@@ -451,7 +455,7 @@ ThoughtForge communicates with Vibe Kanban via its CLI through four operations: 
 | VK enabled, Code mode | Code builder executes agent work through Vibe Kanban (`vibekanban task run`). Kanban card tracks progress. |
 | VK disabled, Code mode | Code builder invokes agents directly via agent layer. No Kanban card. |
 
-Both modes function fully with the toggle off. The only losses are the Kanban board view and automated parallel execution (parallel execution management becomes the human's responsibility).
+Both modes function fully with the toggle off. The only losses are the Kanban board view and VK-managed multi-project parallel execution (the human must manually manage concurrent project execution without VK).
 
 **Vibe Kanban CLI failure handling:** If a VK CLI call fails (non-zero exit, timeout, command not found), the adapter logs the error. For visualization-only calls (card creation, status updates), the failure is logged as a warning and the pipeline continues — VK is not on the critical path. For agent execution calls (`vibekanban task run` in Code mode), the failure is treated as an agent failure and follows the standard agent retry-once-then-halt behavior.
 
@@ -473,6 +477,8 @@ Plugin interface contract (function signatures, parameters, return types) define
 
 ThoughtForge invokes agents via CLI subprocess calls, passing prompts via file or stdin. Agent-specific adapters normalize output format differences. Invocation details in build spec.
 
+**Shell safety:** Prompt content is passed via stdin pipe or file — never through shell argument expansion. This prevents shell metacharacters in brain dump text or resource files from causing accidental command execution.
+
 **Failure handling:**
 - Non-zero exit, timeout, or empty output → retry once
 - Second failure → halt and notify human
@@ -481,7 +487,7 @@ ThoughtForge invokes agents via CLI subprocess calls, passing prompts via file o
 **Structured Response Validation (Non-Review):**
 Phase 3 plan builder responses must conform to the `PlanBuilderResponse` schema. The orchestrator validates the response after each builder invocation. On parse failure: retry once. On second failure: halt and notify human. Phase 1 distillation and Phase 2 spec-building responses are natural language (not structured JSON) and do not require schema validation — the AI's output is presented directly in chat for human review and correction.
 
-**Phase 1-2 Chat Agent Model:** Phases 1 and 2 use the same agent invocation pattern as all other phases — prompt via stdin, response via stdout, one subprocess call per turn. Each invocation passes the full working context: the brain dump, resources, current distillation (Phase 1) or spec-in-progress (Phase 2), and the relevant chat history from `chat_history.json`. There is no persistent agent session — each turn is a stateless call with full context. This keeps the agent communication model uniform across all phases and avoids session management complexity.
+**Phase 1-2 Chat Agent Model:** Phases 1 and 2 use the same agent invocation pattern as all other phases — prompt via stdin, response via stdout, one subprocess call per turn. Each invocation passes the full working context: the brain dump, resources, current distillation (Phase 1) or spec-in-progress (Phase 2), and all messages from `chat_history.json` for the current phase (subject to the context window truncation behavior described in the `chat_history.json` Error Handling section). There is no persistent agent session — each turn is a stateless call with full context. This keeps the agent communication model uniform across all phases and avoids session management complexity.
 
 ### Notification Content
 
@@ -544,6 +550,8 @@ Every phase transition pings the human with a status update. Every notification 
 **Concurrent edit handling:** The prompt editor uses a last-write-wins model with no conflict detection. Since this is a single-operator tool, concurrent tab edits are the operator's responsibility.
 
 **Prompt file write failure:** If the prompt editor cannot write to a file, the Settings UI displays an error message identifying the file and the error. The failed edit is not applied — the human must resolve the file system issue and retry. No partial writes — the prompt editor uses the same atomic write strategy as state files.
+
+**Prompt file list refresh:** The Settings UI reads the `/prompts/` directory listing each time it is opened. If a prompt file is deleted externally while the editor is open, saving to the deleted file creates it anew (same atomic write behavior). No file locking — the single-operator model makes this acceptable.
 
 **Vibe Kanban Dashboard (Integrated, Not Built):** Columns map to `status.json` phases: Brain Dump → Distilling → Human Review → Spec Building → Building → Polishing → Done. `Distilling` and `Human Review` are separate Kanban columns representing Phase 1 sub-states — the card moves from Brain Dump → Distilling → Human Review as the phase progresses. "Confirmed" is not a separate column — confirmation advances the card from Human Review to the next phase. Cards with `halted` status remain in their current column with a visual halted indicator; "Halted" is a card state, not a column. Each card = one project. Shows agent, status, parallel execution.
 

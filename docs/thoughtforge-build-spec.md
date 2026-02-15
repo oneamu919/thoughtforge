@@ -514,6 +514,8 @@ The AI uses the first heading (H1) of the distilled `intent.md` document as the 
 
 The `deliverable_type` field in `status.json` is set by parsing the Deliverable Type section of the confirmed `intent.md`. The AI's distillation always states exactly one of "Plan" or "Code" as the first word of this section. The orchestrator string-matches that first word (case-insensitive) to set the field to `"plan"` or `"code"`.
 
+If the first word of the Deliverable Type section is neither "Plan" nor "Code" (case-insensitive), the orchestrator sets `deliverable_type` to `null` and does not advance to Phase 2. The human is notified in chat: "Could not determine deliverable type from intent. Please correct the Deliverable Type section to start with 'Plan' or 'Code'."
+
 ---
 
 ## WebSocket Reconnection Parameters

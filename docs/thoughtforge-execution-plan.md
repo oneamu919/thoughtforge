@@ -68,7 +68,7 @@
 | 9 | Implement correction loop: chat-based revisions with AI re-presentation, and "realign from here" command (per build spec Realign Algorithm) | — | Task 8 | — | Not Started |
 | 9a | Implement `chat_history.json` persistence: append after each chat message, clear on Phase 1→2 and Phase 2→3 confirmation only (NOT on Phase 3→4 automatic transition), resume from last recorded message on crash | — | Task 3, Task 7 | — | Not Started |
 | 10 | Implement action buttons: Distill (Phase 1 intake trigger) and Confirm (phase advancement mechanism). Include button debounce: disable on press until operation completes, server-side duplicate request detection (ignore duplicates, return current state). | — | Task 7 | — | Not Started |
-| 11 | Implement intent.md generation and locking, project name derivation (extract from H1 or AI-generate), `deliverable_type` derivation (from Deliverable Type section of confirmed intent.md — `"plan"` or `"code"` in status.json), status.json `project_name` and `deliverable_type` update, and Vibe Kanban card name update (if enabled) | — | Task 9, Task 2a, Task 26, Tasks 41–42 | — | Not Started |
+| 11 | Implement intent.md generation and locking, project name derivation (extract from H1 or AI-generate), `deliverable_type` derivation (from Deliverable Type section of confirmed intent.md — `"plan"` or `"code"` in status.json), status.json `project_name` and `deliverable_type` update, and Vibe Kanban card name update (if enabled). Include deliverable type parse failure handling: reject values other than "Plan" or "Code", notify human in chat, do not advance. | — | Task 9, Task 2a, Task 26, Tasks 41–42 | — | Not Started |
 | 12 | Implement Phase 2: spec building with mode-specific behavior (Plan mode: propose OPA-structured plan sections; Code mode: propose architecture/language/framework/tools with OSS discovery integration from Task 25), AI challenge of weak or risky decisions in `intent.md` (does not rubber-stamp), constraint discovery, acceptance criteria extraction (5–10 per design spec), human review/override of proposed decisions, human review of acceptance criteria, Unknown/Open Question resolution validation gate (block Confirm if unresolved items remain), Confirm to advance | — | Task 6a, Task 10, Task 11, Task 7a, Task 7f, Task 25, Tasks 41–42 | — | Not Started |
 | 13 | Implement `spec.md` and `constraints.md` generation | — | Task 12, Task 2a | — | Not Started |
 
@@ -178,6 +178,8 @@
 | 58k | Unit tests: Vibe Kanban adapter failure handling (visualization-only call failures logged and pipeline continues, agent execution call failures trigger retry-once-then-halt, VK disabled skips all calls) | — | Tasks 26–29a | — | Not Started |
 | 50b | Unit tests: first-run setup (missing config creates from example, prerequisite check reports missing CLIs, valid config passes startup) | — | Task 1b | — | Not Started |
 | 50c | Unit tests: operational logging module (log file creation, structured JSON format, log levels, event types, file append failure handling) | — | Task 3a | — | Not Started |
+| 58l | Unit tests: chat history truncation (Phase 1 truncation retains brain dump messages, drops middle messages, retains recent; Phase 2 truncation retains initial proposal; warning logged on truncation; empty history handled; history below window size passed through unchanged) | — | Task 9a | — | Not Started |
+| 58m | Unit tests: OSS discovery scorecard (8-signal evaluation, red flag detection on Age/Last Updated/License, minimum 6-of-8 qualification threshold, handles missing signal data gracefully) | — | Task 25 | — | Not Started |
 
 ---
 
@@ -185,7 +187,9 @@
 
 The longest dependency chain determines the minimum build duration regardless of parallelism:
 
-**Task 1 → Task 41 → Task 42 → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 16 → Task 30 → Tasks 33–37 → Task 51**
+**Task 1 → Task 41 → Task 42 → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 16 → Task 30 → Tasks 33–37 → Task 51**
+
+Note: Task 6a (pipeline orchestrator) depends on Tasks 2, 3, and 6, which run in parallel with the agent layer (41–42). Task 6a appears on the critical path only if its dependency chain (Task 1 → Tasks 2+3+6 → Task 6a) takes longer than the agent layer chain (Task 1 → Task 41 → Task 42). The builder should track both branches.
 
 This chain runs from foundation through agent layer, human interaction, plan plugin, polish loop, to plan-mode e2e validation.
 
