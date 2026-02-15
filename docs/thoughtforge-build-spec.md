@@ -182,7 +182,7 @@ Rules:
 
 Return type varies by plugin:
 - **Plan plugin** returns `Promise<{ stuck: boolean, reason?: string, content: string }>` — matches `PlanBuilderResponse` schema. Orchestrator checks `stuck` flag to detect stuck condition.
-- **Code plugin** returns `Promise<{ stuck: boolean, reason?: string }>` — orchestrator detects stuck via the `stuck` flag (set after 2 consecutive non-zero exits on the same task, or 3 consecutive identical test failures).
+- **Code plugin** returns `Promise<{ success: boolean, reason?: string }>` — `success` is `false` when the current task invocation failed. The orchestrator tracks consecutive failures per task identifier and determines stuck status externally (2 consecutive non-zero exits on the same task, or 3 consecutive identical test failures). The `stuck` flag pattern is Plan-mode-only.
 
 ### reviewer.js
 

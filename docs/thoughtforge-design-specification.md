@@ -87,6 +87,9 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 **Resource File Processing:** Resources are processed by format — text read directly, PDFs extracted, images via AI vision if supported, unsupported formats logged and skipped.
 
 6. AI distills into structured document: Deliverable Type, Objective, Assumptions, Constraints, Unknowns, Open Questions (max 5)
+
+   When the AI completes distillation and presents the result in chat, `status.json` transitions from `distilling` to `human_review`. This signals that the AI has finished processing and is awaiting human corrections.
+
 7. AI presents distillation to human in chat
 8. Human corrects via chat → AI revises and re-presents
 9. Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons to prevent misinterpretation), "realign from here" is a chat-parsed command because it does not advance the pipeline — it discards AI messages and corrections after the most recent substantive human correction and re-distills from the original brain dump plus corrections up to that point. Exact matching rules and algorithm in build spec.
@@ -146,7 +149,7 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 1. AI proposes deliverable structure and key decisions based on `intent.md`
 2. AI evaluates `intent.md` for issues including but not limited to: missing dependencies, unrealistic constraints, scope gaps, internal contradictions, unvalidated assumptions, and ambiguous priorities. Each flagged issue is presented to the human with specific reasoning. The AI does not rubber-stamp — it must surface concerns even if the human's intent seems clear.
 3. AI resolves Unknowns and Open Questions from `intent.md` — either by making a reasoned decision (stated in `spec.md`) or by asking the human during the Phase 2 chat. The governing principle: the AI decides autonomously when the decision is low-risk, reversible, or has a clearly dominant option based on the constraints — and escalates to the human when the decision is high-impact, preference-dependent, or has multiple viable options with material trade-offs. The Phase 2 prompt (`spec-building.md`) operationalizes this principle. No unresolved unknowns may carry into `spec.md`.
-4. AI derives 5–10 acceptance criteria from the objective, assumptions, and constraints in `intent.md`. For Plan mode, criteria assess document completeness, logical coherence, and actionability. For Code mode, criteria assess functional requirements that map to testable acceptance tests in Phase 3.
+4. AI derives acceptance criteria (at least 1, target 5–10) from the objective, assumptions, and constraints in `intent.md`. For Plan mode, criteria assess document completeness, logical coherence, and actionability. For Code mode, criteria assess functional requirements that map to testable acceptance tests in Phase 3.
 5. Human confirms or overrides specific decisions
 6. Human reviews acceptance criteria — adds/removes as needed
 
@@ -179,6 +182,7 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 | Human has not responded to a Phase 2 question | No automatic action. Project remains in `spec_building` state. No timeout — the project stays open indefinitely until the human acts. Reminder notification is deferred (not a current build dependency). |
 | File system error during `spec.md` or `constraints.md` write | Halt and notify human immediately with file path and error. No retry — same behavior as cross-cutting file system error handling. |
 | AI returns empty or structurally invalid content for `spec.md` or `constraints.md` | Retry once. On second failure, halt and notify human. |
+| Server crash during Phase 2 conversation | On restart, `status.json` phase is `spec_building` (an interactive state — not auto-halted per Server Restart Behavior). Chat resumes from the last recorded message in `chat_history.json`. The AI re-reads `intent.md` and the chat history to reconstruct the spec-in-progress, then re-presents the current proposal for human review. |
 
 **Plan Mode behavior:** Proposes plan structure following OPA Framework — every major section gets its own OPA table. Challenges decisions per Phase 2 step 2 behavior.
 
@@ -207,7 +211,7 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 | Exclusions | What not to touch, what not to flag |
 | Severity Definitions | What counts as critical / medium / minor |
 | Scope | Plan mode: sections/topics in scope. Code mode: files/functions in scope. |
-| Acceptance Criteria | 5–10 statements of what the deliverable must contain or do |
+| Acceptance Criteria | At least 1, target 5–10 statements of what the deliverable must contain or do |
 
 #### Phase 3 — Build (Autonomous)
 
@@ -252,23 +256,18 @@ The plan deliverable filename is `plan.md`, written to `/projects/{id}/docs/plan
 
 | Mode | Stuck Condition | Action |
 |---|---|---|
-| Plan | AI includes a `stuck: boolean` flag in every response (per `PlanBuilderResponse` schema in build spec). When `stuck` is `true`, the `reason` field describes what decision is needed. The orchestrator checks this flag after every builder response. | Notify and wait |
+| Plan | AI includes a stuck signal in every builder response. When the AI reports stuck, the orchestrator halts and notifies with the AI's stated reason. Response schema in build spec (`PlanBuilderResponse`). | Notify and wait |
 | Code | Build agent returns non-zero exit after 2 consecutive retries on the same task, OR test suite fails on the same tests for 3 consecutive fix attempts | Notify and wait |
 
 **Code mode stuck tracking:** "Same task" means consecutive agent invocations with the same prompt intent (e.g., "implement feature X" or "fix test Y") — tracked by the code builder's internal task queue. "Identical test failures" means the same set of test names appear in the failed list across consecutive fix-and-retest cycles, compared by exact test name string match.
 
 **Phase 3 Stuck Recovery:**
 
-When Phase 3 stuck detection triggers, the human is notified with context (deliverable type, what the AI is stuck on, current build state). The human has two options, presented as buttons in the ThoughtForge chat interface:
-
-| Option | What Happens |
-|---|---|
-| Provide Input | Human provides the needed decision or clarification via chat. The builder resumes from where it stopped using the human's input. `status.json` remains in `building` state. |
-| Terminate | Human stops the project. Status set to `halted` permanently. |
+When Phase 3 stuck detection triggers, the human is notified with context (deliverable type, what the AI is stuck on, current build state). The human has two options, presented as buttons in the ThoughtForge chat interface: Provide Input or Terminate.
 
 Phase 3 does not offer an Override option — unlike Phase 4, there is no partially complete deliverable worth accepting. The builder either needs the input to continue or the project is abandoned.
 
-Recovery follows the same confirmation model as Phase 4: explicit button presses, not chat-parsed commands. Terminate requires a single confirmation step.
+Button behavior and `status.json` effects are specified in the build spec Action Button Behavior inventory.
 
 **Phase 3 Error Handling:**
 
@@ -278,6 +277,7 @@ Recovery follows the same confirmation model as Phase 4: explicit button presses
 | Template rendering failure (Plan mode) | Halt and notify human with error details. No retry — template errors indicate a structural problem, not a transient failure. |
 | File system error (cannot write to project directory) | Halt and notify human immediately. No retry. |
 | Template directory empty or `generic.hbs` missing | Halt and notify human: "No plan templates found. Ensure at least `generic.hbs` exists in `/plugins/plan/templates/`." No retry. |
+| Type-specific template not found but `generic.hbs` exists | Log a warning: "No template found for plan type '{type}'. Using generic template." Notify the human in chat. Proceed with `generic.hbs`. |
 
 **Phase 3 → Phase 4 Transition:** Automatic. When the Phase 3 builder completes successfully (plan document drafted or codebase built and tests passing), the orchestrator writes a git commit, updates `status.json` to `polishing`, sends a milestone notification ("Phase 3 complete. Deliverable built. Polish loop starting."), and immediately begins Phase 4. No human confirmation is required — this is within the autonomous window between Touchpoints 3 and 4.
 
@@ -352,17 +352,11 @@ Algorithmic parameters for each guard (spike thresholds, similarity measures, wi
 
 **Halt Recovery:**
 
-When a convergence guard halts the loop, the human is notified with context (guard type, iteration number, error state). The human has three options:
-
-| Option | What Happens |
-|---|---|
-| Resume | Human reviews the state, optionally makes manual edits to the deliverable, then resumes the polish loop from the next iteration. `polish_state.json` is preserved. |
-| Override | Human marks the current state as acceptable. Loop terminates as successful. Equivalent to manual convergence. |
-| Terminate | Human stops the project. Status set to `halted` permanently. |
+When a convergence guard halts the loop, the human is notified with context (guard type, iteration number, error state). The human has three options: Resume, Override, or Terminate.
 
 Recovery is initiated through the ThoughtForge chat interface. The halted card remains in the Polishing column with a visual halted indicator until the human acts.
 
-**Halt Recovery Interaction:** When the chat interface presents a halted state, it displays three action buttons: Resume, Override, and Terminate. These follow the same confirmation model as phase advancement — explicit button presses, not chat-parsed commands. Before Override or Terminate, the interface prompts the human to confirm the action (single confirmation step).
+Button behavior and `status.json` effects are specified in the build spec Action Button Behavior inventory.
 
 **State Continuity on Resume:** The convergence trajectory in `polish_state.json` is continuous across the halt boundary — the resumed iteration is numbered sequentially after the last completed iteration. `polish_log.md` receives a log entry for the resume event before the next iteration's entry: `## Resumed at {ISO8601} — Halted by {guard_type} at iteration {N}, resumed by human`.
 
@@ -388,14 +382,9 @@ When a Code mode pipeline starts and a plan document is detected in `/resources/
 
 **Completeness signals (prompt guidance, not a scored rubric):** OPA Framework structure present, specific objectives (not vague), decisions made (not options listed), enough detail to build without guessing, acceptance criteria defined, no TBD/placeholders, clear scope boundaries, dependencies listed.
 
-If the AI recommends fail: ThoughtForge halts the Code mode pipeline, sets `status.json` to `halted` with reason `plan_incomplete`, and notifies the human with the AI's reasoning. The chat interface presents two action buttons:
+If the AI recommends fail: ThoughtForge halts the Code mode pipeline, sets `status.json` to `halted` with reason `plan_incomplete`, and notifies the human with the AI's reasoning. The chat interface presents two action buttons: Override or Terminate. ThoughtForge does not automatically create projects on the human's behalf.
 
-| Option | What Happens |
-|---|---|
-| Override | Human proceeds with Code mode despite the incomplete plan. Status set back to `building`. |
-| Terminate | Human stops the project. Status set to `halted` permanently. The human may create a new Plan mode project manually to refine the plan first. |
-
-These follow the same confirmation model as other recovery interactions — explicit button presses, not chat-parsed commands. Terminate requires a single confirmation step. ThoughtForge does not automatically create projects on the human's behalf.
+Button behavior and `status.json` effects are specified in the build spec Action Button Behavior inventory.
 
 **Plan → Code Chaining Workflow:** To chain a completed plan into a code pipeline, the human creates a new project and places the finished plan document into the new project's `/resources/` directory. The new project proceeds through Phase 1 as normal — the plan document is one of the resources the AI reads during brain dump intake. At Phase 3 entry, the Plan Completeness Gate evaluates the plan and either proceeds or redirects as described above. The two projects are independent — separate project IDs, directories, git repos, and pipeline states.
 
@@ -465,7 +454,7 @@ Project directories are created under the path specified by `config.yaml` `proje
 |---|---|
 | Kanban board UI | Visualize pipeline phases as cards moving across columns |
 | Parallel execution | Run multiple projects simultaneously across agents |
-| Git worktree isolation | Each task in its own worktree — clean parallel isolation |
+| Git worktree isolation | VK manages worktree-based isolation for its internal task execution. ThoughtForge's per-project git repos (created at project initialization) are independent of VK's worktree model. VK operates within the project's existing repo when executing agent work. |
 | Multi-agent support | Claude Code, Gemini CLI, Codex, Amp, Cursor CLI |
 | VS Code extension | Task status inside the IDE |
 | Dashboard / stats | Timing, agent performance, progress tracking |
