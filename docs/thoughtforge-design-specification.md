@@ -77,9 +77,19 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 
 1. Human brain dumps into chat — one or more messages of freeform text
 2. Human drops files/resources into `/resources/` directory (optional, can happen before or after the brain dump messages)
-3. If external resource connectors are configured (Notion, Google Drive), the human provides page URLs or document links via chat. ThoughtForge pulls the content and saves it to `/resources/` as local files. Connectors are optional — if none are configured, this step is skipped.
+3. If external resource connectors are configured (Notion, Google Drive), the human provides page URLs or document links via chat, or the URLs are pre-configured in `config.yaml` (e.g., default Notion pages that should be pulled for every project). ThoughtForge pulls the content and saves it to `/resources/` as local files. Connectors are optional — if none are configured, this step is skipped.
 4. Human clicks **Distill** button — signals that all inputs (brain dump text, files, connector URLs) have been provided and the AI should begin processing. This follows the same confirmation model as phase advancement: explicit button press, not chat-parsed.
 5. AI reads all resources (text, PDF, images via vision, code files) and the brain dump
+
+**Resource File Processing:**
+
+| Format | Processing Method |
+|---|---|
+| `.md`, `.txt`, code files | Read as plain text, passed to AI as context |
+| `.pdf` | Text extracted via PDF parsing library (e.g., `pdf-parse`). If extraction yields no text (scanned PDF), log a warning and skip the file. OCR is deferred. |
+| Images (`.png`, `.jpg`, `.gif`) | Passed to the AI agent's vision capability if the configured agent supports it. If not, log a warning and skip. |
+| Unsupported formats | Logged as unreadable per Phase 1 error handling |
+
 6. AI distills into structured document: Deliverable Type, Objective, Assumptions, Constraints, Unknowns, Open Questions (max 5)
 7. AI presents distillation to human in chat
 8. Human corrects via chat → AI revises and re-presents
@@ -89,24 +99,11 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 
 **Brain Dump Intake Prompt Behavior:** The prompt enforces: organize only (no AI suggestions or improvements), structured output (6 sections as listed above), maximum 5 open questions (prioritized by blocking impact), ambiguities routed to Unknowns. Full prompt text in build spec.
 
-**Confirmation model:** Chat-based corrections, button-based actions. Corrections are natural language in chat. The **Distill** button signals that all brain dump inputs are provided and the AI should begin processing. The **Confirm** button advances the pipeline to the next phase. Both use explicit button presses to eliminate misclassification. This model applies to all human action points in the pipeline.
+**Confirmation model:** Chat-based corrections, button-based actions. Corrections are natural language in chat. The **Distill** button signals that all brain dump inputs are provided and the AI should begin processing. The **Confirm** button advances the pipeline to the next phase. Both use explicit button presses to eliminate the risk of the AI misinterpreting a chat message as a phase advancement command. This model applies to all human action points in the pipeline.
 
 **Action Button Behavior (All Buttons):**
 
-Every action button in the chat interface follows these rules: (a) specific `status.json` update, (b) defined chat UI feedback, (c) stated confirmation requirement. The complete button inventory:
-
-| Button | Context | `status.json` Effect | Chat UI After Press | Confirmation Required? |
-|---|---|---|---|---|
-| Distill | Phase 1 — after brain dump input | Phase set to `distilling` | Button disabled, spinner shown with "Distilling…" message. AI response streams in when ready. | No — single click. |
-| Confirm (Phase 1) | Phase 1 — after human approves distillation | Phase set to `spec_building`. `project_name` and `deliverable_type` written. | Button disabled, chat shows "Intent locked. Moving to spec building." New Phase 2 context loads. | No — single click. |
-| Confirm (Phase 2) | Phase 2 — after spec and constraints approved | Phase set to `building` | Button disabled, chat shows "Spec and constraints locked. Build starting." Phase 3 begins. | No — single click. |
-| Provide Input | Phase 3 stuck recovery | Phase remains `building` | Button disabled, chat shows input prompt. Human types response, builder resumes. | No — single click opens input. |
-| Terminate (Phase 3) | Phase 3 stuck recovery | Phase set to `halted`, `halt_reason: "human_terminated"` | Confirmation dialog: "This will permanently stop the project. Confirm?" On confirm: chat shows "Project terminated." Buttons removed. | Yes — single confirmation step. |
-| Resume | Phase 4 halt recovery | Phase remains `polishing`, `halt_reason` cleared | Button disabled, chat shows "Resuming polish loop from iteration [N+1]." Loop restarts. | No — single click. |
-| Override | Phase 4 halt recovery | Phase set to `done`, `halt_reason` cleared | Confirmation dialog: "Accept current state as final deliverable?" On confirm: chat shows "Deliverable accepted. Project complete." Buttons removed. | Yes — single confirmation step. |
-| Terminate (Phase 4) | Phase 4 halt recovery | Phase set to `halted`, `halt_reason: "human_terminated"` | Confirmation dialog: "This will permanently stop the project. Confirm?" On confirm: chat shows "Project terminated." Buttons removed. | Yes — single confirmation step. |
-| Override (Gate) | Plan Completeness Gate failure | Phase set to `building` (resumes Code mode build) | Confirmation dialog: "Proceed with Code mode despite incomplete plan?" On confirm: chat shows "Override accepted. Build starting." | Yes — single confirmation step. |
-| Terminate (Gate) | Plan Completeness Gate failure | Phase set to `halted`, `halt_reason: "human_terminated"` | Confirmation dialog: "This will permanently stop the project. Confirm?" On confirm: chat shows "Project terminated." Buttons removed. | Yes — single confirmation step. |
+Every action button in the chat interface follows these rules: (a) specific `status.json` update, (b) defined chat UI feedback, (c) stated confirmation requirement. Complete button inventory with `status.json` effects and UI behavior is specified in the build spec.
 
 **Phase 1 Error Handling:**
 
@@ -119,15 +116,7 @@ Every action button in the chat interface follows these rules: (a) specific `sta
 | Connector target not found (deleted page, revoked access, invalid URL) | Log the failure, notify the human in chat specifying which resource could not be retrieved, and proceed with distillation using available inputs. |
 | `status.json` unreadable, missing, or invalid (applies to all phases, not just Phase 1) | Halt the project and notify the operator with the file path and the specific error (parse failure, missing file, invalid phase value). Do not attempt recovery or partial loading — the operator must fix or recreate the file. |
 
-**Phase-to-State Mapping:** Pipeline phases map to `status.json` phase values as follows:
-
-| Phase | `status.json` Values | Transitions |
-|---|---|---|
-| Phase 1 | `brain_dump` → `distilling` → `human_review` | `brain_dump`: human providing inputs. `distilling`: triggered by Distill button, AI processing. `human_review`: human correcting distillation. |
-| Phase 2 | `spec_building` | Entered on Phase 1 Confirm. |
-| Phase 3 | `building` | Entered on Phase 2 Confirm. |
-| Phase 4 | `polishing` | Entered automatically on Phase 3 completion. |
-| Terminal | `done`, `halted` | `done`: convergence or stagnation success. `halted`: guard trigger, human terminate, or unrecoverable error. |
+**Phase-to-State Mapping:** Phase-to-state enum mapping and transition triggers are defined in the build spec's `status.json` schema.
 
 Vibe Kanban columns correspond to these `status.json` phase values, except `halted` — which is a card state indicator, not a separate column. See the UI section for full column mapping.
 
@@ -150,7 +139,7 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 8. Human clicks **Confirm** → advances to Phase 3
 9. Outputs: `spec.md` and `constraints.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline.
 
-**Manual Edit Behavior:** "Locked" means the AI pipeline will not modify these files after their creation phase. However, the pipeline re-reads `constraints.md` at the start of each Phase 4 iteration, so manual human edits to acceptance criteria or review rules are picked up automatically. `spec.md` and `intent.md` are read at Phase 3 start and not re-read — manual edits to these files after their respective phases require restarting from that phase (not currently supported; project must be recreated). The pipeline does not detect or warn about manual edits.
+**Manual Edit Behavior:** "Locked" means the AI pipeline will not modify these files after their creation phase. However, the pipeline re-reads `constraints.md` at the start of each Phase 4 iteration, so manual human edits to acceptance criteria or review rules are picked up automatically. `spec.md` and `intent.md` are read once at Phase 3 start and not re-read during later phases. If the human manually edits these files after their creation phase, the only way to pick up those changes is to create a new project — there is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits.
 
 **Phase 2 Error Handling:**
 
@@ -198,6 +187,9 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 3. Template selection is driven by the Deliverable Type classification from `intent.md`. The template directory uses a naming convention (e.g., `wedding.hbs`, `engineering.hbs`, `strategy.hbs`). If no type-specific template matches, the `generic.hbs` template is used as the default. Template selection logic lives in the plan plugin's `builder.js`.
 4. Template defines OPA skeleton as fixed structure — AI fills content slots but cannot break structure
 5. Fills every section — no placeholders, no "TBD"
+
+**Template Content Escaping:** AI-generated content inserted into Handlebars template slots is escaped to prevent Handlebars syntax characters in plan text (e.g., literal `{{` or `}}`) from causing render failures. The plan builder escapes content before template rendering.
+
 6. **NEVER creates source files, runs commands, installs packages, scaffolds projects, or executes anything. Document drafting only. Enforced at orchestrator level via plugin safety rules.**
 7. If stuck on a decision requiring human input: notifies and waits
 8. Output: complete but unpolished plan document (`.md`) in `/docs/`
@@ -267,7 +259,7 @@ Recovery follows the same confirmation model as Phase 4: explicit button presses
 
 **Step 2 — Fix (apply recommendations):** Orchestrator passes JSON issue list to fixer agent, which applies fixes. Git commit after fix (captures applied fixes).
 
-**Code Mode Iteration Cycle:** Code mode adds a test execution step to each iteration. The full cycle is: (1) Orchestrator runs tests via the code plugin's `test-runner.js` and captures results. (2) Review — orchestrator passes the test results as additional context to the reviewer AI alongside the codebase and `constraints.md`. Reviewer outputs JSON error report including test results. (3) Fix — orchestrator passes issue list to fixer agent. Git commit after fix. This three-step cycle repeats until a convergence guard triggers. Plan mode iterations use the two-step cycle (Review → Fix) with no test execution.
+**Code Mode Iteration Cycle:** Code mode extends the two-step cycle with a test execution step at the beginning. The full Code mode cycle per iteration is: (1) **Test** — orchestrator runs tests via the code plugin's `test-runner.js` and captures results. (2) **Review** — orchestrator passes test results as additional context to the reviewer AI alongside the codebase and `constraints.md`. Reviewer outputs JSON error report. (3) **Fix** — orchestrator passes the issue list to the fixer agent. Git commit after fix. Plan mode uses the two-step cycle (Review → Fix) with no test execution. Both modes commit after the review step and after the fix step. Code mode follows the same two-commits-per-iteration pattern: git commit after the review step (captures review JSON and test results) and git commit after the fix step (captures applied fixes).
 
 **Convergence Guards:**
 
@@ -275,8 +267,8 @@ Recovery follows the same confirmation model as Phase 4: explicit button presses
 |---|---|---|
 | Termination (success) | Error counts within configured thresholds (+ all tests pass for code). Thresholds in `config.yaml`. | Done. Notify human. |
 | Hallucination | Error count spikes sharply after a sustained downward trend | Halt. Notify human: "Fix-regress cycle detected. Errors trending down then spiked. Iteration [N]: [X] total (was [Y]). Review needed." |
-| Stagnation | Total count plateaus across consecutive iterations AND issue rotation detected (specific issues change between iterations even though the total stays flat — the loop has reached the best quality achievable autonomously) | Done (success). Notify human: "Polish sufficient. Ready for final review." |
-| Fabrication | A severity category spikes well above its recent average, AND the system had previously approached convergence thresholds — suggesting the reviewer is manufacturing issues because nothing real remains | Halt. Notify human. |
+| Stagnation | Same total error count for 3+ consecutive iterations... AND issue churn detected (the specific issues change between iterations even though the total count stays flat — indicating the loop is replacing old issues with new ones at the same rate and has reached the best quality achievable autonomously) | Done (success). Notify human: "Polish sufficient. Ready for final review." |
+| Fabrication | A severity category spikes significantly above its trailing 3-iteration average (e.g., >50% increase), AND the system had previously approached convergence thresholds — suggesting the reviewer is manufacturing issues because nothing real remains | Halt. Notify human. |
 | Max iterations | Hard ceiling reached (configurable, default 50) | Halt. Notify human: "Max [N] iterations reached. Avg flaws/iter: [X]. Lowest: [Y] at iter [Z]. Review needed." |
 
 Algorithmic parameters for each guard (spike thresholds, similarity measures, window sizes) are defined in the build spec.
@@ -453,6 +445,8 @@ Each notification is sent as a structured object containing all five fields from
 
 ### Project State Files
 
+**Concurrency Model:** Each project operates on its own isolated directory and state files. No cross-project state sharing exists. Within a single project, the pipeline is single-threaded — only one operation (phase transition, polish iteration, button action) executes at a time. The orchestrator serializes operations per project. Concurrent access to a single project's state files is not supported and does not need locking.
+
 **Write Atomicity:** All state file writes (`status.json`, `polish_state.json`, `chat_history.json`) use atomic write — write to a temporary file in the same directory, then rename to the target path. This prevents partial writes from corrupting state on crash. The project state module (Task 3) implements this as the default write behavior for all state files.
 
 | File | Written When | Schema |
@@ -467,6 +461,10 @@ Each notification is sent as a structured object containing all five fields from
 ### UI
 
 **ThoughtForge Chat (Built):** Lightweight web chat interface (terminal-based alternative deferred). Primary use: Phases 1–2 (brain dump intake, spec building). Also used for Phase 3 stuck recovery (provide input, terminate) and Phase 4 halt recovery (resume, override, terminate). Per-project chat thread, file/resource dropping, AI messages labeled by phase, corrections via chat, advancement via Confirm button. During stuck and halt recovery, the chat presents the current state context and the available recovery options — no free-form AI conversation. The chat interface includes a project list sidebar showing all active projects with their current phase. The human clicks a project to open its chat thread. New projects are created from this list via a "New Project" action. The active project's chat thread occupies the main panel.
+
+**WebSocket Disconnection:** If the WebSocket connection drops, the chat client automatically attempts to reconnect. On reconnect, the client fetches the current project state from `status.json` and the latest chat messages from `chat_history.json` to restore the UI to the correct state. In-flight AI responses that were streaming when the connection dropped are not replayed — the human sees the last fully-received message and can re-trigger the action (e.g., click Distill again) if the operation did not complete. Pipeline processing continues server-side regardless of client connection state.
+
+**Project Status on Return:** The project list sidebar shows each project's current phase and status (including halted indicator). When the human opens a project's chat thread, the most recent messages and any pending action buttons (e.g., halt recovery options) are displayed. No separate "catch-up" summary is generated — the chat history and project status serve this purpose.
 
 **Prompt Management:** The chat interface includes a Settings button that opens a prompt editor. All pipeline prompts — brain dump intake, review, fix, and any future prompts — are listed, viewable, and editable by the human. Edits apply globally (all future projects use the updated prompts). Per-project prompt overrides are deferred. Not a current build dependency. Prompts are stored as external files in a `/prompts/` directory, not embedded in code. The prompt editor reads from and writes to these files.
 
@@ -541,15 +539,7 @@ Orchestrator core actions (create project, check status, read polish log, trigge
 
 **Connector and Notification URL Validation:**
 
-| Condition | When Checked | Action |
-|---|---|---|
-| Notification channel URL missing or empty (e.g., ntfy `url` is blank) | Startup (config validation) | Config validation fails. Server exits with error: "Notification channel '{channel}' is enabled but has no URL configured." |
-| Notification channel URL has no scheme or is malformed (e.g., missing `https://`) | Startup (config validation) | Config validation fails. Server exits with error: "Notification channel '{channel}' URL is malformed: {url}." |
-| Notification channel URL is well-formed but endpoint is unreachable at runtime | Runtime (notification send) | Log the send failure as a warning. Do not halt the pipeline — notification failure is not blocking. The notification layer retries once, then logs and continues. |
-| Resource connector URL/token missing when connector is enabled | Startup (config validation) | Config validation fails. Server exits with error: "Connector '{connector}' is enabled but missing required credentials." |
-| Resource connector target URL is invalid or unreachable at runtime | Runtime (Phase 1 resource pull) | Log the failure, notify the human in chat specifying which connector and target failed, proceed with distillation using available inputs. Already covered by Phase 1 error handling. |
-
-Validation occurs at startup for configuration-level issues (missing/malformed URLs and credentials for enabled channels/connectors). Runtime connectivity failures are handled gracefully — notifications log and continue, connectors log and proceed with available inputs. The pipeline never halts due to a notification delivery failure.
+URL validation policy: validate connector and notification URLs at startup for configuration errors; handle failures gracefully at runtime. Implementation details are in the build spec.
 
 **Credential Handling:** API tokens and credential paths in `config.yaml` are stored in plaintext. This is acceptable for v1 as a single-operator local tool. The operator is responsible for file system permissions on `config.yaml`. Credential encryption, secret vaults, and environment variable injection are deferred — not a current build dependency.
 

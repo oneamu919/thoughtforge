@@ -399,10 +399,39 @@ Each connector module in `/connectors/` implements:
 
 ---
 
+## Action Button Behavior
+
+**Used by:** Tasks 7, 10, 6c, 6d, 40a (chat interface, action buttons, stuck recovery, completeness gate, halt recovery)
+
+| Button | Context | `status.json` Effect | Chat UI After Press | Confirmation Required? |
+|---|---|---|---|---|
+| Distill | Phase 1 — after brain dump input | Phase set to `distilling` | Button disabled, spinner shown with "Distilling…" message. AI response streams in when ready. | No — single click. |
+| Confirm (Phase 1) | Phase 1 — after human approves distillation | Phase set to `spec_building`. `project_name` and `deliverable_type` written. | Button disabled, chat shows "Intent locked. Moving to spec building." New Phase 2 context loads. | No — single click. |
+| Confirm (Phase 2) | Phase 2 — after spec and constraints approved | Phase set to `building` | Button disabled, chat shows "Spec and constraints locked. Build starting." Phase 3 begins. | No — single click. |
+| Provide Input | Phase 3 stuck recovery | Phase remains `building` | Button disabled, chat shows input prompt. Human types response, builder resumes. | No — single click opens input. |
+| Terminate (Phase 3) | Phase 3 stuck recovery | Phase set to `halted`, `halt_reason: "human_terminated"` | Confirmation dialog: "This will permanently stop the project. Confirm?" On confirm: chat shows "Project terminated." Buttons removed. | Yes — single confirmation step. |
+| Resume | Phase 4 halt recovery | Phase remains `polishing`, `halt_reason` cleared | Button disabled, chat shows "Resuming polish loop from iteration [N+1]." Loop restarts. | No — single click. |
+| Override | Phase 4 halt recovery | Phase set to `done`, `halt_reason` cleared | Confirmation dialog: "Accept current state as final deliverable?" On confirm: chat shows "Deliverable accepted. Project complete." Buttons removed. | Yes — single confirmation step. |
+| Terminate (Phase 4) | Phase 4 halt recovery | Phase set to `halted`, `halt_reason: "human_terminated"` | Confirmation dialog: "This will permanently stop the project. Confirm?" On confirm: chat shows "Project terminated." Buttons removed. | Yes — single confirmation step. |
+| Override (Gate) | Plan Completeness Gate failure | Phase set to `building` (resumes Code mode build) | Confirmation dialog: "Proceed with Code mode despite incomplete plan?" On confirm: chat shows "Override accepted. Build starting." | Yes — single confirmation step. |
+| Terminate (Gate) | Plan Completeness Gate failure | Phase set to `halted`, `halt_reason: "human_terminated"` | Confirmation dialog: "This will permanently stop the project. Confirm?" On confirm: chat shows "Project terminated." Buttons removed. | Yes — single confirmation step. |
+
+---
+
 ## `status.json` Schema
 
 **Used by:** Task 3 (project state module)
 **Written:** Every phase transition and state change
+
+### Phase-to-State Mapping
+
+| Phase | `status.json` Values | Transitions |
+|---|---|---|
+| Phase 1 | `brain_dump` → `distilling` → `human_review` | `brain_dump`: human providing inputs. `distilling`: triggered by Distill button, AI processing. `human_review`: human correcting distillation. |
+| Phase 2 | `spec_building` | Entered on Phase 1 Confirm. |
+| Phase 3 | `building` | Entered on Phase 2 Confirm. |
+| Phase 4 | `polishing` | Entered automatically on Phase 3 completion. |
+| Terminal | `done`, `halted` | `done`: convergence or stagnation success. `halted`: guard trigger, human terminate, or unrecoverable error. |
 
 ```typescript
 interface ProjectStatus {
@@ -613,6 +642,11 @@ server:
 ### Startup Validation (Config Loader)
 
 For each enabled notification channel: validate that `url` is present and is a well-formed URL (has scheme, host). For each enabled resource connector: validate that required credential fields are non-empty. Validation uses the same Zod schema approach as the rest of config validation — URL fields use `z.string().url()` for enabled channels/connectors. Disabled channels/connectors skip URL validation.
+
+Specific error messages on validation failure:
+- Notification channel URL missing or empty: Server exits with error: "Notification channel '{channel}' is enabled but has no URL configured."
+- Notification channel URL malformed (e.g., missing scheme): Server exits with error: "Notification channel '{channel}' URL is malformed: {url}."
+- Resource connector credentials missing when enabled: Server exits with error: "Connector '{connector}' is enabled but missing required credentials."
 
 ### Runtime Failure Handling
 
