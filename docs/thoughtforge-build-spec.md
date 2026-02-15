@@ -156,7 +156,6 @@ Rules:
     builder.js        # Phase 3: template-driven document drafting
     reviewer.js       # Phase 4: review schema (Zod) and severity definitions
     safety-rules.js   # Blocked operations (no code execution, no source files)
-    discovery.js      # Phase 2: (optional) plan-type-specific discovery logic
     templates/        # OPA templates per plan type (wedding, strategy, engineering, etc.)
       generic.hbs     # Default fallback template
       wedding.hbs
@@ -205,9 +204,7 @@ Return type varies by plugin:
 
 ### Code Builder Task Queue
 
-**Task derivation guidance:** The code builder parses the Deliverable Structure and Acceptance Criteria sections of `spec.md`. Each architectural component or feature maps to a build task. Each acceptance criterion maps to a test-writing task. The builder orders tasks by dependency (foundational components first, then features, then tests). The exact parsing and ordering logic is an implementation detail of Task 21, but should produce a consistent task list from the same `spec.md` input — the ordering logic must be stable so that crash recovery (re-deriving the task list after restart) produces a compatible ordering. If determinism cannot be guaranteed, the code builder should persist the derived task list to `task_queue.json` in the project directory for crash recovery.
-
-The code builder maintains an ordered list of build tasks derived from `spec.md` (e.g., implement feature X, write tests for Y). Each task has a string identifier used for stuck detection — consecutive agent invocations against the same task identifier increment the retry counter. The task list format and derivation logic are internal to the code builder and are not persisted to state files. On crash recovery, the code builder re-derives the task list from `spec.md` and the current state of files in the project directory (e.g., which source files and test files already exist).
+The code builder maintains an ordered list of build tasks derived from `spec.md`. Each task has a string identifier used for stuck detection. On crash recovery, the code builder attempts to re-derive the task list from `spec.md` and the current state of files in the project directory. If the re-derived task list differs from the pre-crash list (non-deterministic ordering), the code builder persists the initial task list to `task_queue.json` in the project directory at derivation time, and uses the persisted list for crash recovery. Whether to persist is a Task 21 implementation decision — but crash recovery must produce a compatible task ordering.
 
 ### Operation Type Taxonomy
 
@@ -285,7 +282,8 @@ The orchestrator ignores top-level count fields (`critical`, `medium`, `minor`) 
 
 Guards are evaluated in the following order after each iteration. The first guard that triggers ends evaluation — subsequent guards are not checked.
 
-1. **Termination** (success) — checked first so that a successful outcome is never overridden by a halt
+0. **Fix Regression** (per-iteration) — checked first, immediately after each fix step. If total error count increased compared to the review that prompted the fix, log a warning. If 2 consecutive iterations show fix-step regression, halt and notify. This guard runs before the convergence guards below.
+1. **Termination** (success) — checked first among convergence guards so that a successful outcome is never overridden by a halt
 2. **Hallucination** — checked before stagnation/fabrication because a spike after a downward trend is the strongest anomaly signal
 3. **Fabrication** — checked before stagnation because fabricated issues would produce false plateau signals
 4. **Stagnation** (success) — checked after halt guards to ensure the plateau is genuine
@@ -557,6 +555,28 @@ If the first word of the Deliverable Type section is neither "Plan" nor "Code" (
 
 ---
 
+## HTTP API Surface
+
+**Used by:** Tasks 1a, 7, 7b, 7g, 7h (server, chat interface, settings, sidebar, file upload)
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/` | Serve chat interface HTML |
+| GET | `/api/projects` | List all projects with current status |
+| POST | `/api/projects` | Create new project |
+| GET | `/api/projects/:id/status` | Get project `status.json` |
+| GET | `/api/projects/:id/chat` | Get project `chat_history.json` |
+| POST | `/api/projects/:id/action` | Trigger button action (distill, confirm, resume, override, terminate, provide-input) |
+| POST | `/api/projects/:id/upload` | Upload resource file to `/resources/` |
+| GET | `/api/prompts` | List prompt files |
+| GET | `/api/prompts/:filename` | Read prompt file content |
+| PUT | `/api/prompts/:filename` | Save prompt file content |
+| WS | `/ws` | WebSocket for real-time chat streaming |
+
+Route structure is a build-time implementation detail — the above is guidance, not a rigid contract. The key requirement is that all project mutations go through the orchestrator (never direct file writes from HTTP handlers).
+
+---
+
 ## `status.json` Schema
 
 **Used by:** Task 3 (project state module)
@@ -581,7 +601,7 @@ interface ProjectStatus {
   agent: string;
   created_at: string;   // ISO8601
   updated_at: string;   // ISO8601
-  halt_reason: string | null;  // Known values: "plan_incomplete", "guard_hallucination", "guard_fabrication", "guard_max_iterations", "human_terminated", "agent_failure", "file_system_error", "phase3_output_missing", "phase3_output_incomplete", "server_restart"
+  halt_reason: string | null;  // Known values: "plan_incomplete", "guard_hallucination", "guard_fabrication", "guard_max_iterations", "fix_regression", "human_terminated", "agent_failure", "file_system_error", "phase3_output_missing", "phase3_output_incomplete", "server_restart"
 }
 ```
 
@@ -692,6 +712,31 @@ Each iteration is appended as a Markdown section:
 
 ---
 
+## Initial Dependencies
+
+**Used by:** Task 1 (project initialization)
+
+```json
+{
+  "dependencies": {
+    "express": "^4.x",
+    "ws": "^8.x",
+    "zod": "^3.x",
+    "handlebars": "^4.x",
+    "yaml": "^2.x",
+    "pdf-parse": "^1.x"
+  },
+  "devDependencies": {
+    "typescript": "^5.x",
+    "vitest": "^1.x"
+  }
+}
+```
+
+Use `package-lock.json` for deterministic installs. Pin major versions. Run `npm audit` before v1 release.
+
+---
+
 ## `config.yaml` Template
 
 **Used by:** Task 1 (config loader)
@@ -758,14 +803,17 @@ agents:
       command: "claude"
       flags: "--print"
       supports_vision: true
+      context_window_tokens: 200000
     gemini:
       command: "gemini"
       flags: ""
       supports_vision: true
+      context_window_tokens: 1000000
     codex:
       command: "codex"
       flags: ""
       supports_vision: false
+      context_window_tokens: 200000
 
 # The `supports_vision` field determines whether image resources are passed to
 # this agent. If `false` or absent, image files are logged as skipped.

@@ -43,7 +43,7 @@
 | 6 | Set up plugin loader (reads `/plugins/{type}/`, validates interface contract) | — | Task 1 | — | Not Started |
 | 6a | Implement pipeline orchestrator: phase sequencing based on `status.json`, plugin selection by `deliverable_type`, safety-rules enforcement (call plugin `validate(operation)` before every Phase 3/4 action), cross-cutting file system error handling (halt and notify on file system failures — both read failures on critical state files and write failures — no retry) | — | Task 2, Task 3, Task 6 | — | Not Started |
 | 6b | Implement Phase 2→3 transition: Plan Completeness Gate trigger for Code mode, advancement logic | — | Task 6a, Task 6d | — | Not Started |
-| 6c | Implement Phase 3→4 automatic transition including output validation (per design spec Phase 3→4 Transition Error Handling: verify expected output files exist and meet `config.yaml` `phase3_completeness` thresholds before entering Phase 4), Phase 3 stuck recovery interaction (Provide Input / Terminate buttons), and milestone notification. | — | Task 5, Task 6a, Task 7 | — | Not Started |
+| 6c | Implement Phase 3→4 automatic transition including output validation (per design spec Phase 3→4 Transition Error Handling: verify expected output files exist and meet `config.yaml` `phase3_completeness` criteria before entering Phase 4), Phase 3 stuck recovery interaction (Provide Input / Terminate buttons), and milestone notification. | — | Task 5, Task 6a, Task 7 | — | Not Started |
 | 6d | Implement Plan Completeness Gate: assessment prompt for Code mode Phase 3 entry (loaded from `/prompts/completeness-gate.md`), halt with `plan_incomplete` on fail, present Override and Terminate buttons in chat (Override resumes build, Terminate halts permanently) | — | Task 7a, Task 6e, Tasks 41–42 | — | Not Started |
 | 6e | Draft `/prompts/completeness-gate.md` prompt text | — | Task 7a | — | Not Started |
 
@@ -190,11 +190,9 @@
 
 The longest dependency chain determines the minimum build duration regardless of parallelism:
 
-**Task 1 → Task 41 → Task 42 → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 30 → Tasks 33–37 → Task 51**
+**Task 1 → Task 41 → Task 42 → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 6c → Task 30 → Tasks 33–37 → Task 51**
 
-Note: Task 30 depends on Task 17 (plan reviewer) and Task 6c (Phase 3→4 transition), not Task 16 (templates). Task 16 (templates) feeds Task 15 at runtime but is not on the critical path — templates can be created after the builder module. Task 17 runs in parallel with Task 15 and must complete before Task 30.
-
-Note: Task 6a (pipeline orchestrator) depends on Tasks 2, 3, and 6, which run in parallel with the agent layer (41–42). Task 6a appears on the critical path only if its dependency chain (Task 1 → Tasks 2+3+6 → Task 6a) takes longer than the agent layer chain (Task 1 → Task 41 → Task 42). The builder should track both branches.
+Note: Task 15 (plan builder) is not on the critical path — it runs in parallel with the Phase 1–2 human interaction chain and must complete before Task 51 (e2e test), but it does not gate Task 30. Task 30 depends on Task 6c (Phase 3→4 transition), which depends on Tasks 5, 6a, and 7. Task 6c is the critical dependency entering the polish loop.
 
 This chain runs from foundation through agent layer, human interaction, plan plugin, polish loop, to plan-mode e2e validation.
 
@@ -297,7 +295,7 @@ Each project's per-milestone git commits enable rollback at the project level. F
 - [ ] Plan mode e2e: brain dump → polished OPA-structured plan
 - [ ] Code mode e2e: brain dump → polished codebase with tests and logging
 - [ ] Plan → Code chaining: finished plan as code input, completeness gate works
-- [ ] All 5 convergence guards tested and functional
+- [ ] All 6 convergence guards (including Fix Regression per-iteration check) tested and functional
 - [ ] Crash recovery verified (kill mid-loop, resume works)
 - [ ] Parallel execution: 3 concurrent projects, different agents
 - [ ] Notifications fire with structured context on all event types
