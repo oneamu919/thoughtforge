@@ -68,7 +68,7 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 
    The project ID is used as the directory name and as `project_id` in notifications — not stored in `status.json` since it is always derivable from the project directory path.
 
-   **Project Name Derivation (during Phase 1 distillation):** The project name is derived from the distilled intent document. When `intent.md` is written and locked, the project name is extracted and written to `status.json`. If Vibe Kanban is enabled, the card name is updated at the same time.
+   Project name is derived later during Phase 1 — see step 11.
 
 **Git Initialization Failure:** If `git init` fails during project creation (permissions error, disk space, git not installed), project creation is aborted. The partially created directory is deleted. The human is notified: "Project creation failed: git initialization error. Verify git is installed and the projects directory is writable." No project state files are written.
 
@@ -79,7 +79,7 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 1. Human brain dumps into chat — one or more messages of freeform text
 2. Human drops files/resources into `/resources/` directory (optional, can happen before or after the brain dump messages)
 3. If external resource connectors are configured (Notion, Google Drive), the human provides page URLs or document links via chat, or the URLs are pre-configured in `config.yaml` (e.g., default Notion pages that should be pulled for every project). ThoughtForge pulls the content and saves it to `/resources/` as local files. Connectors are optional — if none are configured, this step is skipped.
-   **Step 3 Detail — Connector URL Identification:** The AI identifies connector URLs in chat messages by matching against known URL patterns for each enabled connector. The AI matches each URL against the known patterns for enabled connectors and pulls content automatically. URL matching rules (enabled/disabled/unmatched behavior) are in the build spec.
+   **Step 3 Detail — Connector URL Identification:** The AI matches URLs in chat messages against known URL patterns for each enabled connector and pulls content automatically. URL matching rules (enabled/disabled/unmatched behavior) are in the build spec.
 
 4. Human clicks **Distill** button — signals that all inputs (brain dump text, files, connector URLs) have been provided and the AI should begin processing. This follows the same confirmation model as phase advancement: explicit button press, not chat-parsed.
 5. AI reads all resources (text, PDF, images via vision, code files) and the brain dump
@@ -92,13 +92,14 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 
 7. AI presents distillation to human in chat
 8. Human corrects via chat → AI revises and re-presents
-9. Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons to prevent misinterpretation), "realign from here" is a chat-parsed command because it does not advance the pipeline — it discards AI messages and corrections after the most recent substantive human correction and re-distills from the original brain dump plus corrections up to that point. Exact matching rules and algorithm in build spec.
+9. Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons), this is a chat-parsed command that discards messages after the most recent substantive human correction and re-distills. Matching rules and algorithm in build spec.
 
-The human types "realign from here" in chat to trigger a re-distillation from the original brain dump plus corrections up to a rollback point. Exact matching rules and algorithm in build spec. Messages containing the phrase alongside other text are treated as regular corrections.
 10. Human clicks **Confirm** button → advances to Phase 2
 11a. Output: `intent.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline.
 
 11b. The deliverable type is derived from the confirmed intent and set in `status.json`.
+
+**Project Name Derivation (during Phase 1 distillation):** The project name is derived from the distilled intent document. When `intent.md` is written and locked, the project name is extracted and written to `status.json`. If Vibe Kanban is enabled, the card name is updated at the same time.
 
 **Resource lifecycle:** Files in `/resources/` persist for the lifetime of the project. They are not deleted or moved after Phase 1 consumption. The Plan Completeness Gate (Code mode entry) scans `/resources/` for plan documents. Non-plan resources remain for human reference but are not re-consumed by later pipeline phases.
 
@@ -126,11 +127,7 @@ Every action button in the chat interface follows these rules: (a) specific `sta
 | Resource file exceeds configurable size limit | Log a warning, skip the file, and notify the human in chat: "File '{filename}' exceeds size limit and was skipped." |
 | Human provides malformed or unparseable connector URL in chat | AI responds in chat: "Could not parse URL: '{url}'. Please provide a valid Notion page URL or Google Drive document link." Does not halt. Does not attempt to pull. |
 
-**`chat_history.json` Error Handling:** If `chat_history.json` is unreadable or missing, the pipeline halts and notifies the human — same behavior as `status.json` corruption. The human must fix or recreate the file. Chat history size is bounded by the phase-clearing behavior (cleared on Phase 1→2 and Phase 2→3 transitions). If a single phase's chat history exceeds the agent's context window, the agent invocation layer truncates older messages while always retaining the original brain dump and the most recent messages. Truncation algorithm in build spec. A warning is logged when truncation occurs.
-
-**Phase 2 Chat History Truncation:** If Phase 2 chat history exceeds the agent context window, older messages are truncated while always retaining the initial AI spec proposal (same anchoring pattern as Phase 1's brain dump retention). Algorithm in build spec.
-
-**Phase 3–4 Chat History Truncation:** If Phase 3 or Phase 4 recovery chat history exceeds the agent context window, older messages are truncated from the beginning with no anchoring message. Algorithm in build spec.
+**`chat_history.json` Error Handling:** If `chat_history.json` is unreadable or missing, the pipeline halts and notifies the human — same behavior as `status.json` corruption. The human must fix or recreate the file. Chat history size is bounded by the phase-clearing behavior (cleared on Phase 1→2 and Phase 2→3 transitions). If a phase's chat history exceeds the agent's context window, the agent invocation layer truncates older messages using phase-specific anchoring rules. Truncation algorithms per phase are defined in the build spec. A warning is logged when truncation occurs.
 
 **Phase-to-State Mapping:** Phase-to-state enum mapping and transition triggers are defined in the build spec's `status.json` schema.
 
@@ -169,7 +166,11 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 
 **`constraints.md` — readability definition:** "Unreadable" means the file cannot be read from disk (permission error, I/O error) or is not valid UTF-8 text. A file that is readable but contains unexpected content (empty, restructured, nonsensical) is passed to the reviewer as-is per the unvalidated-after-creation policy. If the file exceeds the agent's context window when combined with other review context, it is truncated with a warning logged.
 
-- **`spec.md` and `intent.md` (static after creation):** These are read once at Phase 3 start and not re-read during later phases. If the human manually edits these files after their creation phase, the pipeline will not see those changes — it works from its in-memory copy. There is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits to any locked file. On server restart, the orchestrator's in-memory working copies of `spec.md` and `intent.md` (loaded at Phase 3 start) are discarded. When the human resumes a halted Phase 4 project, the orchestrator re-reads `spec.md` and `intent.md` from disk to reconstruct working context. If the human manually edited these files while the project was halted, the resumed pipeline will use the edited versions. This is an acceptable side effect of the restart recovery model.
+- **`spec.md` and `intent.md` (static after creation):**
+  - Read once at Phase 3 start. Not re-read during later phases.
+  - Manual human edits during active pipeline execution have no effect — the pipeline works from its in-memory copy.
+  - On server restart, in-memory copies are discarded. When a halted Phase 4 project is resumed, the orchestrator re-reads both files from disk. If the human edited them while the project was halted, the resumed pipeline uses the edited versions.
+  - There is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits to any locked file.
 
 **In short:** Editing `constraints.md` during Phase 4 works. Editing `spec.md` or `intent.md` during active pipeline execution has no effect. Editing them while the project is halted works if the project is subsequently resumed.
 
@@ -269,6 +270,8 @@ Phase 3 does not offer an Override option — unlike Phase 4, there is no partia
 
 Button behavior and `status.json` effects are specified in the build spec Action Button Behavior inventory.
 
+**Provide Input Flow:** When the human clicks Provide Input and submits text, the orchestrator appends the human's message to `chat_history.json` and re-invokes the builder's current stuck task with the original prompt context plus the human's input appended as additional guidance. The builder's retry counter for the stuck task is reset — the human's input constitutes a new attempt, not a continuation of the failure sequence. If the builder remains stuck after receiving human input, stuck detection resumes from count 0 for that task.
+
 **Phase 3 Error Handling:**
 
 | Condition | Action |
@@ -339,12 +342,15 @@ Plan mode uses the two-step cycle (Review → Fix) with no test execution.
 | Guard | Condition | Action |
 |---|---|---|
 | Termination (success) | Error counts within configured thresholds (+ all tests pass for code). Thresholds in `config.yaml`. | Done. Notify human. |
+| Fix Regression (per-iteration) | After each fix step, if the total error count increases compared to the review that prompted the fix (i.e., the fix made things worse), log a warning. If the fix step increases total errors for 2 consecutive iterations, halt and notify: "Fix step is introducing more issues than it resolves. Review needed." This guard evaluates per-iteration, not per-trend, and fires before the trend-based guards. | Warn (single occurrence) or Halt (2 consecutive). Notify human. |
 | Hallucination | Total error count increases by more than 20% from the prior iteration (hardcoded threshold, defined in build spec) after at least 2 consecutive iterations with decreasing total error count (hardcoded minimum trend length, defined in build spec) | Halt. Notify human: "Project '{name}' — fix-regress cycle detected. Errors decreased for {N} iterations ({trajectory}) then spiked to {X} at iteration {current}. Review needed." |
-| Stagnation | **Stagnation:** Two conditions must both be true: (1) Same total error count (sum of critical + medium + minor) for a configured number of consecutive iterations (stagnation limit). (2) Issue rotation detected — old issues resolved, new issues introduced at the same rate (rotation threshold and similarity measure defined in build spec). Stagnation compares total error count only, not per-severity breakdowns. A shift in severity composition (e.g., fewer criticals but more minors) at the same total still qualifies as stagnation, provided the rotation threshold is also met. When both conditions are true, the deliverable has reached a quality plateau where the reviewer is cycling through cosmetic issues rather than finding genuine regressions. Treated as converged. | Done (success — treated as converged plateau). Notify human with final error counts and iteration summary. |
-| Fabrication | A severity category spikes significantly above its trailing average (window size defined in build spec), AND in at least one prior iteration, every severity category was at or below twice its convergence threshold — that is, critical ≤ 2 × `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max` (using default config: ≤0 critical, ≤6 medium, ≤10 minor). These values are derived from `config.yaml` at runtime, not hardcoded. This ensures fabrication is only flagged after the deliverable was near-converged. | Halt. Notify human. |
+| Stagnation | Same total error count for a configured number of consecutive iterations (stagnation limit), AND issue rotation detected (old issues resolved, new issues introduced at the same rate). When both conditions are true, the deliverable has reached a quality plateau. Severity composition shifts at the same total still qualify as stagnation if rotation threshold is also met. Parameters in build spec. | Done (success — treated as converged plateau). Notify human with final error counts and iteration summary. |
+| Fabrication | A severity category spikes significantly above its trailing average (window size defined in build spec), AND in at least one prior iteration, every severity category was at or below twice its convergence threshold (i.e., critical ≤ 2 × `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max`). These multipliers are derived from `config.yaml` at runtime, not hardcoded. This ensures fabrication is only flagged after the deliverable was near-converged. Parameters in build spec. | Halt. Notify human. |
 | Max iterations | Hard ceiling reached (configurable, default 50) | Halt. Notify human: "Max [N] iterations reached. Avg flaws/iter: [X]. Lowest: [Y] at iter [Z]. Review needed." |
 
 Algorithmic parameters for each guard (spike thresholds, similarity measures, window sizes) are defined in the build spec.
+
+**Stagnation Guard Detail:** Stagnation compares total error count only (sum of critical + medium + minor), not per-severity breakdowns. Issue rotation is detected when old issues are resolved but new issues are introduced at the same rate — the rotation threshold and similarity measure (Levenshtein on issue descriptions) are defined in the build spec. When both conditions are true, the deliverable has reached a quality plateau where the reviewer is cycling through cosmetic issues rather than finding genuine regressions. This is treated as a successful convergence outcome.
 
 **Halt vs. Terminate:** When a convergence guard triggers a halt, the project is recoverable — the human can Resume or Override. When the human explicitly Terminates (via button), the project is permanently stopped (`halt_reason: "human_terminated"`). Both use the `halted` phase value in `status.json`; the `halt_reason` field distinguishes them.
 
@@ -445,6 +451,8 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 Project directories are created under the path specified by `config.yaml` `projects.directory` (default: `./projects` relative to ThoughtForge's working directory).
 
 **Server Restart Behavior:** On startup, the server scans `/projects/` for projects with non-terminal `status.json` states (`brain_dump`, `distilling`, `human_review`, `spec_building`, `building`, `polishing`). Projects in human-interactive states (`brain_dump`, `human_review`, `spec_building`) resume normally — they are waiting for human input and no action is needed. Projects in autonomous states (`distilling`, `building`, `polishing`) are set to `halted` with `halt_reason: "server_restart"`. These are not auto-resumed because the server cannot safely re-enter a mid-execution agent invocation or polish iteration — the prior subprocess is dead and its partial output is unknown. The human must explicitly resume. The server does not automatically re-enter autonomous pipeline phases after a restart.
+
+**Graceful Shutdown:** On `SIGTERM` or `SIGINT`, the server stops accepting new operations and waits for any in-progress agent subprocess to complete (up to the configured `agents.call_timeout_seconds`). If the subprocess completes, the current iteration's state is written normally and `status.json` remains in its current phase. If the timeout expires, the subprocess is killed, the current iteration is abandoned (no state written), and the project is left in its last committed state. The server then exits. On next startup, the standard Server Restart Behavior applies.
 
 **Git Commit Strategy:** Each project's git repo is initialized at project creation. Commits occur at: `intent.md` lock (end of Phase 1), `spec.md` and `constraints.md` lock (end of Phase 2), Phase 3 build completion, and twice per Phase 4 iteration — once after the review step (captures the review JSON) and once after the fix step (captures applied fixes). Two commits per iteration enables rollback of a bad fix while preserving the review that identified the issues. This ensures rollback capability at every major pipeline milestone.
 
@@ -581,6 +589,8 @@ Every phase transition pings the human with a status update. Every notification 
 **Prompt file list refresh:** The Settings UI reads the `/prompts/` directory listing each time it is opened. If a prompt file is deleted externally while the editor is open, saving to the deleted file creates it anew (same atomic write behavior). No file locking — the single-operator model makes this acceptable.
 
 **Vibe Kanban Dashboard (Integrated, Not Built):** Columns map to `status.json` phases: Brain Dump → Distilling → Human Review → Spec Building → Building → Polishing → Done. `Distilling` and `Human Review` are separate Kanban columns representing Phase 1 sub-states — the card moves from Brain Dump → Distilling → Human Review as the phase progresses. "Confirmed" is not a separate column — confirmation advances the card from Human Review to the next phase. Cards with `halted` status remain in their current column with a visual halted indicator; "Halted" is a card state, not a column. Cards with `halt_reason: "human_terminated"` display a distinct visual indicator (e.g., strikethrough or "Terminated" badge) to distinguish permanently stopped projects from recoverable halts that await human action. The specific visual treatment is a UI implementation detail. Each card = one project. Shows agent, status, parallel execution.
+
+Phase 2 uses a single `spec_building` state for both AI proposal and human correction cycles. On the Kanban board, the card remains in the Spec Building column for the duration of Phase 2. The halted indicator (if the project is halted during Phase 2) provides the only visual distinction. If finer-grained Phase 2 status visualization is needed, it is deferred.
 
 **Per-Card Stats:** Created timestamp, time per phase, total duration, status, and agent used are provided by Vibe Kanban's built-in dashboard. Polish loop metrics (iteration count, convergence trajectory, final error counts) are read from `polish_state.json` in each project directory. ThoughtForge does not push stats to Vibe Kanban — Vibe Kanban reads the project files directly.
 

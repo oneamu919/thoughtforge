@@ -205,7 +205,7 @@ Return type varies by plugin:
 
 ### Code Builder Task Queue
 
-**Task derivation guidance:** The code builder parses the Deliverable Structure and Acceptance Criteria sections of `spec.md`. Each architectural component or feature maps to a build task. Each acceptance criterion maps to a test-writing task. The builder orders tasks by dependency (foundational components first, then features, then tests). The exact parsing and ordering logic is an implementation detail of Task 21, but must produce a deterministic task list from the same `spec.md` input — this ensures crash recovery (re-deriving the task list after restart) produces the same task ordering and can correctly identify which tasks were already completed.
+**Task derivation guidance:** The code builder parses the Deliverable Structure and Acceptance Criteria sections of `spec.md`. Each architectural component or feature maps to a build task. Each acceptance criterion maps to a test-writing task. The builder orders tasks by dependency (foundational components first, then features, then tests). The exact parsing and ordering logic is an implementation detail of Task 21, but should produce a consistent task list from the same `spec.md` input — the ordering logic must be stable so that crash recovery (re-deriving the task list after restart) produces a compatible ordering. If determinism cannot be guaranteed, the code builder should persist the derived task list to `task_queue.json` in the project directory for crash recovery.
 
 The code builder maintains an ordered list of build tasks derived from `spec.md` (e.g., implement feature X, write tests for Y). Each task has a string identifier used for stuck detection — consecutive agent invocations against the same task identifier increment the retry counter. The task list format and derivation logic are internal to the code builder and are not persisted to state files. On crash recovery, the code builder re-derives the task list from `spec.md` and the current state of files in the project directory (e.g., which source files and test files already exist).
 
@@ -432,7 +432,11 @@ interface PlanBuilderResponse {
 
 **Used by:** Task 9a (chat history persistence), Task 58l (truncation unit tests)
 
-The original brain dump messages are identified as all human messages before the first Distill button press in the chat history. During truncation, these messages are always retained at the beginning of the context, followed by the most recent messages that fit within the remaining window. Messages between the brain dump and the retained recent messages are dropped.
+**Phase 1:** The original brain dump messages are identified as all human messages before the first Distill button press in the chat history. During truncation, these messages are always retained at the beginning of the context, followed by the most recent messages that fit within the remaining window. Messages between the brain dump and the retained recent messages are dropped.
+
+**Phase 2:** Older messages are truncated while always retaining the initial AI spec proposal (same anchoring pattern as Phase 1's brain dump retention). The initial AI proposal is identified as the first AI message in the Phase 2 chat history. It is retained at the beginning of the context, followed by the most recent messages that fit within the remaining window.
+
+**Phase 3–4:** Older messages are truncated from the beginning with no anchoring message. The most recent messages that fit within the context window are retained.
 
 ---
 

@@ -57,7 +57,7 @@
 |---|------|-------|------------|----------|--------|
 | 7 | Build ThoughtForge web chat interface: core chat panel with per-project thread, AI message streaming via WebSocket, messages labeled by phase, WebSocket disconnection handling with auto-reconnect and state recovery from `status.json` and `chat_history.json` | — | Task 1a | — | Not Started |
 | 2b | Implement concurrency limit enforcement: block new project creation when active project count (all non-terminal states including `halted`) reaches `config.yaml` `concurrency.max_parallel_runs`, disable "New Project" action in sidebar with message, re-enable when a project reaches terminal state. Note: `halted` is not terminal — halted projects count toward the limit. | — | Task 2, Task 7g | — | Not Started |
-| 7g | Implement project list sidebar: list active projects with current phase, click to switch, "New Project" action | — | Task 7, Task 2 | — | Not Started |
+| 7g | Implement project list sidebar: list active projects with current phase, click to switch, "New Project" action. Include mid-stream project switch handling: when the human switches projects during AI response streaming, stop rendering the stream for the previous project. Server-side processing continues uninterrupted per design spec. | — | Task 7, Task 2 | — | Not Started |
 | 7h | Implement file/resource dropping in chat interface (upload to `/resources/`). Validate that resolved file paths stay within the project's `/resources/` directory — reject uploads with path traversal components (`..`, absolute paths). | — | Task 7 | — | Not Started |
 | 7a | Externalize all pipeline prompts to `/prompts/` directory as `.md` files (brain-dump-intake, plan-review, code-review, plan-fix, code-fix, plan-build, code-build, spec-building, completeness-gate) | — | Task 1 | — | Not Started |
 | 7b | Implement Settings button in chat interface — prompt editor that lists, views, and saves all prompt files from `/prompts/` directory | — | Task 7, Task 7a | — | Not Started |
@@ -69,7 +69,7 @@
 | 8 | Implement Phase 1: brain dump intake (including empty/trivially-short input guard — block distillation and prompt for more detail), resource reading (log and skip unreadable files, notify human, proceed with available inputs), distillation prompt (loaded from `/prompts/brain-dump-intake.md`), Phase 1 sub-state transitions in `status.json` (`brain_dump` → `distilling` on Distill button → `human_review` on distillation complete). Connector integration (Task 7c) is optional — Phase 1 functions fully without connectors. Include ambiguous deliverable type handling per design spec: when brain dump signals both Plan and Code, AI defaults to Plan and flags in Open Questions. | — | Task 6a, Task 7, Task 7a, Tasks 41–42 | — | Not Started |
 | 8a | Implement chat-message URL scanning for resource connectors: match URLs in brain dump chat messages against enabled connector URL patterns (from build spec), auto-pull matched URLs via connector layer, ignore matches for disabled connectors, pass unmatched URLs through as brain dump text | — | Task 8, Task 7c | — | Not Started |
 | 9 | Implement correction loop: chat-based revisions with AI re-presentation, and "realign from here" command (per build spec Realign Algorithm) | — | Task 8 | — | Not Started |
-| 9a | Implement `chat_history.json` persistence: append after each chat message, clear on Phase 1→2 and Phase 2→3 confirmation only (NOT on Phase 3→4 automatic transition), resume from last recorded message on crash | — | Task 3, Task 7 | — | Not Started |
+| 9a | Implement `chat_history.json` persistence: append after each chat message, clear on Phase 1→2 and Phase 2→3 confirmation only (NOT on Phase 3→4 automatic transition), resume from last recorded message on crash. Include context window truncation logic per build spec Chat History Truncation Algorithm: Phase 1 retains brain dump messages, Phase 2 retains initial AI proposal, Phase 3–4 truncate from beginning with no anchor. Log a warning when truncation occurs. | — | Task 3, Task 7 | — | Not Started |
 | 10 | Implement action buttons: Distill (Phase 1 intake trigger) and Confirm (phase advancement mechanism). Include button debounce: disable on press until operation completes, server-side duplicate request detection (ignore duplicates, return current state). | — | Task 7 | — | Not Started |
 | 11 | Implement intent.md generation and locking, project name derivation (extract from H1 or AI-generate), `deliverable_type` derivation (from Deliverable Type section of confirmed intent.md — `"plan"` or `"code"` in status.json), status.json `project_name` and `deliverable_type` update, and Vibe Kanban card name update (if enabled). Include deliverable type parse failure handling: reject values other than "Plan" or "Code", notify human in chat, do not advance. | — | Task 9, Task 2a, Task 26, Tasks 41–42 | — | Not Started |
 | 12 | Implement Phase 2: spec building per design spec Phase 2 behavior. Includes mode-specific proposal (Plan: OPA structure; Code: architecture with OSS discovery from Task 25), AI challenge of intent decisions, constraint discovery, acceptance criteria extraction, human review/override, Unknown resolution validation gate, and Confirm advancement. Prompt loaded from `/prompts/spec-building.md`. | — | Task 6a, Task 10, Task 11, Task 7a, Task 7f, Task 25, Tasks 41–42 | — | Not Started |
@@ -216,6 +216,15 @@ Each task is complete when:
 5. For tasks that depend on a "To be drafted" prompt (identified in the build spec by "Used by" references): the AI coder drafts the prompt text as the first step of the task, writes it to the `/prompts/` directory, and the human reviews and edits via the Settings UI before the task proceeds to implementation. The prompt text is committed alongside the task's implementation code.
 
 AI coders should reference the "Used by" annotations in the build spec to identify the authoritative specification for each task.
+
+### Prompt Drafting Guidelines
+
+Each "To be drafted" prompt must:
+1. Implement all behavioral requirements from the design spec section it serves (e.g., `/prompts/spec-building.md` must implement the Phase 2 autonomy principle: decide autonomously for low-risk decisions, escalate high-impact ones).
+2. Require structured output where the design spec mandates it (e.g., `PlanBuilderResponse` JSON for plan-build, review JSON for review prompts).
+3. Include the `constraints.md` re-read instruction for Phase 4 prompts (review and fix).
+4. Reference the specific Zod schema the AI's output must conform to (for review prompts).
+5. Be testable — the prompt's expected behavior should be verifiable during e2e tests (Tasks 51–53).
 
 ### Prompt Validation Strategy
 

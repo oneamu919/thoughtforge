@@ -1,101 +1,212 @@
 # Apply Review Findings from results.md
 
-You are an AI coder. Apply every change listed below to the source files. Each change is taken directly from the review findings in `docs/results.md`. Do not interpret or improvise — apply the replacements, additions, and extractions exactly as specified.
+You are an AI coder. Apply every change listed below to the source files. Each change is taken directly from the review in `docs/results.md`. Do not interpret or improvise — apply exactly what is specified.
 
-Read all target files before editing. After all changes are applied, git commit and sync to remote.
-
----
-
-## Target Files
-
-- `docs/thoughtforge-design-specification.md` (referred to as "Design Spec")
-- `docs/thoughtforge-build-spec.md` (referred to as "Build Spec")
-
-Read both files before making any edits.
+Read all three source files before making any changes:
+- `docs/thoughtforge-design-specification.md`
+- `docs/thoughtforge-build-spec.md`
+- `docs/thoughtforge-execution-plan.md`
 
 ---
 
-## SECTION 1: Replacements (Unclear Writing)
+## Section 1: Writing That's Unclear
 
-### Change 1 — Design Spec, Phase 2 Acceptance Criteria validation gate (line ~157) [Minor]
+### 1A. Design spec — Phase 1 step 9, duplicate "realign from here" paragraph [Minor]
 
-Find the validation gate text that checks for "at least 1 criterion" before Phase 2 Confirm advances to Phase 3. Replace it with:
-
-> Before Phase 2 Confirm advances to Phase 3, the orchestrator validates that the Acceptance Criteria section of the proposed `constraints.md` contains at least 5 criteria (the minimum of the 5–10 target range). If the section contains fewer than 5, the Confirm button is blocked and the AI prompts the human: "At least 5 acceptance criteria are required before proceeding (current: {N}). Add criteria or confirm the AI's proposed set."
-
-Alternatively, if the rest of the spec implies a true floor of 1, change the "5–10" language in both the Phase 2 behavior (line ~149) and `constraints.md` structure (line ~210) to "at least 1, target 5–10" so they are consistent. Pick whichever approach aligns with the spec's existing intent.
+**File:** `docs/thoughtforge-design-specification.md`
+**Location:** Phase 1 step 9
+**Action:** Delete the second paragraph that begins with "The human types 'realign from here' in chat to trigger a re-distillation..." entirely. Keep the first paragraph that begins with "Human can type 'realign from here'". The clause about "messages containing the phrase alongside other text" is already covered in the build spec's exact-match rule and should not appear in the design spec.
 
 ---
 
-### Change 2 — Build Spec, Code plugin builder return type (line ~185) [Minor]
+### 1B. Design spec — Phase 1 step 3, duplicate connector URL identification text [Minor]
 
-Find the Code plugin's builder return type in the Plugin Interface Contract. Replace the return type description so it no longer includes a `stuck` field. Use this text:
+**File:** `docs/thoughtforge-design-specification.md`
+**Location:** Phase 1 step 3, the "Step 3 Detail — Connector URL Identification" sub-section
+**Action:** Replace the entire sub-section content with this single block:
 
-> **Code plugin** returns `Promise<{ success: boolean, reason?: string }>` — `success` is `false` when the current task invocation failed. The orchestrator tracks consecutive failures per task identifier and determines stuck status externally (2 consecutive non-zero exits on the same task, or 3 consecutive identical test failures). The `stuck` flag pattern is Plan-mode-only.
-
----
-
-### Change 3 — Design Spec, Phase 1 sub-state transition (after line ~89) [Minor]
-
-After step 6 in the Phase 1 flow description ("AI distills into structured document"), add:
-
-> When the AI completes distillation and presents the result in chat, `status.json` transitions from `distilling` to `human_review`. This signals that the AI has finished processing and is awaiting human corrections.
+> **Step 3 Detail — Connector URL Identification:** The AI matches URLs in chat messages against known URL patterns for each enabled connector and pulls content automatically. URL matching rules (enabled/disabled/unmatched behavior) are in the build spec.
 
 ---
 
-### Change 4 — Design Spec, Vibe Kanban git worktree isolation row (line ~468) [Minor]
+### 1C. Design spec — Phase 1 step 0, misplaced "Project Name Derivation" paragraph [Minor]
 
-Find the Vibe Kanban feature table row about "Git worktree isolation." Replace the row content with:
-
-> | Git worktree isolation | VK manages worktree-based isolation for its internal task execution. ThoughtForge's per-project git repos (created at project initialization) are independent of VK's worktree model. VK operates within the project's existing repo when executing agent work. |
-
----
-
-## SECTION 2: Additions (Missing Plan-Level Content)
-
-### Change 5 — Design Spec, Phase 3 error handling table: Template selection failure [Major]
-
-Find the Phase 3 error handling table (near line ~280). Add a new row:
-
-> | Type-specific template not found but `generic.hbs` exists | Log a warning: "No template found for plan type '{type}'. Using generic template." Notify the human in chat. Proceed with `generic.hbs`. |
+**File:** `docs/thoughtforge-design-specification.md`
+**Location:** Phase 1 step 0
+**Action:** Move the "Project Name Derivation" paragraph from Phase 1 step 0 to after Phase 1 step 11b (where deliverable type is derived). In its original location in step 0, add a forward-reference: "Project name is derived later during Phase 1 — see step 11."
 
 ---
 
-### Change 6 — Design Spec, Phase 2 error handling table: Crash recovery [Major]
+### 1D. Design spec — Locked File Behavior, wall of text for spec.md/intent.md [Minor]
 
-Find the Phase 2 error handling table. Add a new row:
+**File:** `docs/thoughtforge-design-specification.md`
+**Location:** Locked File Behavior section, the bullet point covering `spec.md` and `intent.md`
+**Action:** Replace the single bullet with these sub-bullets:
 
-> | Server crash during Phase 2 conversation | On restart, `status.json` phase is `spec_building` (an interactive state — not auto-halted per Server Restart Behavior). Chat resumes from the last recorded message in `chat_history.json`. The AI re-reads `intent.md` and the chat history to reconstruct the spec-in-progress, then re-presents the current proposal for human review. |
-
----
-
-## SECTION 3: Extractions (Move Implementation Details from Design Spec to Build Spec)
-
-### Change 7 — Design Spec, `PlanBuilderResponse` inline schema (line ~255–256) [Minor]
-
-Find the stuck detection table row for Plan mode that references `PlanBuilderResponse` and describes its fields (`stuck: boolean`, `reason` field). Replace it with:
-
-> | Plan | AI includes a stuck signal in every builder response. When the AI reports stuck, the orchestrator halts and notifies with the AI's stated reason. Response schema in build spec (`PlanBuilderResponse`). | Notify and wait |
+> - **`spec.md` and `intent.md` (static after creation):**
+>   - Read once at Phase 3 start. Not re-read during later phases.
+>   - Manual human edits during active pipeline execution have no effect — the pipeline works from its in-memory copy.
+>   - On server restart, in-memory copies are discarded. When a halted Phase 4 project is resumed, the orchestrator re-reads both files from disk. If the human edited them while the project was halted, the resumed pipeline uses the edited versions.
+>   - There is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits to any locked file.
 
 ---
 
-### Change 8 — Design Spec, inline button behavior descriptions [Minor]
+### 1E. Design spec — Convergence Guards table, Stagnation guard cell [Minor]
 
-In these Design Spec sections, remove the inline button behavior descriptions (including `status.json` effects and confirmation requirements) and replace each with a reference line:
+**File:** `docs/thoughtforge-design-specification.md`
+**Location:** Convergence Guards table, the Stagnation guard's "Condition" cell
+**Action:** Simplify the table cell to:
 
-- Phase 3 Stuck Recovery section
-- Phase 4 Halt Recovery section
-- Plan Completeness Gate section
+> Same total error count for a configured number of consecutive iterations (stagnation limit), AND issue rotation detected (old issues resolved, new issues introduced at the same rate). When both conditions are true, the deliverable has reached a quality plateau. Severity composition shifts at the same total still qualify as stagnation if rotation threshold is also met. Parameters in build spec.
 
-Replace the inline descriptions in each with:
+Move the detailed explanation currently in that cell (rotation threshold, similarity measure, "the reviewer is cycling through cosmetic issues") to a new subsection below the Convergence Guards table.
 
-> Button behavior and `status.json` effects are specified in the build spec Action Button Behavior inventory.
+---
+
+### 1F. Design spec — Convergence Guards table, Fabrication guard inline arithmetic [Minor]
+
+**File:** `docs/thoughtforge-design-specification.md`
+**Location:** Convergence Guards table, the Fabrication guard's "Condition" cell
+**Action:** Replace the cell content with:
+
+> A severity category spikes significantly above its trailing average (window size defined in build spec), AND in at least one prior iteration, every severity category was at or below twice its convergence threshold (i.e., critical ≤ 2 × `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max`). These multipliers are derived from `config.yaml` at runtime, not hardcoded. This ensures fabrication is only flagged after the deliverable was near-converged. Parameters in build spec.
+
+Remove the parenthetical "(using default config: ≤0 critical, ≤6 medium, ≤10 minor)" from the cell.
+
+---
+
+### 1G. Build spec — Code Builder Task Queue, determinism claim [Minor]
+
+**File:** `docs/thoughtforge-build-spec.md`
+**Location:** Code Builder Task Queue section
+**Action:** Find "must produce a deterministic task list from the same `spec.md` input" and replace with:
+
+> should produce a consistent task list from the same `spec.md` input — the ordering logic must be stable so that crash recovery (re-deriving the task list after restart) produces a compatible ordering. If determinism cannot be guaranteed, the code builder should persist the derived task list to `task_queue.json` in the project directory for crash recovery.
+
+---
+
+## Section 2: Genuinely Missing Plan-Level Content
+
+### 2A. [CRITICAL] Design spec — Add Fix Regression Guard
+
+**File:** `docs/thoughtforge-design-specification.md`
+**Location:** Convergence Guards section, insert as a new guard between Termination Success and Hallucination (position 1.5 in the guard evaluation order)
+**Action:** Add this new guard:
+
+> **Fix Regression Guard (per-iteration):** After each fix step, if the total error count increases compared to the review that prompted the fix (i.e., the fix made things worse), log a warning. If the fix step increases total errors for 2 consecutive iterations, halt and notify: "Fix step is introducing more issues than it resolves. Review needed." This guard evaluates per-iteration, not per-trend, and fires before the trend-based guards.
+
+---
+
+### 2B. [MAJOR] Execution plan — Add Prompt Drafting Guidelines section
+
+**File:** `docs/thoughtforge-execution-plan.md`
+**Location:** New section after "Task Acceptance Criteria"
+**Action:** Add this new section:
+
+> ### Prompt Drafting Guidelines
+>
+> Each "To be drafted" prompt must:
+> 1. Implement all behavioral requirements from the design spec section it serves (e.g., `/prompts/spec-building.md` must implement the Phase 2 autonomy principle: decide autonomously for low-risk decisions, escalate high-impact ones).
+> 2. Require structured output where the design spec mandates it (e.g., `PlanBuilderResponse` JSON for plan-build, review JSON for review prompts).
+> 3. Include the `constraints.md` re-read instruction for Phase 4 prompts (review and fix).
+> 4. Reference the specific Zod schema the AI's output must conform to (for review prompts).
+> 5. Be testable — the prompt's expected behavior should be verifiable during e2e tests (Tasks 51–53).
+
+---
+
+### 2C. [MAJOR] Design spec — Add Phase 3 Stuck Recovery "Provide Input" flow
+
+**File:** `docs/thoughtforge-design-specification.md`
+**Location:** Phase 3 Stuck Recovery section, after the two-option description (Provide Input / Skip Task)
+**Action:** Add this paragraph:
+
+> **Provide Input Flow:** When the human clicks Provide Input and submits text, the orchestrator appends the human's message to `chat_history.json` and re-invokes the builder's current stuck task with the original prompt context plus the human's input appended as additional guidance. The builder's retry counter for the stuck task is reset — the human's input constitutes a new attempt, not a continuation of the failure sequence. If the builder remains stuck after receiving human input, stuck detection resumes from count 0 for that task.
+
+---
+
+### 2D. [MAJOR] Design spec — Add Graceful Shutdown behavior
+
+**File:** `docs/thoughtforge-design-specification.md`
+**Location:** Technical Design section, immediately after the "Server Restart Behavior" subsection
+**Action:** Add this new subsection:
+
+> **Graceful Shutdown:** On `SIGTERM` or `SIGINT`, the server stops accepting new operations and waits for any in-progress agent subprocess to complete (up to the configured `agents.call_timeout_seconds`). If the subprocess completes, the current iteration's state is written normally and `status.json` remains in its current phase. If the timeout expires, the subprocess is killed, the current iteration is abandoned (no state written), and the project is left in its last committed state. The server then exits. On next startup, the standard Server Restart Behavior applies.
+
+---
+
+### 2E. Design spec — Add Kanban column clarification for Phase 2 [Minor]
+
+**File:** `docs/thoughtforge-design-specification.md`
+**Location:** UI section, Kanban column mapping
+**Action:** Add this note after the Kanban column mapping:
+
+> Phase 2 uses a single `spec_building` state for both AI proposal and human correction cycles. On the Kanban board, the card remains in the Spec Building column for the duration of Phase 2. The halted indicator (if the project is halted during Phase 2) provides the only visual distinction. If finer-grained Phase 2 status visualization is needed, it is deferred.
+
+---
+
+### 2F. Execution plan — Add mid-stream project switch handling to Task 7g [Minor]
+
+**File:** `docs/thoughtforge-execution-plan.md`
+**Location:** Build Stage 2, Task 7g description
+**Action:** Append to the task description:
+
+> Include mid-stream project switch handling: when the human switches projects during AI response streaming, stop rendering the stream for the previous project. Server-side processing continues uninterrupted per design spec.
+
+---
+
+### 2G. Execution plan — Add truncation logic to Task 9a [Minor]
+
+**File:** `docs/thoughtforge-execution-plan.md`
+**Location:** Task 9a description
+**Action:** Append to the task description:
+
+> Include context window truncation logic per build spec Chat History Truncation Algorithm: Phase 1 retains brain dump messages, Phase 2 retains initial AI proposal, Phase 3–4 truncate from beginning with no anchor. Log a warning when truncation occurs.
+
+---
+
+## Section 3: Build Spec Material That Should Be Extracted
+
+### 3A. Design spec — Realign algorithm overlap removal [Minor]
+
+**File:** `docs/thoughtforge-design-specification.md`
+**Location:** Phase 1 step 9
+**Action:** After applying change 1A above, further simplify the remaining realign description so the design spec only says:
+
+> Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons), this is a chat-parsed command that discards messages after the most recent substantive human correction and re-distills. Matching rules and algorithm in build spec.
+
+Remove any remaining implementation-level matching logic from the design spec for this feature.
+
+---
+
+### 3B. [MAJOR] Design spec — Extract truncation algorithm details to build spec
+
+**File:** `docs/thoughtforge-design-specification.md`
+**Location:** `chat_history.json` Error Handling section (or wherever the truncation behaviors per phase are described)
+**Action:** Replace the three phase-specific truncation descriptions:
+- "Phase 1: older messages truncated while always retaining the original brain dump and the most recent messages."
+- "Phase 2: older messages are truncated while always retaining the initial AI spec proposal."
+- "Phase 3–4: older messages are truncated from the beginning with no anchoring message."
+
+With this single paragraph:
+
+> If a phase's chat history exceeds the agent's context window, the agent invocation layer truncates older messages using phase-specific anchoring rules. Truncation algorithms per phase are defined in the build spec. A warning is logged when truncation occurs.
+
+Verify the build spec already contains the full truncation algorithm details (Phase 1 retains brain dump, Phase 2 retains initial proposal, Phase 3-4 no anchoring). If not, add them there.
+
+---
+
+## Items Confirmed Correct (No Action Needed)
+
+These were reviewed and require no changes:
+- Design spec, Phase 1 step 0 — Project ID format: already correctly split between design spec and build spec.
+- Design spec, Agent Communication — shell safety rule: correctly present in both specs at appropriate abstraction levels.
+- Design spec, WebSocket Disconnection — reconnection behavior: acceptable as design-level requirement.
 
 ---
 
 ## After All Changes Are Applied
 
-1. Re-read each modified file to confirm no formatting is broken (unclosed tables, orphaned headers, broken markdown).
+1. Re-read each modified file to verify no formatting was broken and all changes were applied correctly.
 2. `git status -u` — verify all modified files.
 3. `git diff --stat` — confirm changes.
 4. Git add only the files you modified.
