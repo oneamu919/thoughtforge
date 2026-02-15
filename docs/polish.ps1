@@ -112,6 +112,8 @@ if (Test-Path $COUNTER_FILE) {
     Send-Notify "[STARTED] Polish loop running (max $MaxIterations iterations)"
 }
 
+$retries = 0
+
 while ($count -lt $MaxIterations) {
     $count++
     $count | Set-Content -Path $COUNTER_FILE
@@ -163,7 +165,8 @@ while ($count -lt $MaxIterations) {
         Send-Notify $iterLine
         Log-Iteration $iterLine
         Write-Status
-    } else {
+        $retries = 0
+    } elseif ($checkResult -match 'result:\s*false') {
         # Converged
         $iterTime = $reviewTime + $checkTime
         $iterLine = "Iteration $count`: Critical: $($counts.Critical), Major: $($counts.Major), Minor: $($counts.Minor) ($(Format-Duration $iterTime)) (Review: $(Format-Duration $reviewTime), Check: $(Format-Duration $checkTime))"
@@ -186,6 +189,16 @@ while ($count -lt $MaxIterations) {
         Write-Host "  CONVERGED at iteration $count"
         Write-Host "========================================================"
         exit 0
+    } else {
+        # Unexpected result -- bad results.md, re-run review
+        $retries++
+        if ($retries -ge 3) {
+            Send-Notify "[POLISH STOPPED] results.md failed validation 3 times at iteration $count. CC2 output: $checkResult"
+            exit 1
+        }
+        Send-Notify "[RETRY] results.md was invalid at iteration $count (attempt $retries/3), re-running review..."
+        $count--
+        continue
     }
 }
 
