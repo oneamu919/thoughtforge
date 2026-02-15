@@ -20,6 +20,8 @@
 
 **Pre-build decision: Test framework.** Choose Vitest or Jest before Task 1 begins. Both are compatible. Vitest is recommended for ESM-native support and faster execution with TypeScript projects (no separate compilation step for tests).
 
+**TypeScript execution model:** ThoughtForge runs via `tsx` (or `ts-node`) during development and compiles to JavaScript via `tsc` for production deployment. Vitest handles TypeScript natively for tests (no separate compilation step). The `package.json` `start` script runs the compiled output; a `dev` script runs via `tsx` for live development.
+
 ---
 
 ## Task Breakdown
@@ -190,9 +192,9 @@
 
 The longest dependency chain determines the minimum build duration regardless of parallelism:
 
-**Task 1 → Task 41 → Task 42 → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 6c → Task 30 → Tasks 33–37 → Task 51**
+**Task 1 → Task 41 → Task 42 → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 6c → Task 30 → Tasks 33–37 → Task 51**
 
-Note: Task 15 (plan builder) is not on the critical path — it runs in parallel with the Phase 1–2 human interaction chain and must complete before Task 51 (e2e test), but it does not gate Task 30. Task 30 depends on Task 6c (Phase 3→4 transition), which depends on Tasks 5, 6a, and 7. Task 6c is the critical dependency entering the polish loop.
+Note: Task 13 is not a declared code dependency of Task 6c, but Task 6c cannot be meaningfully tested without Phase 2 outputs (spec.md, constraints.md) existing. Task 15 (plan builder) must complete before Task 6c can be exercised in Plan mode. The critical path reflects the functional chain, not just the task-level code dependencies.
 
 This chain runs from foundation through agent layer, human interaction, plan plugin, polish loop, to plan-mode e2e validation.
 
