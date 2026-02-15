@@ -56,7 +56,18 @@ Handlebars templates define the OPA skeleton — fixed section headings with OPA
 
 **Primary Flow:**
 
-0. **Project Initialization:** Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project" command or button). ThoughtForge generates a unique project ID (used as the directory name and as `project_id` in notifications — not stored in `status.json` since it is always derivable from the project directory path), creates the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories), initializes a git repo, writes an initial `status.json` with phase `brain_dump` and `project_name` as empty string, and opens a new chat thread. During Phase 1 distillation, the AI determines the project name: it uses the first heading (H1) of the distilled document. If no H1 heading is present, the AI generates a short descriptive name (2-4 words) from the brain dump content and includes it as the H1 heading. When intent.md is written and locked, the project name is extracted from its H1 heading and written to status.json. If Vibe Kanban is enabled, the card name is updated at the same time. If Vibe Kanban integration is enabled, a corresponding card is created at this point.
+0. **Project Initialization:**
+
+   Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project" command or button). The following operations execute in order:
+
+   1. Generate a unique project ID (used as the directory name and as `project_id` in notifications — not stored in `status.json` since it is always derivable from the project directory path)
+   2. Create the `/projects/{id}/` directory structure (including `/docs/` and `/resources/` subdirectories)
+   3. Initialize a git repo in the project directory
+   4. Write an initial `status.json` with phase `brain_dump` and `project_name` as empty string
+   5. If Vibe Kanban integration is enabled, create a corresponding Kanban card
+   6. Open a new chat thread for the project
+
+   **Project Name Derivation (during Phase 1 distillation):** The AI uses the first heading (H1) of the distilled document. If no H1 heading is present, the AI generates a short descriptive name (2-4 words) from the brain dump content and includes it as the H1 heading. When `intent.md` is written and locked, the project name is extracted from its H1 heading and written to `status.json`. If Vibe Kanban is enabled, the card name is updated at the same time.
 
 **Agent Assignment:** The agent specified in `config.yaml` `agents.default` is assigned to the project at initialization and stored in `status.json` as the `agent` field. This determines which AI agent is used for all pipeline phases. Per-project agent override is deferred — not a current build dependency.
 
@@ -184,7 +195,7 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 
 | Mode | Stuck Condition | Action |
 |---|---|---|
-| Plan | AI returns a JSON response containing a `stuck` boolean, an optional `reason` string (required when stuck), and a `content` string (required when not stuck — contains the drafted document content; absent when stuck). The orchestrator parses this JSON to detect stuck status. Schema in build spec (`PlanBuilderResponse`). | Notify and wait |
+| Plan | AI returns a JSON response. The orchestrator parses this JSON to detect stuck status. Response schema (`PlanBuilderResponse`) defined in build spec. | Notify and wait |
 | Code | Build agent returns non-zero exit after 2 consecutive retries on the same task, OR test suite fails on the same tests for 3 consecutive fix attempts | Notify and wait |
 
 **Phase 3 Stuck Recovery:**
@@ -222,9 +233,9 @@ Recovery follows the same confirmation model as Phase 4: explicit button presses
 
 **Each Iteration — Two Steps:**
 
-**Step 1 — Review (do not fix):** AI reviews scoped deliverable + `constraints.md` (including acceptance criteria). Outputs ONLY a JSON error report. Does not fix anything.
+**Step 1 — Review (do not fix):** AI reviews scoped deliverable + `constraints.md` (including acceptance criteria). Outputs ONLY a JSON error report. Does not fix anything. Git commit after review (captures the review JSON).
 
-**Step 2 — Fix (apply recommendations):** Orchestrator passes JSON issue list to fixer agent, which applies fixes. Git commit snapshot after each step.
+**Step 2 — Fix (apply recommendations):** Orchestrator passes JSON issue list to fixer agent, which applies fixes. Git commit after fix (captures applied fixes).
 
 **Code Mode Iteration Cycle:** Code mode adds a test execution step to each iteration. The full cycle is: (1) Orchestrator runs tests via the code plugin's `test-runner.js` and captures results. (2) Review — orchestrator passes the test results as additional context to the reviewer AI alongside the codebase and `constraints.md`. Reviewer outputs JSON error report including test results. (3) Fix — orchestrator passes issue list to fixer agent. Git commit after fix. This three-step cycle repeats until a convergence guard triggers. Plan mode iterations use the two-step cycle (Review → Fix) with no test execution.
 
@@ -273,7 +284,14 @@ When a Code mode pipeline starts and a plan document is detected in `/resources/
 
 **Completeness signals (prompt guidance, not a scored rubric):** OPA Framework structure present, specific objectives (not vague), decisions made (not options listed), enough detail to build without guessing, acceptance criteria defined, no TBD/placeholders, clear scope boundaries, dependencies listed.
 
-If the AI recommends fail: ThoughtForge halts the Code mode pipeline, sets `status.json` to `halted` with reason `plan_incomplete`, and notifies the human with the AI's reasoning. The human can either override (proceed with Code mode despite the incomplete plan) or create a new Plan mode project manually to refine the plan first. ThoughtForge does not automatically create projects on the human's behalf.
+If the AI recommends fail: ThoughtForge halts the Code mode pipeline, sets `status.json` to `halted` with reason `plan_incomplete`, and notifies the human with the AI's reasoning. The chat interface presents two action buttons:
+
+| Option | What Happens |
+|---|---|
+| Override | Human proceeds with Code mode despite the incomplete plan. Status set back to `building`. |
+| Terminate | Human stops the project. Status set to `halted` permanently. The human may create a new Plan mode project manually to refine the plan first. |
+
+These follow the same confirmation model as other recovery interactions — explicit button presses, not chat-parsed commands. Terminate requires a single confirmation step. ThoughtForge does not automatically create projects on the human's behalf.
 
 **Plan → Code Chaining Workflow:** To chain a completed plan into a code pipeline, the human creates a new project and places the finished plan document into the new project's `/resources/` directory. The new project proceeds through Phase 1 as normal — the plan document is one of the resources the AI reads during brain dump intake. At Phase 3 entry, the Plan Completeness Gate evaluates the plan and either proceeds or redirects as described above. The two projects are independent — separate project IDs, directories, git repos, and pipeline states.
 
