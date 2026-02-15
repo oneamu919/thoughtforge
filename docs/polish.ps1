@@ -19,6 +19,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 $TELEGRAM_TOKEN   = $env:TELEGRAM_TOKEN
 $TELEGRAM_CHAT_ID = $env:TELEGRAM_CHAT_ID
 $COUNTER_FILE     = "reviewcount.txt"
+$STATUS_FILE      = "polish-status.md"
 $scriptDir        = $PSScriptRoot
 
 function Send-Notify($message) {
@@ -45,12 +46,34 @@ function Parse-Counts($text) {
     return @{ Critical = $c; Major = $ma; Minor = $mi }
 }
 
+function Write-Status {
+    $status = "# Polish Status`n"
+    if ($script:converged) {
+        $status += "CONVERGED at iteration $($script:count)/$MaxIterations`n"
+    } elseif ($script:hitMax) {
+        $status += "MAX ITERATIONS reached at $($script:count)/$MaxIterations`n"
+    } else {
+        $status += "Running: iteration $($script:count)/$MaxIterations`n"
+    }
+    $status += "`n## Progress`n"
+    foreach ($entry in $script:iterationLog) {
+        $status += "$entry`n"
+    }
+    $totalTime = $script:totalReview + $script:totalCheck + $script:totalApply
+    $status += "`n## Totals`n"
+    $status += "Elapsed: $(Format-Duration $totalTime) (Review: $(Format-Duration $script:totalReview), Check: $(Format-Duration $script:totalCheck), Apply: $(Format-Duration $script:totalApply))`n"
+    $status | Set-Content -Path $STATUS_FILE -Encoding UTF8
+}
+
 # -- Timing accumulators --
 $totalReview = [TimeSpan]::Zero
 $totalCheck  = [TimeSpan]::Zero
 $totalApply  = [TimeSpan]::Zero
 $firstCounts = $null
 $lastCounts  = $null
+$iterationLog = @()
+$converged = $false
+$hitMax = $false
 
 if (Test-Path $COUNTER_FILE) {
     $count = [int](Get-Content $COUNTER_FILE)
@@ -107,11 +130,18 @@ while ($count -lt $MaxIterations) {
         Send-Notify "[APPLY] $(Format-Duration $applyTime)"
 
         $iterTime = $reviewTime + $checkTime + $applyTime
-        Send-Notify "Iteration $count`: Critical: $($counts.Critical), Major: $($counts.Major), Minor: $($counts.Minor) ($(Format-Duration $iterTime))"
+        $iterLine = "Iteration $count`: Critical: $($counts.Critical), Major: $($counts.Major), Minor: $($counts.Minor) ($(Format-Duration $iterTime))"
+        Send-Notify $iterLine
+        $iterationLog += $iterLine
+        Write-Status
     } else {
         # Converged
         $iterTime = $reviewTime + $checkTime
-        Send-Notify "Iteration $count`: Critical: $($counts.Critical), Major: $($counts.Major), Minor: $($counts.Minor) ($(Format-Duration $iterTime))"
+        $iterLine = "Iteration $count`: Critical: $($counts.Critical), Major: $($counts.Major), Minor: $($counts.Minor) ($(Format-Duration $iterTime))"
+        Send-Notify $iterLine
+        $iterationLog += $iterLine
+        $converged = $true
+        Write-Status
 
         $totalTime = $totalReview + $totalCheck + $totalApply
         if (Test-Path $COUNTER_FILE) { Remove-Item $COUNTER_FILE }
@@ -130,6 +160,9 @@ while ($count -lt $MaxIterations) {
 }
 
 # -- Max iterations --
+$hitMax = $true
+Write-Status
+
 $totalTime = $totalReview + $totalCheck + $totalApply
 if (Test-Path $COUNTER_FILE) { Remove-Item $COUNTER_FILE }
 
