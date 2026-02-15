@@ -206,6 +206,17 @@ Return type varies by plugin:
 
 The code builder persists the initial task list to `task_queue.json` in the project directory at derivation time. On crash recovery, the builder re-reads `task_queue.json` rather than re-deriving from `spec.md`, ensuring deterministic task ordering across restarts.
 
+```typescript
+interface TaskQueueEntry {
+  id: string;           // Unique task identifier (e.g., "task_1", "task_2")
+  description: string;  // What this task builds (derived from spec.md)
+  status: "pending" | "in_progress" | "completed" | "failed";
+  attempts: number;     // Consecutive failure count for stuck detection
+}
+
+type TaskQueue = TaskQueueEntry[];
+```
+
 ### Operation Type Taxonomy
 
 Every orchestrator action in Phase 3/4 is classified into one of these operation types before calling `safety-rules.js` `validate()`:
@@ -437,6 +448,14 @@ Phase 3 plan builder responses must conform to the `PlanBuilderResponse` schema.
 **Used by:** Task 30 (polish loop orchestrator — fix step context assembly)
 
 Location fields in the issue JSON are parsed as relative paths from the project root. Line numbers (if present) are stripped before file lookup. The fix agent receives the full content of each referenced file alongside the issue list.
+
+---
+
+## Code Mode Review Context Assembly Strategy
+
+**Used by:** Task 30 (polish loop orchestrator — Code mode review step context assembly)
+
+The review agent receives full source for small codebases, or a file manifest plus git diff for larger codebases. For codebases that fit within the agent's context window, the full source is included. For larger codebases, the reviewer receives a file manifest (list of all source files with sizes) plus the content of files that changed since the last iteration (identified via `git diff`).
 
 ---
 
@@ -779,7 +798,8 @@ Each iteration is appended as a Markdown section:
   },
   "devDependencies": {
     "typescript": "^5.x",
-    "vitest": "^1.x"
+    "vitest": "^1.x",
+    "tsx": "^4.x"
   }
 }
 ```
@@ -804,7 +824,7 @@ polish:
   stagnation_limit: 3
   retry_malformed_output: 2
 
-# Parallel execution (managed by Vibe Kanban)
+# Parallel execution (enforced by ThoughtForge orchestrator)
 concurrency:
   max_parallel_runs: 3
 
@@ -821,7 +841,7 @@ notifications:
       url: "https://ntfy.sh"
       topic: "thoughtforge"
     telegram:
-      enabled: false
+      enabled: false   # Reserved for future implementation — not built in v1
       bot_token: ""
       chat_id: ""
 
@@ -948,6 +968,14 @@ If `constraints.md` combined with other review context (deliverable content, tes
 
 ---
 
+## Plan Builder Context Window Truncation Strategy
+
+**Used by:** Task 15 (plan builder)
+
+When the partially-filled template exceeds the context window during multi-invocation plan building, the builder passes only the current section's OPA table slot, the `spec.md` context for that section, and the immediately preceding section (for continuity) — not the full partially-filled template.
+
+---
+
 ## `spec.md` Structure
 
 **Used by:** Task 13 (spec and constraints generation)
@@ -1011,7 +1039,7 @@ Same structure as Plan mode, except:
 {Plan mode: sections/topics in scope. Code mode: files/functions in scope.}
 
 ## Acceptance Criteria
-{5–10 statements of what the deliverable must contain or do}
+{At least 1 (enforced at creation), target 5–10 statements of what the deliverable must contain or do}
 ```
 
 ---

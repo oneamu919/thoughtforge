@@ -22,6 +22,8 @@
 
 **Pre-build decision: Test framework.** Choose Vitest or Jest before Task 1 begins. Both are compatible. Vitest is recommended for ESM-native support and faster execution with TypeScript projects (no separate compilation step for tests).
 
+**Pre-build decision: Levenshtein implementation.** Decide before Task 35 whether to install `fastest-levenshtein` (add to dependencies) or implement the ~15-line algorithm inline in the stagnation guard module. Inline is recommended to avoid an external dependency for a trivial algorithm.
+
 **TypeScript execution model:** ThoughtForge runs via `tsx` (or `ts-node`) during development and compiles to JavaScript via `tsc` for production deployment. Vitest handles TypeScript natively for tests (no separate compilation step). The `package.json` `start` script runs the compiled output; a `dev` script runs via `tsx` for live development.
 
 ---
@@ -130,7 +132,7 @@
 | 31 | Implement Zod validation flow (safeParse, retry on failure, halt after max retries) | — | Task 30 | — | Not Started |
 | 32 | Implement count derivation from issues array (ignore top-level counts) — extends Task 30 orchestrator | — | Task 30 | — | Not Started |
 | 33 | Implement convergence guard: termination (success) | — | Task 30 | — | Not Started |
-| 33a | Implement convergence guard: fix regression (per-iteration check — compare post-fix error count to pre-fix review count, warn on single occurrence, halt on 2 consecutive regressions). Evaluated immediately after each fix step, before other guards. | — | Task 30 | — | Not Started |
+| 33a | Implement convergence guard: fix regression (per-iteration check — compare current iteration's review error count to prior iteration's review error count, warn on single increase, halt on 2 consecutive increases). Evaluated after each review step, before other convergence guards. | — | Task 30 | — | Not Started |
 | 34 | Implement convergence guard: hallucination detection | — | Task 30 | — | Not Started |
 | 35 | Implement convergence guard: stagnation (count + issue rotation via Levenshtein) | — | Task 30 | — | Not Started |
 | 36 | Implement convergence guard: fabrication detection | — | Task 30 | — | Not Started |
@@ -189,6 +191,7 @@
 | 50c | Unit tests: operational logging module (log file creation, structured JSON format, log levels, event types, file append failure handling) | — | Task 3a | — | Not Started |
 | 58l | Unit tests: chat history truncation (Phase 1 truncation retains brain dump messages, drops middle messages, retains recent; Phase 2 truncation retains initial proposal; warning logged on truncation; empty history handled; history below window size passed through unchanged) | — | Task 9a | — | Not Started |
 | 58m | Unit tests: OSS discovery scorecard (8-signal evaluation, red flag detection on Age/Last Updated/License, minimum 6-of-8 qualification threshold, handles missing signal data gracefully) | — | Task 25 | — | Not Started |
+| 58n | Unit tests: Code mode task queue (`task_queue.json` persistence, crash recovery resumes from correct task, completed tasks not re-executed, corrupted file halts with notification) | — | Task 21 | — | Not Started |
 
 ---
 
@@ -200,7 +203,7 @@ The longest dependency chain determines the minimum build duration regardless of
 
 Tasks in brackets are parallel branches that must all complete before Task 6a can begin. The longest of these branches (41 → 42) determines the critical path duration.
 
-The functional critical path includes Task 13 → Task 15 → Task 6c even though Task 6c's code dependency is on Task 6a, because Phase 3→4 transition cannot be exercised without Phase 2 outputs (spec.md, constraints.md) and a Phase 3 builder producing deliverables.
+The functional critical path extends beyond the declared code dependencies. While Task 6c's code dependencies are Tasks 5, 6a, and 7, the Phase 3→4 transition cannot be end-to-end exercised without Phase 2 outputs (Task 13: `spec.md`, `constraints.md`) and a Phase 3 builder (Task 15 for Plan mode, Task 21 for Code mode). The exercisable critical path is therefore: Task 1 → [Task 41 → Task 42 | Task 2 → Task 3 | Task 6] → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 30 → Tasks 33–37 → Task 51. Task 6c is on this chain implicitly — its code can be built after Task 6a, but cannot be validated until Task 15 produces deliverables.
 
 This chain runs from foundation through agent layer, human interaction, plan plugin, polish loop, to plan-mode e2e validation.
 
@@ -212,7 +215,7 @@ Build schedule and parallelism decisions should optimize for keeping the critica
 
 The following task groups can be executed concurrently:
 - **After Task 1:** Stage 1 foundation (Tasks 2–6a, 3a, 4–5) and Stage 7 agent layer (Tasks 41–44) — no cross-dependencies
-- **After Tasks 41–42:** All prompt drafting tasks (7a, 7f, 6e, 15a, 21a, 30a, 30b) — depend only on Task 7a
+- **After Task 1 (via Task 7a):** All prompt drafting tasks (7f, 6e, 15a, 21a, 30a, 30b) — depend only on Task 7a, which depends on Task 1. These can be parallelized with Stage 7.
 - **After Task 6:** Stage 3 (Tasks 14–18) and Stage 4 (Tasks 20, 22–25) — independent plugin implementations
 - **After Task 26:** Task 27 (VK operations) and Task 29a (VK-disabled fallback) — independent paths
 - **Stage 8 unit tests:** All unit test tasks within a stage are independent and can run in parallel once their source tasks complete

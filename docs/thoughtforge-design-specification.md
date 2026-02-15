@@ -236,7 +236,7 @@ Plan mode always invokes agents directly via the agent communication layer, rega
 
 **Partial Plan Build Recovery:** If the plan builder halts mid-template (agent failure on section N of M), the orchestrator commits the partially-filled template before halting. On resume, the builder re-reads the partially-filled template from disk, identifies which sections are complete (non-empty, non-placeholder content), and resumes from the first incomplete section. Already-filled sections are not re-generated.
 
-**Template Context Window Overflow:** If the partially-filled template exceeds the agent's context window during multi-invocation plan building, the builder passes only the current section's OPA table slot, the `spec.md` context for that section, and the immediately preceding section (for continuity) — not the full partially-filled template. A warning is logged when truncation occurs. The full template is reassembled from the individually-filled sections after all invocations complete.
+**Template Context Window Overflow:** If the partially-filled template exceeds the agent's context window, the builder truncates context to fit. Truncation strategy is defined in the build spec. A warning is logged when truncation occurs. The full template is reassembled from the individually-filled sections after all invocations complete.
 
 **Template Content Escaping:** AI-generated content must not break template rendering. Template content escaping strategy is defined in the build spec.
 
@@ -315,6 +315,8 @@ Button behavior and `status.json` effects are specified in the build spec Action
 |---|---|
 | Phase 3 builder reports success but expected output files are missing (Plan mode: no `.md` deliverable in `/docs/`; Code mode: no source files in project directory) | Halt. Set `status.json` to `halted` with `halt_reason: "phase3_output_missing"`. Notify human: "Phase 3 reported success but deliverable files are missing. Review project directory." Do not enter Phase 4. |
 | Phase 3 output exists but is empty or trivially small (below `config.yaml` `phase3_completeness` criteria) | Halt. Set `status.json` to `halted` with `halt_reason: "phase3_output_incomplete"`. Notify human: "Phase 3 deliverable appears incomplete. Review before proceeding." Do not enter Phase 4. |
+
+**Code mode test file detection:** A test file is identified by any of: filename contains `.test.` or `.spec.` (e.g., `app.test.ts`, `utils.spec.js`), or the file resides in a directory named `test/`, `tests/`, or `__tests__/`. The check scans the project directory recursively. If no files match and `code_require_tests` is true, the transition halts.
 | `status.json` write fails during transition (cannot update phase to `polishing`) | Halt. Notify human with file path and error. The Phase 3 git commit has already been written — the deliverable is preserved. The operator must fix the file system issue and manually update `status.json` to resume. |
 | Milestone notification fails during transition | Log the notification failure. Proceed with Phase 4 — notification failure is not blocking. The phase transition and deliverable are the critical path, not the notification. |
 | `constraints.md` missing or unreadable at Phase 3→4 transition | Halt. Set `status.json` to `halted` with `halt_reason: "file_system_error"`. Notify human: "constraints.md missing or unreadable. Cannot start polish loop. Review project `/docs/` directory." Do not enter Phase 4. |
@@ -371,7 +373,7 @@ If the human manually edits the deliverable (plan document or source code) betwe
 
 Plan mode uses the two-step cycle (Review → Fix) with no test execution.
 
-**Code mode review context:** The review prompt includes `constraints.md`, test results, and a representation of the codebase. For codebases that fit within the agent's context window, the full source is included. For larger codebases, the reviewer receives a file manifest (list of all source files with sizes) plus the content of files that changed since the last iteration (identified via `git diff`). The review prompt (`code-review.md`) specifies the context assembly strategy. If the codebase exceeds the agent's context window even with diff-only strategy, the orchestrator logs a warning and proceeds with truncated context.
+**Code mode review context:** The review prompt includes `constraints.md`, test results, and codebase content. Context assembly strategy (full source vs. diff-based) is defined in the build spec. The review prompt (`code-review.md`) specifies the context assembly strategy. If the codebase exceeds the agent's context window even with diff-only strategy, the orchestrator logs a warning and proceeds with truncated context.
 
 **Commit pattern:** Both modes commit twice per iteration — once after the review step (captures review artifacts and test results) and once after the fix step (captures applied fixes). This enables rollback of a bad fix while preserving the review that identified the issues.
 
@@ -468,6 +470,10 @@ Button behavior and `status.json` effects are specified in the build spec Action
 
 **Operation Taxonomy:** The orchestrator classifies every Phase 3/4 action into an operation type before invoking the plugin's `validate()`. The complete operation type list and the mapping from orchestrator actions to operation types are defined in the build spec.
 
+#### Code Mode Safety Rules
+
+Code mode permits all operations in the Operation Type Taxonomy: `shell_exec`, `file_create_source`, `file_create_doc`, `file_create_state`, `agent_invoke`, `package_install`, `test_exec`, `git_commit`. The `safety-rules.js` for Code mode returns `{ allowed: true }` for all operation types. The safety rules module exists to maintain the uniform plugin interface contract — the orchestrator calls `validate()` for every Phase 3/4 action regardless of mode. Future restrictions (e.g., blocking operations outside the project directory) can be added to Code mode's `safety-rules.js` without changing the orchestrator.
+
 ---
 
 ## Technical Design
@@ -520,6 +526,14 @@ Project directories are created under the path specified by `config.yaml` `proje
 **Hard crash (ungraceful termination):** If the server process terminates without sending a WebSocket close frame (kill -9, OOM, power loss), the client detects the dropped TCP connection via WebSocket `onerror` or `onclose` events. The same auto-reconnect behavior applies. The key difference from graceful shutdown: any agent subprocess that was running is killed by the OS (orphaned child process cleanup is OS-dependent). On restart, Server Restart Behavior applies — autonomous-state projects are halted. The client reconnects and syncs state normally.
 
 **Git Commit Strategy:** Each project's git repo is initialized at project creation. Commits occur at: `intent.md` lock (end of Phase 1), `spec.md` and `constraints.md` lock (end of Phase 2), Phase 3 build completion, and twice per Phase 4 iteration — once after the review step (captures the review JSON) and once after the fix step (captures applied fixes). Two commits per iteration enables rollback of a bad fix while preserving the review that identified the issues. This ensures rollback capability at every major pipeline milestone.
+
+**Git Commit Message Format:**
+- Phase 1 lock: `"ThoughtForge: intent.md locked"`
+- Phase 2 lock: `"ThoughtForge: spec.md and constraints.md locked"`
+- Phase 3 complete: `"ThoughtForge: Phase 3 build complete"`
+- Phase 4 review: `"ThoughtForge: Phase 4 iteration {N} — review ({critical}c/{medium}m/{minor}i)"`
+- Phase 4 fix: `"ThoughtForge: Phase 4 iteration {N} — fix applied"`
+- Phase 4 resume: `"ThoughtForge: Phase 4 resumed at iteration {N}"`
 
 ### Vibe Kanban (Execution Layer — Integrated, Not Built)
 
@@ -604,6 +618,8 @@ Full notification message templates are in the build spec.
 **Concurrency limit enforcement:** When the number of active projects (status not `done`) reaches `config.yaml` `concurrency.max_parallel_runs`, new project creation is blocked. The chat interface disables the "New Project" action and displays a message: "Maximum parallel projects reached ({N}/{N}). Complete or halt an existing project to start a new one." Enforcement is at the ThoughtForge orchestrator level, not delegated to Vibe Kanban. Within a single project, the pipeline is single-threaded — only one operation (phase transition, polish iteration, button action) executes at a time. Concurrent access to a single project's state files is not supported and does not need locking.
 
 **Halted projects and concurrency:** Projects with `halted` status count toward the active project limit. This includes both recoverable halts and human-terminated projects (which also use the `halted` state). The only way to free a concurrency slot is for the project to reach `done` status or for the operator to manually delete the project directory. This prevents the operator from creating unlimited projects while ignoring halted ones.
+
+**Terminated projects and concurrency:** Projects terminated by the human (`halt_reason: "human_terminated"`) are functionally finished but use the `halted` state, which counts toward the concurrency limit. To free the slot, the operator must manually delete the project directory. There is no "archive" or "close" action in v1 that moves a terminated project to a non-counting state.
 
 **Write Atomicity:** All state file writes (`status.json`, `polish_state.json`, `chat_history.json`) use atomic write — write to a temporary file in the same directory, then rename to the target path. This prevents partial writes from corrupting state on crash. The project state module (Task 3) implements this as the default write behavior for all state files.
 
