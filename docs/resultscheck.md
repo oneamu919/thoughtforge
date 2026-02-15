@@ -1,8 +1,7 @@
-﻿**result: true** — updates are still needed.
+﻿**result: true** — still needs updates
 
-**Findings count:**
-- Critical: 0
-- Major: 4 (prompt acceptance criteria, task_queue.json corruption handling, safety-rules.js logging, fix output threshold extraction)
-- Minor: 10 (issue rotation phrasing, fix regression timing, two consecutive regressions ambiguity, halted/terminal state language, critical path omission, constraints.md truncation order, constraints.md unvalidated paragraph, polish_state.json active deletion, Levenshtein sourcing, ChatMessage phase field; plus 2 extraction simplifications)
+- **Critical:** 1 (Code mode `safety-rules.js` policy undefined)
+- **Major:** 6 (Fix Regression wording, critical path chain, concurrency clarification, `task_queue.json` schema, Code mode test file detection, `tsx` missing from dependencies)
+- **Minor:** 8 (constraints.md language, parallelism note, config.yaml comment, Telegram placeholder, git commit format, Levenshtein decision, task queue unit test, plus 2 extraction items)
 
-The review fails convergence on both major (4 >= 3) and minor (10 >= 5) thresholds; `apply-prompt.md` has been written to disk with all 16 actionable changes mapped to their target files.
+The review fails all three convergence thresholds (needs 0 critical/got 1, needs <3 major/got 6, needs <5 minor/got 8). `apply-prompt.md` has been written with all 16 changes mapped to their target files with exact replacement/addition text.
