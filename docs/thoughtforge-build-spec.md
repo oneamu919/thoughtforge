@@ -181,7 +181,7 @@ Rules:
 - `build(projectPath, intent, spec, constraints, agent)` → `Promise<BuildResult>`
 
 Return type varies by plugin:
-- **Plan plugin** returns `Promise<{ stuck: boolean, reason?: string, content?: string }>` — matches `PlanBuilderResponse` schema. Orchestrator checks `stuck` flag to detect stuck condition.
+- **Plan plugin** returns `Promise<{ stuck: boolean, reason?: string, content: string }>` — matches `PlanBuilderResponse` schema. Orchestrator checks `stuck` flag to detect stuck condition.
 - **Code plugin** returns `Promise<{ stuck: boolean, reason?: string }>` — orchestrator detects stuck via the `stuck` flag (set after 2 consecutive non-zero exits on the same task, or 3 consecutive identical test failures).
 
 ### reviewer.js
@@ -375,7 +375,7 @@ The Phase 3 plan builder prompt requires the AI to include a structured stuck si
 interface PlanBuilderResponse {
   stuck: boolean;        // true if the AI cannot proceed without human input
   reason?: string;       // Required when stuck is true — what decision is needed
-  content?: string;      // The drafted content (when not stuck)
+  content: string;       // The drafted content — required when stuck is false, empty string when stuck is true
 }
 ```
 
@@ -637,6 +637,19 @@ notifications:
       enabled: false
       bot_token: ""
       chat_id: ""
+
+# Resource intake thresholds
+resource:
+  max_file_size_mb: 50         # Skip resource files exceeding this size
+
+# Brain dump intake thresholds
+brain_dump:
+  min_word_count: 10           # Minimum word count before distillation proceeds
+
+# Phase 3→4 transition completeness thresholds
+phase3_completeness:
+  plan_min_chars: 100          # Plan mode: minimum deliverable character count
+  code_require_tests: true     # Code mode: require at least one test file
 
 # Resource Connectors (Phase 1 external resource intake)
 connectors:

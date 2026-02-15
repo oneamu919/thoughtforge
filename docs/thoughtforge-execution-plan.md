@@ -48,7 +48,7 @@
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
 | 7 | Build ThoughtForge web chat interface: core chat panel with per-project thread, AI message streaming via WebSocket, messages labeled by phase, WebSocket disconnection handling with auto-reconnect and state recovery from `status.json` and `chat_history.json` | — | Task 1a | — | Not Started |
-| 2b | Implement concurrency limit enforcement: block new project creation when active (non-terminal) project count reaches `config.yaml` `concurrency.max_parallel_runs`, disable "New Project" action in sidebar with message, re-enable when a project reaches terminal state | — | Task 2, Task 7g | — | Not Started |
+| 2b | Implement concurrency limit enforcement: block new project creation when active project count (all non-terminal states including `halted`) reaches `config.yaml` `concurrency.max_parallel_runs`, disable "New Project" action in sidebar with message, re-enable when a project reaches terminal state. Note: `halted` is not terminal — halted projects count toward the limit. | — | Task 2, Task 7g | — | Not Started |
 | 7g | Implement project list sidebar: list active projects with current phase, click to switch, "New Project" action | — | Task 7, Task 2 | — | Not Started |
 | 7h | Implement file/resource dropping in chat interface (upload to `/resources/`). Validate that resolved file paths stay within the project's `/resources/` directory — reject uploads with path traversal components (`..`, absolute paths). | — | Task 7 | — | Not Started |
 | 7a | Externalize all pipeline prompts to `/prompts/` directory as `.md` files (brain-dump-intake, plan-review, code-review, plan-fix, code-fix, plan-build, code-build, spec-building, completeness-gate) | — | Task 1 | — | Not Started |
@@ -83,7 +83,6 @@
 
 | # | Task | Owner | Depends On | Estimate | Status |
 |---|------|-------|------------|----------|--------|
-| 19 | Implement orchestrator-level safety-rules enforcement for Code mode: before each Phase 3/4 agent invocation, call the code plugin's `safety-rules.js` `validate(operation)` and block disallowed operations. This is the enforcement mechanism; the rules themselves are defined in Task 23. | — | Task 6a, Task 20 | — | Not Started |
 | 20 | Create `/plugins/code/` folder structure | — | Task 6 | — | Not Started |
 | 21 | Implement `builder.js` — agent-driven coding (via Vibe Kanban when enabled, direct agent invocation when disabled) | — | Task 6a, Task 20, Task 21a, Task 27, Task 29a, Tasks 41–42 | — | Not Started |
 | 21a | Draft `/prompts/code-build.md` prompt text | — | Task 7a | — | Not Started |
