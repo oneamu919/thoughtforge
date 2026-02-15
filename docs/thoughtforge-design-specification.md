@@ -89,11 +89,13 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 6. AI distills into structured document: Deliverable Type, Objective, Assumptions, Constraints, Unknowns, Open Questions (max 5)
 7. AI presents distillation to human in chat
 8. Human corrects via chat → AI revises and re-presents
-9. Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons to prevent misinterpretation), "realign from here" is a chat-parsed command because it does not advance the pipeline — it re-runs the distillation using the original brain dump plus all corrections up to the identified rollback point. The AI rolls back to the most recent substantive correction and re-distills from the original brain dump plus all corrections up to that point. If no corrections exist yet, the command is ignored with a prompt to provide a correction first. Implementation algorithm in build spec.
+9. Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons to prevent misinterpretation), "realign from here" is a chat-parsed command because it does not advance the pipeline — it re-runs the distillation using the original brain dump plus all corrections up to the identified rollback point. The AI re-distills from the original brain dump plus corrections up to a rollback point. Algorithm details in build spec.
 10. Human clicks **Confirm** button → advances to Phase 2
 11a. Output: `intent.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline.
 
 11b. The deliverable type is derived from the confirmed intent and set in `status.json`.
+
+**Resource lifecycle:** Files in `/resources/` persist for the lifetime of the project. They are not deleted or moved after Phase 1 consumption. The Plan Completeness Gate (Code mode entry) scans `/resources/` for plan documents. Non-plan resources remain for human reference but are not re-consumed by later pipeline phases.
 
 **Ambiguous Deliverable Type:** If the brain dump contains signals for both Plan and Code, the AI defaults to Plan and flags the ambiguity in the Open Questions section: "Brain dump describes both planning and implementation. Classified as Plan — confirm or change to Code." The human resolves during the correction cycle.
 
@@ -114,18 +116,18 @@ Every action button in the chat interface follows these rules: (a) specific `sta
 | Agent failure during distillation (timeout, crash, empty response) | Same retry behavior as agent communication layer: retry once, halt and notify on second failure. Chat resumes from last recorded message. |
 | Brain dump is empty or trivially short (below configurable minimum length) | AI responds in chat asking the human to provide more detail. Does not advance to distillation. |
 | Resource file unreadable (corrupted, unsupported format) | AI logs the unreadable file, notifies the human in chat specifying which file(s) could not be read, and proceeds with distillation using available inputs. |
-| Connector authentication failure (expired token, missing credentials) | Log the failure, notify the human in chat specifying which connector failed and why, and proceed with distillation using available inputs. Do not halt the pipeline. |
-| Connector target not found (deleted page, revoked access, invalid URL) | Log the failure, notify the human in chat specifying which resource could not be retrieved, and proceed with distillation using available inputs. |
+| Connector authentication failure (expired token, missing credentials) | Log the failure, notify the human in chat specifying which connector failed and why, and proceed with distillation using available inputs (if distillation is already in progress, no re-click of Distill is required). Do not halt the pipeline. |
+| Connector target not found (deleted page, revoked access, invalid URL) | Log the failure, notify the human in chat specifying which resource could not be retrieved, and proceed with distillation using available inputs (if distillation is already in progress, no re-click of Distill is required). |
 | `status.json` unreadable, missing, or invalid (applies to all phases, not just Phase 1) | Halt the project and notify the operator with the file path and the specific error (parse failure, missing file, invalid phase value). Do not attempt recovery or partial loading — the operator must fix or recreate the file. |
 | Brain dump text exceeds agent context window | AI processes in chunks if the configured agent supports it, otherwise truncates to the agent's maximum input size with a warning in chat: "Brain dump exceeds maximum input size. Processing first {N} characters." |
 | Resource file exceeds configurable size limit | Log a warning, skip the file, and notify the human in chat: "File '{filename}' exceeds size limit and was skipped." |
 | Human provides malformed or unparseable connector URL in chat | AI responds in chat: "Could not parse URL: '{url}'. Please provide a valid Notion page URL or Google Drive document link." Does not halt. Does not attempt to pull. |
 
-**Connector failure during distillation:** If a connector fails after the human clicks Distill, the distillation proceeds automatically using all successfully retrieved inputs. The human is notified of the connector failure in chat but does not need to re-click Distill. The failed connector resources are simply absent from the distillation context.
-
-**`chat_history.json` Error Handling:** If `chat_history.json` is unreadable or missing, the pipeline halts and notifies the human — same behavior as `status.json` corruption. The human must fix or recreate the file. Chat history size is bounded by the phase-clearing behavior (cleared on Phase 1→2 and Phase 2→3 transitions). If a single phase's chat history grows large enough to exceed the agent's context window, the agent invocation layer truncates older messages from the beginning of the history, retaining the most recent messages and always retaining the original brain dump. The original brain dump messages are identified as all human messages before the first Distill button press in the chat history. During truncation, these messages are always retained at the beginning of the context, followed by the most recent messages that fit within the remaining window. Messages between the brain dump and the retained recent messages are dropped. A warning is logged when truncation occurs.
+**`chat_history.json` Error Handling:** If `chat_history.json` is unreadable or missing, the pipeline halts and notifies the human — same behavior as `status.json` corruption. The human must fix or recreate the file. Chat history size is bounded by the phase-clearing behavior (cleared on Phase 1→2 and Phase 2→3 transitions). If a single phase's chat history exceeds the agent's context window, the agent invocation layer truncates older messages while always retaining the original brain dump and the most recent messages. Truncation algorithm in build spec. A warning is logged when truncation occurs.
 
 **Phase 2 Chat History Truncation:** If Phase 2 chat history exceeds the agent context window, the agent invocation layer truncates older messages from the beginning of the history, retaining the most recent messages and always retaining the initial AI spec proposal message (the first AI message in Phase 2). Messages between the initial proposal and the retained recent messages are dropped. A warning is logged when truncation occurs. This mirrors the Phase 1 truncation behavior — the initial proposal serves the same anchoring role as the original brain dump.
+
+**Phase 3–4 Chat History Truncation:** If Phase 3 or Phase 4 recovery chat history exceeds the agent context window, the agent invocation layer truncates older messages from the beginning, retaining the most recent messages. There is no anchoring message for these phases — unlike Phases 1–2, recovery conversations do not have a structural anchor that must be preserved. A warning is logged when truncation occurs.
 
 **Phase-to-State Mapping:** Phase-to-state enum mapping and transition triggers are defined in the build spec's `status.json` schema.
 
@@ -142,7 +144,7 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 **Primary Flow:**
 
 1. AI proposes deliverable structure and key decisions based on `intent.md`
-2. AI evaluates `intent.md` for: missing dependencies, unrealistic constraints, scope gaps, internal contradictions, unvalidated assumptions, and ambiguous priorities. Each flagged issue is presented to the human with specific reasoning. The AI does not rubber-stamp — it must surface concerns even if the human's intent seems clear.
+2. AI evaluates `intent.md` for issues including but not limited to: missing dependencies, unrealistic constraints, scope gaps, internal contradictions, unvalidated assumptions, and ambiguous priorities. Each flagged issue is presented to the human with specific reasoning. The AI does not rubber-stamp — it must surface concerns even if the human's intent seems clear.
 3. AI resolves Unknowns and Open Questions from `intent.md` — either by making a reasoned decision (stated in `spec.md`) or by asking the human during the Phase 2 chat. The governing principle: the AI decides autonomously when the decision is low-risk, reversible, or has a clearly dominant option based on the constraints — and escalates to the human when the decision is high-impact, preference-dependent, or has multiple viable options with material trade-offs. The Phase 2 prompt (`spec-building.md`) operationalizes this principle. No unresolved unknowns may carry into `spec.md`.
 4. AI derives 5–10 acceptance criteria from the objective, assumptions, and constraints in `intent.md`. For Plan mode, criteria assess document completeness, logical coherence, and actionability. For Code mode, criteria assess functional requirements that map to testable acceptance tests in Phase 3.
 5. Human confirms or overrides specific decisions
@@ -162,6 +164,8 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 **`constraints.md` — readability definition:** "Unreadable" means the file cannot be read from disk (permission error, I/O error) or is not valid UTF-8 text. A file that is readable but contains unexpected content (empty, restructured, nonsensical) is passed to the reviewer as-is per the unvalidated-after-creation policy. If the file exceeds the agent's context window when combined with other review context, it is truncated with a warning logged.
 
 - **`spec.md` and `intent.md` (static after creation):** These are read once at Phase 3 start and not re-read during later phases. If the human manually edits these files after their creation phase, the pipeline will not see those changes — it works from its in-memory copy. There is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits to any locked file. On server restart, the in-memory copies are lost. When the human resumes a halted Phase 4 project, the orchestrator re-reads `spec.md` and `intent.md` from disk to reconstruct working context. If the human manually edited these files while the project was halted, the resumed pipeline will use the edited versions. This is an acceptable side effect of the restart recovery model.
+
+**In short:** Editing `constraints.md` during Phase 4 works. Editing `spec.md` or `intent.md` during active pipeline execution has no effect. Editing them while the project is halted works if the project is subsequently resumed.
 
 **Phase 2 Error Handling:**
 
@@ -219,6 +223,8 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 6. **NEVER creates source files, runs commands, installs packages, scaffolds projects, or executes anything. Document drafting only. Enforced at orchestrator level via plugin safety rules.**
 7. If stuck on a decision requiring human input: notifies and waits
 8. Output: complete but unpolished plan document (`.md`) in `/docs/`
+
+The plan deliverable filename is `plan.md`, written to `/projects/{id}/docs/plan.md`. This distinguishes it from pipeline artifacts (`intent.md`, `spec.md`, `constraints.md`) in the same directory. The Phase 4 reviewer and fixer reference this fixed filename.
 
 **Code Mode:**
 
@@ -299,6 +305,10 @@ Recovery follows the same confirmation model as Phase 4: explicit button presses
 
 **Fix agent context assembly:** The fix agent receives the JSON issue list and the relevant deliverable context. For Plan mode: the current plan document. For Code mode: the current codebase files referenced in the issue `location` fields, plus `constraints.md` for scope awareness. The fix agent does not receive the prior review JSON from previous iterations — only the current iteration's issue list. Full context assembly is specified in the fix prompts (`plan-fix.md`, `code-fix.md`).
 
+**Plan mode fix interaction:** The fix agent receives the full plan document and the JSON issue list. It returns the complete updated plan document with fixes applied. The orchestrator replaces the existing plan file with the returned content. The fix agent does not return diffs or partial documents — full document replacement ensures structural integrity of the OPA template.
+
+**Code mode fix interaction:** The fix agent operates as a coding agent with write access to the project directory. It reads the issue list, modifies the relevant source files directly, and exits. The orchestrator then runs `git add` and commits the changes. The fix agent does not return modified file content — it applies changes in-place, consistent with how coding agents operate during Phase 3.
+
 **Code Mode Iteration Cycle:** Code mode extends the two-step cycle with a test execution step. The full cycle per iteration is:
 
 1. **Test** — Orchestrator runs tests via the code plugin's `test-runner.js` and captures results.
@@ -318,7 +328,7 @@ Plan mode uses the two-step cycle (Review → Fix) with no test execution.
 | Guard | Condition | Action |
 |---|---|---|
 | Termination (success) | Error counts within configured thresholds (+ all tests pass for code). Thresholds in `config.yaml`. | Done. Notify human. |
-| Hallucination | Total error count increases by more than the configured spike threshold after at least the configured minimum number of consecutive iterations with decreasing total error count | Halt. Notify human: "Fix-regress cycle detected. Errors trending down then spiked. Iteration [N]: [X] total (was [Y]). Review needed." |
+| Hallucination | Total error count increases by more than the configured spike threshold (`hallucination_spike_threshold`, defined in build spec) after at least the configured minimum number of consecutive iterations with decreasing total error count (`hallucination_min_trend`, defined in build spec) | Halt. Notify human: "Fix-regress cycle detected. Errors trending down then spiked. Iteration [N]: [X] total (was [Y]). Review needed." |
 | Stagnation | **Stagnation:** Two conditions must both be true: (1) Same total error count (sum of critical + medium + minor) for a configured number of consecutive iterations (stagnation limit). (2) Issue rotation detected — old issues resolved, new issues introduced at the same rate (rotation threshold and similarity measure defined in build spec). The comparison uses total count only — a shift in severity composition at the same total still qualifies as stagnation if the rotation threshold is also met. When both conditions are true, the deliverable has reached a quality plateau where the reviewer is cycling through cosmetic issues rather than finding genuine regressions. Treated as converged. | Done (success — treated as converged plateau). Notify human with final error counts and iteration summary. |
 | Fabrication | A severity category spikes significantly above its trailing average (window size defined in build spec), AND in at least one prior iteration, every severity category was at or below 2x its convergence threshold (e.g., critical ≤0, medium ≤6, minor ≤10) — indicating the deliverable was near-converged, and subsequent spikes likely represent manufactured issues | Halt. Notify human. |
 | Max iterations | Hard ceiling reached (configurable, default 50) | Halt. Notify human: "Max [N] iterations reached. Avg flaws/iter: [X]. Lowest: [Y] at iter [Z]. Review needed." |
@@ -398,7 +408,7 @@ These follow the same confirmation model as other recovery interactions — expl
 
 **ThoughtForge** is the intelligence layer — brain dump intake, plan mode, constraint discovery, polish loop logic, convergence guards. It creates and manages the work.
 
-**Vibe Kanban** is the execution and visualization layer — kanban board, parallel task execution, agent spawning, git worktree isolation, dashboard, VS Code integration. It runs and displays the work.
+**Vibe Kanban** is the execution and visualization layer — kanban board, parallel task execution, agent spawning, git worktree isolation, dashboard, VS Code extension. It runs and displays the work.
 
 ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban executes via coding agents → ThoughtForge monitors results and runs convergence logic.
 

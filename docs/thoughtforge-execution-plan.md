@@ -30,7 +30,7 @@
 |---|------|-------|------------|----------|--------|
 | 1 | Initialize Node.js project, folder structure, `config.yaml` loader with Zod schema validation (per design spec Config Validation and build spec `config.yaml` Template sections) | — | — | — | Not Started |
 | 1a | Implement application entry point: Node.js server startup, config initialization, local web server for chat interface | — | Task 1 | — | Not Started |
-| 1b | Implement first-run setup: `config.yaml.example` copied to `config.yaml` on first run if missing (with comment guidance), prerequisite check (Node.js version, agent CLIs on PATH), startup validation summary | — | Task 1 | — | Not Started |
+| 1b | Implement first-run setup: `config.yaml.example` copied to `config.yaml` on first run if missing (with comment guidance), prerequisite check (Node.js ≥18 LTS, agent CLIs on PATH), startup validation summary | — | Task 1 | — | Not Started |
 | 1c | Implement server restart recovery (per design spec Server Restart Behavior): resume interactive-state projects, halt autonomous-state projects, notify human for halted projects | — | Task 1a, Task 3, Task 5 | — | Not Started |
 | 2 | Implement project initialization sequence (per build spec Project Initialization Sequence): ID generation, directory scaffolding, git init, initial state, Vibe Kanban card (if enabled), chat thread creation | — | Task 1 | — | Not Started |
 | 2a | Implement git commit at pipeline milestones: `intent.md` lock (end of Phase 1), `spec.md` and `constraints.md` lock (end of Phase 2), Phase 3 build completion (including the Phase 3→4 transition commit). Phase 4 per-iteration commits (after each review step and after each fix step) are handled in Task 40. | — | Task 2 | — | Not Started |
@@ -69,7 +69,7 @@
 | 9a | Implement `chat_history.json` persistence: append after each chat message, clear on Phase 1→2 and Phase 2→3 confirmation only (NOT on Phase 3→4 automatic transition), resume from last recorded message on crash | — | Task 3, Task 7 | — | Not Started |
 | 10 | Implement action buttons: Distill (Phase 1 intake trigger) and Confirm (phase advancement mechanism). Include button debounce: disable on press until operation completes, server-side duplicate request detection (ignore duplicates, return current state). | — | Task 7 | — | Not Started |
 | 11 | Implement intent.md generation and locking, project name derivation (extract from H1 or AI-generate), `deliverable_type` derivation (from Deliverable Type section of confirmed intent.md — `"plan"` or `"code"` in status.json), status.json `project_name` and `deliverable_type` update, and Vibe Kanban card name update (if enabled). Include deliverable type parse failure handling: reject values other than "Plan" or "Code", notify human in chat, do not advance. | — | Task 9, Task 2a, Task 26, Tasks 41–42 | — | Not Started |
-| 12 | Implement Phase 2: spec building with mode-specific behavior (Plan mode: propose OPA-structured plan sections; Code mode: propose architecture/language/framework/tools with OSS discovery integration from Task 25), AI challenge of weak or risky decisions in `intent.md` (does not rubber-stamp), constraint discovery, acceptance criteria extraction (5–10 per design spec), human review/override of proposed decisions, human review of acceptance criteria, Unknown/Open Question resolution validation gate (block Confirm if unresolved items remain), Confirm to advance | — | Task 6a, Task 10, Task 11, Task 7a, Task 7f, Task 25, Tasks 41–42 | — | Not Started |
+| 12 | Implement Phase 2: spec building. 1. Mode-specific proposal (Plan: OPA-structured plan sections; Code: architecture/language/framework/tools with OSS discovery from Task 25) 2. AI challenge of weak or risky decisions in `intent.md` (does not rubber-stamp) 3. Constraint discovery 4. Acceptance criteria extraction (5–10 per design spec) 5. Human review/override of proposed decisions and acceptance criteria 6. Unknown/Open Question resolution validation gate (block Confirm if unresolved items remain) 7. Confirm to advance | — | Task 6a, Task 10, Task 11, Task 7a, Task 7f, Task 25, Tasks 41–42 | — | Not Started |
 | 13 | Implement `spec.md` and `constraints.md` generation | — | Task 12, Task 2a | — | Not Started |
 
 ### Build Stage 3: Plan Mode Plugin
@@ -211,6 +211,10 @@ Each task is complete when:
 5. For tasks that depend on a "To be drafted" prompt (identified in the build spec by "Used by" references): the AI coder drafts the prompt text as the first step of the task, writes it to the `/prompts/` directory, and the human reviews and edits via the Settings UI before the task proceeds to implementation. The prompt text is committed alongside the task's implementation code.
 
 AI coders should reference the "Used by" annotations in the build spec to identify the authoritative specification for each task.
+
+### Prompt Validation Strategy
+
+Each pipeline prompt ("To be drafted" prompts in build spec) is validated during the end-to-end tests (Tasks 51–53). The e2e tests serve as the primary prompt quality gate — if the pipeline produces acceptable deliverables end-to-end, the prompts are working. If an e2e test fails due to poor AI output quality (rather than code bugs), the prompt is revised and the test re-run. Prompt iteration is expected during Build Stage 8 and is not a sign of implementation failure.
 
 ---
 

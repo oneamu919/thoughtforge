@@ -423,6 +423,14 @@ interface PlanBuilderResponse {
 
 ---
 
+## Chat History Truncation Algorithm
+
+**Used by:** Task 9a (chat history persistence), Task 58l (truncation unit tests)
+
+The original brain dump messages are identified as all human messages before the first Distill button press in the chat history. During truncation, these messages are always retained at the beginning of the context, followed by the most recent messages that fit within the remaining window. Messages between the brain dump and the retained recent messages are dropped.
+
+---
+
 ## Resource Connector Interface
 
 **Used by:** Tasks 7c–7e (resource connectors)
