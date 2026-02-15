@@ -20,6 +20,7 @@ $TELEGRAM_TOKEN   = $env:TELEGRAM_TOKEN
 $TELEGRAM_CHAT_ID = $env:TELEGRAM_CHAT_ID
 $COUNTER_FILE     = "reviewcount.txt"
 $STATUS_FILE      = "polish-status.md"
+$LOG_FILE         = "polish-log.txt"
 $scriptDir        = $PSScriptRoot
 
 function Send-Notify($message) {
@@ -36,6 +37,13 @@ function Send-Notify($message) {
 
 function Format-Duration($ts) {
     return "{0}m {1:D2}s" -f [int][math]::Floor($ts.TotalMinutes), $ts.Seconds
+}
+
+function Parse-Duration($str) {
+    if ($str -match '(\d+)m\s*(\d+)s') {
+        return New-TimeSpan -Minutes ([int]$matches[1]) -Seconds ([int]$matches[2])
+    }
+    return [TimeSpan]::Zero
 }
 
 function Parse-Counts($text) {
@@ -65,6 +73,11 @@ function Write-Status {
     $status | Set-Content -Path $STATUS_FILE -Encoding UTF8
 }
 
+function Log-Iteration($line) {
+    $script:iterationLog += $line
+    $line | Add-Content -Path $LOG_FILE -Encoding UTF8
+}
+
 # -- Timing accumulators --
 $totalReview = [TimeSpan]::Zero
 $totalCheck  = [TimeSpan]::Zero
@@ -75,11 +88,27 @@ $iterationLog = @()
 $converged = $false
 $hitMax = $false
 
+# -- Resume or fresh start --
 if (Test-Path $COUNTER_FILE) {
     $count = [int](Get-Content $COUNTER_FILE)
+
+    # Restore iteration log and timing from previous runs
+    if (Test-Path $LOG_FILE) {
+        $iterationLog = @(Get-Content $LOG_FILE -Encoding UTF8)
+        foreach ($line in $iterationLog) {
+            $lineCounts = Parse-Counts $line
+            if (-not $firstCounts) { $firstCounts = $lineCounts }
+            $lastCounts = $lineCounts
+            if ($line -match 'Review:\s*([\dm\s]+s)') { $totalReview += Parse-Duration $matches[1] }
+            if ($line -match 'Check:\s*([\dm\s]+s)')  { $totalCheck  += Parse-Duration $matches[1] }
+            if ($line -match 'Apply:\s*([\dm\s]+s)')   { $totalApply  += Parse-Duration $matches[1] }
+        }
+    }
+
     Send-Notify "[RESUMED] Polish resuming from iteration $count (max $MaxIterations)"
 } else {
     $count = 0
+    if (Test-Path $LOG_FILE) { Remove-Item $LOG_FILE }
     Send-Notify "[STARTED] Polish loop running (max $MaxIterations iterations)"
 }
 
@@ -132,19 +161,20 @@ while ($count -lt $MaxIterations) {
         $iterTime = $reviewTime + $checkTime + $applyTime
         $iterLine = "Iteration $count`: Critical: $($counts.Critical), Major: $($counts.Major), Minor: $($counts.Minor) ($(Format-Duration $iterTime)) (Review: $(Format-Duration $reviewTime), Check: $(Format-Duration $checkTime), Apply: $(Format-Duration $applyTime))"
         Send-Notify $iterLine
-        $iterationLog += $iterLine
+        Log-Iteration $iterLine
         Write-Status
     } else {
         # Converged
         $iterTime = $reviewTime + $checkTime
         $iterLine = "Iteration $count`: Critical: $($counts.Critical), Major: $($counts.Major), Minor: $($counts.Minor) ($(Format-Duration $iterTime)) (Review: $(Format-Duration $reviewTime), Check: $(Format-Duration $checkTime))"
         Send-Notify $iterLine
-        $iterationLog += $iterLine
+        Log-Iteration $iterLine
         $converged = $true
         Write-Status
 
         $totalTime = $totalReview + $totalCheck + $totalApply
         if (Test-Path $COUNTER_FILE) { Remove-Item $COUNTER_FILE }
+        if (Test-Path $LOG_FILE) { Remove-Item $LOG_FILE }
 
         $summary = "[CONVERGED] Polish converged at iteration $count/$MaxIterations.`n"
         $summary += "Start:  Critical: $($firstCounts.Critical), Major: $($firstCounts.Major), Minor: $($firstCounts.Minor)`n"
@@ -165,6 +195,7 @@ Write-Status
 
 $totalTime = $totalReview + $totalCheck + $totalApply
 if (Test-Path $COUNTER_FILE) { Remove-Item $COUNTER_FILE }
+if (Test-Path $LOG_FILE) { Remove-Item $LOG_FILE }
 
 $summary = "[MAX ITERATIONS] Polish hit $MaxIterations iterations without converging.`n"
 $summary += "Start:  Critical: $($firstCounts.Critical), Major: $($firstCounts.Major), Minor: $($firstCounts.Minor)`n"
