@@ -1,196 +1,159 @@
-﻿Now I have all four documents. Let me process this comprehensive review. Given the volume and complexity, I'll work through the three documents systematically.
+﻿Now I have all four documents. Let me thoroughly analyze the design specification against the requirements brief, build spec, and execution plan to produce the review findings.
 
 ---
 
-# Project Plan Review — ThoughtForge Pipeline Tool
+# Project Plan Review — ThoughtForge Design Specification
 
-**Documents reviewed:** Design Specification, Build Spec, Execution Plan
+Review performed against the requirements brief, build spec, and execution plan as companion documents.
 
 ---
 
 ## 1. Writing That's Unclear
 
-**[Minor]** Design Spec, Phase 1 Step 3 — "Connector URL Identification" paragraph is a wall of logic that mixes three behaviors in one sentence.
+**[Minor] — "Realign from here" rollback point is undefined in the design spec**
 
-**Current text (line 82):**
-> "URLs matching an enabled connector pattern are pulled automatically. URLs matching a disabled connector pattern are ignored. Unrecognized URLs are treated as regular brain dump text."
+The design spec (Phase 1, step 9) says the AI "re-distills from the original brain dump plus corrections up to a rollback point" but never explains what determines the rollback point. The build spec's Realign Algorithm clarifies it (scan backwards past sequential realign commands to the most recent substantive correction), but the design spec reads as if the human specifies a rollback point, which is misleading.
 
-**Replacement:**
-> "The AI matches each URL against the known patterns for enabled connectors:
-> - **Match + enabled:** URL is pulled automatically via the connector.
-> - **Match + disabled:** URL is silently ignored (not pulled, not treated as text).
-> - **No match:** URL is treated as regular brain dump text and included in distillation context."
+Replace (design spec, Phase 1 step 9):
+> Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons to prevent misinterpretation), "realign from here" is a chat-parsed command because it does not advance the pipeline — it re-runs the distillation using the original brain dump plus all corrections up to the identified rollback point. The AI re-distills from the original brain dump plus corrections up to a rollback point. Algorithm details in build spec.
 
----
+With:
+> Human can type "realign from here" in chat. Unlike phase advancement actions (which use buttons to prevent misinterpretation), "realign from here" is a chat-parsed command because it does not advance the pipeline — it discards AI messages and corrections after the most recent substantive human correction and re-distills from the original brain dump plus corrections up to that point. Exact matching rules and algorithm in build spec.
 
-**[Minor]** Design Spec, Stagnation Guard description (line 334) — the parenthetical about severity composition shift is buried mid-sentence and easy to misread.
-
-**Current text (partial):**
-> "The comparison uses total count only — a shift in severity composition at the same total still qualifies as stagnation if the rotation threshold is also met."
-
-**Replacement:**
-> "Stagnation compares total error count only, not per-severity breakdowns. A shift in severity composition (e.g., fewer criticals but more minors) at the same total still qualifies as stagnation, provided the rotation threshold is also met."
+This also eliminates the duplicative second sentence in the current text ("The AI re-distills from the original brain dump plus corrections up to a rollback point").
 
 ---
 
-**[Minor]** Design Spec, Fabrication Guard (line 335) — the phrase "specifically: critical ≤ 0 (2 × 0), medium ≤ 6 (2 × 3), minor ≤ 10 (2 × 5) using default config values" is hardcoded math embedded in a behavioral description. A builder reading this needs to know whether these are literal constants or derived from config.
+**[Minor] — Fabrication guard description contains a duplicated phrase**
 
-**Replacement:**
-> "...every severity category was at or below twice its convergence threshold — that is, critical ≤ 2 × `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max` (using default config: ≤0 critical, ≤6 medium, ≤10 minor). These values are derived from `config.yaml` at runtime, not hardcoded."
+The fabrication guard condition 2 in the design spec (Phase 4 Convergence Guards table) contains a duplicated clause: "every severity category was at or below twice its convergence threshold — every severity category was at or below twice its convergence threshold".
 
----
+Replace:
+> AND in at least one prior iteration, every severity category was at or below twice its convergence threshold — every severity category was at or below twice its convergence threshold — that is, critical ≤ 2 × `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max`
 
-**[Minor]** Design Spec, Phase 3 Code Builder Interaction Model (line 237) — the sentence about stuck detection has a parenthetical exception about "rotating failures" that contradicts the preceding sentence without enough explanation.
-
-**Current text:**
-> "Since each cycle produces different failing tests, the stuck detector will not trigger on rotating failures."
-
-**Replacement:**
-> "If each test-fix cycle produces *different* failing tests (rotating failures rather than the same tests failing repeatedly), the stuck detector does not trigger — it only fires on 3 consecutive cycles with the *identical* set of failing test names."
+With:
+> AND in at least one prior iteration, every severity category was at or below twice its convergence threshold — that is, critical ≤ 2 × `critical_max`, medium ≤ 2 × `medium_max`, minor ≤ 2 × `minor_max`
 
 ---
 
-**[Minor]** Design Spec, Locked File Behavior section (line 166) — the phrase "the in-memory copies are lost" is ambiguous about what "in-memory copies" refers to, since no prior sentence establishes that ThoughtForge caches these files in memory.
+**[Minor] — "Stuck detection" overloads the term across two different mechanisms**
 
-**Current text:**
-> "On server restart, the in-memory copies are lost."
+Phase 3 uses "stuck detection" for both Plan mode (AI self-reports `stuck: true`) and Code mode (consecutive identical test failures or non-zero exits). The design spec presents these in the same table but they are fundamentally different mechanisms — one is AI self-reporting, the other is orchestrator-observed patterns. A reader building from this could confuse the two.
 
-**Replacement:**
-> "On server restart, the orchestrator's in-memory working copies of `spec.md` and `intent.md` (loaded at Phase 3 start) are discarded."
+Replace the introductory sentence before the Stuck Detection table:
+> **Stuck Detection (Phase 3):**
 
----
-
-**[Minor]** Execution Plan, Critical Path (line 192) — the path lists Task 15 → Task 16 → Task 30 but Task 30 depends on Task 17 (reviewer.js), not Task 16 (templates). The critical path description is inaccurate.
-
-**Current text:**
-> "Task 1 → Task 41 → Task 42 → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 16 → Task 30 → Tasks 33–37 → Task 51"
-
-**Replacement:**
-> "Task 1 → Task 41 → Task 42 → Task 6a → Task 8 → Task 9 → Task 11 → Task 12 → Task 13 → Task 15 → Task 30 → Tasks 33–37 → Task 51
->
-> Note: Task 30 depends on Task 17 (plan reviewer) and Task 6c (Phase 3→4 transition), not Task 16 (templates). Task 16 (templates) feeds Task 15 at runtime but is not on the critical path — templates can be created after the builder module. Task 17 runs in parallel with Task 15 and must complete before Task 30."
+With:
+> **Stuck Detection (Phase 3):** Plan mode and Code mode use different stuck detection mechanisms. Plan mode relies on AI self-reporting via a structured response field. Code mode relies on orchestrator-observed failure patterns.
 
 ---
 
-**[Minor]** Build Spec, Code Builder Task Queue section (line 208) — "The exact parsing and ordering logic is an implementation detail of Task 21, but must produce a deterministic task list from the same `spec.md` input" sets a requirement (deterministic output) without explaining *why* determinism matters.
+**[Minor] — "Each project gets its own repo" vs. "its own git repo" vs. "git init" used inconsistently**
 
-**Replacement:**
-> "The exact parsing and ordering logic is an implementation detail of Task 21, but must produce a deterministic task list from the same `spec.md` input — this ensures crash recovery (re-deriving the task list after restart) produces the same task ordering and can correctly identify which tasks were already completed."
+The design spec uses "git repo" (Technical Design), "its own repo" (Design Decisions table), and "git init" (Phase 1 step 0) to describe the same thing. This is fine for a human reader but could confuse an AI coder about whether "repo" means a separate remote repository or just a local git-initialized directory.
+
+In Design Decision #3, replace:
+> Each project gets its own git repo
+
+With:
+> Each project gets its own local git repository (git init, no remote)
 
 ---
 
-**[Minor]** Design Spec, Hallucination Guard description (line 333) — the notification message template says "Errors trending down then spiked" but the guard condition allows a trend of only 2 iterations, which is barely a trend. A builder might question whether 2 is truly "trending down."
+**[Minor] — "Halted" vs. "Terminated" distinction could be clearer at first encounter**
 
-**Replacement for the notification template only:**
-> `"Project '{name}' — fix-regress cycle detected. Errors decreased for {N} iterations ({trajectory}) then spiked to {X} at iteration {current}. Review needed."`
+The design spec first introduces `halted` as a convergence guard outcome, then later (Phase 4 Halt Recovery) introduces Terminate as setting `halted` permanently. The distinction between a recoverable halt and a permanent termination isn't clear until the reader reaches the halt recovery section and the `halt_reason` values in the build spec.
 
-This replaces the narrative with data, avoiding the "trending" characterization for short trends.
+After the Phase 4 Convergence Guards table, add:
+> **Halt vs. Terminate:** When a convergence guard triggers a halt, the project is recoverable — the human can Resume or Override. When the human explicitly Terminates (via button), the project is permanently stopped (`halt_reason: "human_terminated"`). Both use the `halted` phase value in `status.json`; the `halt_reason` field distinguishes them.
+
+---
+
+**[Minor] — "Minimum completeness thresholds" in Phase 3→4 transition are not defined in the design spec**
+
+The design spec (Phase 3→4 Transition Error Handling) says "below minimum completeness thresholds" but doesn't state what they are. The build spec's `config.yaml` template defines them (`phase3_completeness.plan_min_chars: 100`, `phase3_completeness.code_require_tests: true`), but the design spec should at minimum reference the config key.
+
+Replace:
+> Phase 3 output exists but is empty or trivially small (below minimum completeness thresholds)
+
+With:
+> Phase 3 output exists but is empty or trivially small (below `config.yaml` `phase3_completeness` thresholds)
 
 ---
 
 ## 2. Genuinely Missing Plan-Level Content
 
-**[Critical]** Design Spec — No error handling for Phase 2 Confirm button when `constraints.md` Acceptance Criteria section is empty at confirmation time. The spec says "5–10 acceptance criteria" in the constraints structure and that Phase 4 uses these for review, but nothing prevents Phase 2 from completing with zero acceptance criteria. The "unvalidated after creation" policy applies *after* Phase 2 write, but the initial write should enforce a minimum.
+**[Major] — No error handling for Handlebars template content exceeding agent context window**
 
-**Proposed addition** (Design Spec, Phase 2, step 7, after the Unknowns validation gate):
+The design spec specifies that the plan builder "may invoke the AI agent multiple times to fill the complete template — for example, one invocation per major section." It also specifies that `constraints.md` is truncated if it exceeds context, and that chat history is truncated if it exceeds context. But there is no specification for what happens when the partially-filled template passed as context to the AI grows larger than the agent's context window during multi-invocation plan building. For large plans (e.g., a comprehensive wedding plan), the accumulated filled sections could exceed the window.
 
-> **Acceptance Criteria Validation Gate:** Before Phase 2 Confirm advances to Phase 3, the orchestrator validates that the Acceptance Criteria section of the proposed `constraints.md` contains at least 1 criterion. If the section is empty, the Confirm button is blocked and the AI prompts the human: "At least one acceptance criterion is required before proceeding. Add acceptance criteria or confirm the AI's proposed set." This gate enforces the minimum at creation time only — after `constraints.md` is written, the human may freely edit it (including emptying the section) per the unvalidated-after-creation policy.
-
----
-
-**[Major]** Design Spec / Execution Plan — No specification for what happens when the Vibe Kanban toggle is changed in `config.yaml` while projects are in progress. If an operator starts a project with VK enabled, then disables VK mid-project, the adapter will fail on status updates for a card that exists. Conversely, enabling VK mid-project means the card was never created.
-
-**Proposed addition** (Design Spec, Vibe Kanban Integration Interface section, after the toggle behavior table):
-
-> **Toggle Change During Active Projects:** The `vibekanban.enabled` toggle is read at each operation, not cached at project creation. If VK is disabled after a project was created with VK enabled, subsequent VK status update calls will succeed (updating an existing card) but new project creation will skip card creation. If VK is enabled after a project was created without it, VK status calls will fail (no card exists) and will be logged and ignored per standard VK failure handling. Toggling VK mid-project does not halt or disrupt the pipeline — VK calls are never on the critical path.
+Proposed content to add after the "Builder interaction model" paragraph in Phase 3 Plan Mode:
+> **Template Context Window Overflow:** If the partially-filled template exceeds the agent's context window during multi-invocation plan building, the builder passes only the current section's OPA table slot, the `spec.md` context for that section, and the immediately preceding section (for continuity) — not the full partially-filled template. A warning is logged when truncation occurs. The full template is reassembled from the individually-filled sections after all invocations complete.
 
 ---
 
-**[Major]** Design Spec — No specification for handling a `polish_state.json` that is unreadable, missing, or invalid at the start of a Phase 4 resume. The design spec covers `status.json` corruption exhaustively ("halt and notify") and `chat_history.json` ("halt and notify"), but `polish_state.json` corruption handling is only implied by the crash recovery mention.
+**[Major] — No specification for what the Phase 4 fix agent does when a review finds zero issues**
 
-**Proposed addition** (Design Spec, Phase 4 Error Handling table):
+The design spec's convergence check happens after the full iteration (review + fix). If the review finds zero issues (all counts at 0), the termination guard would trigger at the end of the iteration. But the spec doesn't say whether the fix step is skipped when there are no issues. Running a fix agent with an empty issue list is wasteful and could produce unexpected behavior.
 
-> | `polish_state.json` unreadable, missing, or invalid at Phase 4 resume | Halt and notify the operator with the file path and the specific error (parse failure, missing file, invalid schema). Do not attempt recovery or partial loading — the operator must fix or recreate the file. Same behavior as `status.json` and `chat_history.json` corruption handling. |
-
----
-
-**[Major]** Design Spec / Build Spec — No specification for how the code builder's `test-runner.js` determines *which* test command to run. The build spec says "The `test-runner.js` module executes tests using the framework specified in `spec.md`" but doesn't explain how `test-runner.js` extracts or receives the test command from `spec.md`. This is a plan-level gap — the builder needs to know the contract between spec.md content and test execution.
-
-**Proposed addition** (Design Spec, Phase 3 Code Mode, after the test framework selection paragraph):
-
-> **Test Command Discovery:** The code builder's `test-runner.js` does not parse `spec.md` to discover the test command. Instead, the coding agent is instructed (via the `/prompts/code-build.md` prompt) to create a standard `npm test` script in the project's `package.json` (or the language-equivalent test entry point). `test-runner.js` always invokes the project's standard test entry point (`npm test` for Node.js projects). The specific test framework is an implementation detail of the deliverable codebase, not of ThoughtForge's `test-runner.js`. If the test command exits non-zero, `test-runner.js` treats it as test failures and captures stdout/stderr as the `details` field.
+Proposed content to add after the "Fix agent context assembly" paragraph in Phase 4:
+> **Zero-Issue Iteration:** If the review step produces zero issues (empty issues array), the fix step is skipped for that iteration. The orchestrator proceeds directly to convergence guard evaluation. Only the review commit is written — no fix commit.
 
 ---
 
-**[Major]** Execution Plan — No task for implementing the Phase 1 connector URL identification behavior described in Design Spec Phase 1 step 3 ("The AI identifies connector URLs in chat messages by matching against known URL patterns for each enabled connector"). Task 8 mentions "Connector integration (Task 7c) is optional" but doesn't cover the URL-matching behavior in chat messages. Task 7c covers the abstraction layer but not the chat-message URL scanning.
+**[Minor] — No specification for notification behavior when the human is actively viewing the project**
 
-**Proposed addition** (Execution Plan, Build Stage 2, after Task 8):
+The design spec says every phase transition pings the human with a notification (ntfy.sh). But if the human is already looking at the project in the chat interface, duplicate external notifications are noise. The plan doesn't address whether notifications are suppressed when the human has the project open.
 
-> | 8a | Implement chat-message URL scanning for resource connectors: match URLs in brain dump chat messages against enabled connector URL patterns (from build spec), auto-pull matched URLs via connector layer, ignore matches for disabled connectors, pass unmatched URLs through as brain dump text | — | Task 8, Task 7c | — | Not Started |
-
----
-
-**[Minor]** Execution Plan — No task for implementing the deliverable type ambiguity handling from Design Spec ("If the brain dump contains signals for both Plan and Code, the AI defaults to Plan and flags the ambiguity in the Open Questions section"). This is prompt-level behavior but the execution plan doesn't reference it in Task 8 or Task 11.
-
-**Proposed addition** (Execution Plan, Task 8 description, append):
-
-> "Include ambiguous deliverable type handling per design spec: when brain dump signals both Plan and Code, AI defaults to Plan and flags in Open Questions."
+Proposed content to add to the Notification Content section:
+> **Active Session Awareness:** Notifications are sent regardless of whether the human has the project open in the chat interface. The notification layer does not track client connection state. Suppressing notifications for active sessions is deferred — not a current build dependency.
 
 ---
 
-**[Minor]** Design Spec — No specification for what happens when the human clicks "New Project" in the sidebar while a chat thread is active and the AI is mid-response (streaming). Does the current stream abort? Does the new project open in a separate panel?
+**[Minor] — No mention of how `polish_log.md` or `polish_state.json` behave on Resume after halt**
 
-**Proposed addition** (Design Spec, UI section, after the project list sidebar description):
+The design spec says Resume "resumes the polish loop from the next iteration" and that `polish_state.json` is preserved. But it doesn't specify whether `polish_log.md` gets a resume entry, or whether the convergence trajectory in `polish_state.json` is continuous across the halt boundary.
 
-> **Mid-Stream Project Switch:** If the human switches projects while an AI response is streaming, the client stops rendering the stream for the previous project's chat. Server-side processing continues uninterrupted — the AI response completes and is persisted to `chat_history.json` regardless of client-side display state. When the human returns to the project, the completed response is visible in the chat history.
-
----
-
-**[Minor]** Execution Plan — No task for implementing the Phase 3→4 milestone notification ("Phase 3 complete. Deliverable built. Polish loop starting."). Task 6c mentions it in its description but the notification is dependent on Task 5 (phase transition notifications), which isn't listed as a dependency of Task 6c.
-
-**Proposed correction** (Execution Plan, Task 6c Depends On):
-
-> Change from: `Task 6a, Task 7`
-> Change to: `Task 5, Task 6a, Task 7`
+Proposed content to add to the Phase 4 Halt Recovery section:
+> **State Continuity on Resume:** The convergence trajectory in `polish_state.json` is continuous across the halt boundary — the resumed iteration is numbered sequentially after the last completed iteration. `polish_log.md` receives a log entry for the resume event before the next iteration's entry: `## Resumed at {ISO8601} — Halted by {guard_type} at iteration {N}, resumed by human`.
 
 ---
 
 ## 3. Build Spec Material That Should Be Extracted
 
-**[Minor]** Design Spec, Phase 1 — "realign from here" algorithm details (line 92): "the AI re-distills from the original brain dump plus corrections up to a rollback point. Algorithm details in build spec." This is correctly deferred. However, the preceding sentence describes the matching rule: "The command is matched as an exact case-insensitive string: the entire chat message must be 'realign from here' with no additional text." This matching rule *is* an implementation detail (string matching behavior, case sensitivity, whole-message vs. substring) that belongs in the build spec alongside the algorithm.
+**[Minor] — Phase 1 step 3 connector URL pattern matching details**
 
-**Recommendation:** Move the matching rule to the build spec's Realign Algorithm section. Replace with a plan-level statement: "The human types 'realign from here' in chat to trigger a re-distillation from the original brain dump plus corrections up to a rollback point. Exact matching rules and algorithm in build spec."
+The design spec (Phase 1, step 3 detail) specifies the three-way URL matching logic (match+enabled, match+disabled, no match). This is implementation-level routing logic — the design-level content is "ThoughtForge identifies connector URLs in chat messages and pulls content via enabled connectors." The matching matrix belongs in the build spec alongside the connector URL patterns that are already there.
 
----
+Specific text to extract from design spec Phase 1, step 3:
+> The AI matches each URL against the known patterns for enabled connectors:
+> - **Match + enabled:** URL is pulled automatically via the connector.
+> - **Match + disabled:** URL is silently ignored (not pulled, not treated as text).
+> - **No match:** URL is treated as regular brain dump text and included in distillation context.
 
-**[Minor]** Design Spec, lines 108-110 — "Action Button Behavior (All Buttons): Every action button in the chat interface follows these rules: (a) specific `status.json` update, (b) defined chat UI feedback, (c) stated confirmation requirement. Complete button inventory with `status.json` effects and UI behavior is specified in the build spec." This is correctly deferred to the build spec. No action needed — noted for completeness.
-
----
-
-**[Minor]** Design Spec, Stagnation Guard (line 334) — The description includes algorithmic parameters inline: "70% of issues," "Levenshtein similarity ≥ 0.8." The design spec says "Algorithmic parameters for each guard are defined in the build spec" (line 338), but these values are stated *in the design spec itself* rather than only in the build spec. This creates two sources of truth.
-
-**Recommendation:** Remove the inline parameter values from the design spec stagnation guard description. Replace with: "Issue rotation detected — old issues resolved, new issues introduced at the same rate (rotation threshold and similarity measure defined in build spec)." The build spec already has these values in the Convergence Guard Parameters section.
-
-**Wait** — the design spec stagnation guard description at line 334 already says "rotation threshold and similarity measure defined in build spec." The build spec at line 305-306 then restates the same values. This is actually consistent — the design spec defers, and the build spec defines. However, the design spec *also* states the values inline in the same paragraph. Remove the inline values from the design spec to eliminate the dual-source issue.
-
-**Current design spec text:**
-> "Issue rotation detected — old issues resolved, new issues introduced at the same rate (rotation threshold and similarity measure defined in build spec)."
-
-This is correct as written. The duplicate values are actually in the **build spec** (lines 305-306), which is where they belong. **No action needed** — I was mistaken. The design spec properly defers.
+Replace with in the design spec:
+> The AI matches each URL against the known patterns for enabled connectors and pulls content automatically. URL matching rules (enabled/disabled/unmatched behavior) are in the build spec.
 
 ---
 
-**[Minor]** Build Spec, WebSocket Reconnection Parameters section (lines 536-543) — These are implementation-level constants (1 second initial backoff, 30 second cap, exponential strategy). This is appropriate for the build spec and is correctly placed. No extraction needed.
+**[Minor] — Operation Type Taxonomy table in design spec**
+
+The design spec (Plan Mode Safety Guardrails section) references the Operation Taxonomy and says "The complete operation type list and the mapping from orchestrator actions to operation types are defined in the build spec." This is correct — the build spec contains the full taxonomy table. No extraction needed here; the design spec correctly delegates. (Noting this for completeness — no action required.)
 
 ---
 
-**[Minor]** Design Spec, `chat_history.json` Error Handling section (line 126) — Contains truncation algorithm design: "the agent invocation layer truncates older messages while always retaining the original brain dump and the most recent messages." The build spec already has a dedicated "Chat History Truncation Algorithm" section. The design spec should describe the *behavior* (context window exceeded → truncation with anchor preservation) without describing the algorithm.
+**[Minor] — `chat_history.json` truncation algorithm specifics**
 
-**Current text (design spec, line 126):**
-> "If a single phase's chat history exceeds the agent's context window, the agent invocation layer truncates older messages while always retaining the original brain dump and the most recent messages. Truncation algorithm in build spec."
+The design spec describes truncation behavior for all four phases in detail (Phase 1 retains brain dump, Phase 2 retains initial proposal, Phase 3-4 have no anchor). These are algorithm-level details that the build spec's "Chat History Truncation Algorithm" section already covers. The design spec should state the *policy* (what is retained and why) but not the algorithm.
 
-This is borderline — the phrase "truncates older messages while always retaining the original brain dump and the most recent messages" is behavioral enough for the design spec. The build spec adds the algorithm detail. **No action needed.**
+Specific text that could be condensed in the design spec:
+> **Phase 2 Chat History Truncation:** If Phase 2 chat history exceeds the agent context window, the agent invocation layer truncates older messages from the beginning of the history, retaining the most recent messages and always retaining the initial AI spec proposal message (the first AI message in Phase 2). Messages between the initial proposal and the retained recent messages are dropped. A warning is logged when truncation occurs. This mirrors the Phase 1 truncation behavior — the initial proposal serves the same anchoring role as the original brain dump.
 
----
+Replace with:
+> **Phase 2 Chat History Truncation:** If Phase 2 chat history exceeds the agent context window, older messages are truncated while always retaining the initial AI spec proposal (same anchoring pattern as Phase 1's brain dump retention). Algorithm in build spec.
 
-That concludes the review. Three lists, sorted by severity within each list.
+And similarly for the Phase 3-4 truncation paragraph — replace:
+> **Phase 3–4 Chat History Truncation:** If Phase 3 or Phase 4 recovery chat history exceeds the agent context window, the agent invocation layer truncates older messages from the beginning, retaining the most recent messages. There is no anchoring message for these phases — unlike Phases 1–2, recovery conversations do not have a structural anchor that must be preserved. A warning is logged when truncation occurs.
+
+With:
+> **Phase 3–4 Chat History Truncation:** If Phase 3 or Phase 4 recovery chat history exceeds the agent context window, older messages are truncated from the beginning with no anchoring message. Algorithm in build spec.
