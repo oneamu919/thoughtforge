@@ -415,6 +415,10 @@ interface PlanBuilderResponse {
 }
 ```
 
+### Structured Response Validation (Non-Review)
+
+Phase 3 plan builder responses must conform to the `PlanBuilderResponse` schema. The orchestrator validates the response after each builder invocation. On parse failure: retry once. On second failure: halt and notify human. Phase 1 distillation and Phase 2 spec-building responses are natural language (not structured JSON) and do not require schema validation — the AI's output is presented directly in chat for human review and correction.
+
 ---
 
 ## Realign Algorithm
@@ -521,6 +525,8 @@ Once an action button is pressed, it is immediately disabled in the UI and remai
 
 ### Project ID Format
 `{timestamp}-{random}`, e.g., `20260214-a3f2`. Timestamp is `YYYYMMDD` from project creation date. Random is a 4-character lowercase hexadecimal string. The combined ID is URL-safe, filesystem-safe, and unique within the projects directory.
+
+**Project ID Collision Retry:** If the generated project directory already exists (extremely unlikely with timestamp + random), generate a new random suffix and retry. If the directory still exists after 3 retries, halt with error: "Could not generate unique project ID. Check projects directory for stale entries."
 
 The following operations execute in order when a new project is created:
 
@@ -878,6 +884,14 @@ Specific error messages on validation failure:
 
 - **Notification send failure** (endpoint unreachable, HTTP error, timeout): Log a warning with the channel name and error. Retry once. On second failure, log and continue — do not halt the pipeline. Notification failures are never blocking.
 - **Resource connector failure** (endpoint unreachable, API error, timeout): Already specified in connector interface — `pull()` returns `{ saved, failed }`. Failed targets include the reason. The orchestrator logs the failure, notifies the human in chat, and proceeds with available inputs.
+
+---
+
+## `constraints.md` Truncation Strategy
+
+**Used by:** Task 30 (polish loop orchestrator — review context assembly)
+
+If `constraints.md` exceeds the available context budget when combined with other review context, it is truncated from the middle — the Context and Deliverable Type sections (top) and the Acceptance Criteria section (bottom) are preserved, and middle sections (Priorities, Exclusions, Severity Definitions, Scope) are removed in reverse order until the file fits. A warning is logged identifying which sections were removed.
 
 ---
 

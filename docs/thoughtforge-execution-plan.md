@@ -18,6 +18,8 @@
 
 **Implementation language:** The codebase uses TypeScript. Zod schemas and interface definitions in the build spec use TypeScript syntax. The build toolchain includes `tsc` compilation. (If JavaScript-only is preferred, replace TypeScript interfaces with JSDoc type annotations and use Zod's runtime-only validation.)
 
+**Module system:** ESM (`"type": "module"` in `package.json`). All imports use ESM `import` syntax. `tsconfig.json` uses `"module": "nodenext"` and `"moduleResolution": "nodenext"`. This aligns with Vitest's native ESM support and Node.js ≥18's stable ESM implementation.
+
 **Pre-build decision: Test framework.** Choose Vitest or Jest before Task 1 begins. Both are compatible. Vitest is recommended for ESM-native support and faster execution with TypeScript projects (no separate compilation step for tests).
 
 **TypeScript execution model:** ThoughtForge runs via `tsx` (or `ts-node`) during development and compiles to JavaScript via `tsc` for production deployment. Vitest handles TypeScript natively for tests (no separate compilation step). The `package.json` `start` script runs the compiled output; a `dev` script runs via `tsx` for live development.
@@ -71,7 +73,7 @@
 | 8 | Implement Phase 1: brain dump intake (including empty/trivially-short input guard — block distillation and prompt for more detail), resource reading (log and skip unreadable files, notify human, proceed with available inputs), distillation prompt (loaded from `/prompts/brain-dump-intake.md`), Phase 1 sub-state transitions in `status.json` (`brain_dump` → `distilling` on Distill button → `human_review` on distillation complete). Connector integration (Task 7c) is optional — Phase 1 functions fully without connectors. Include ambiguous deliverable type handling per design spec: when brain dump signals both Plan and Code, AI defaults to Plan and flags in Open Questions. | — | Task 6a, Task 7, Task 7a, Tasks 41–42 | — | Not Started |
 | 8a | Implement chat-message URL scanning for resource connectors: match URLs in brain dump chat messages against enabled connector URL patterns (from build spec), auto-pull matched URLs via connector layer, ignore matches for disabled connectors, pass unmatched URLs through as brain dump text | — | Task 8, Task 7c | — | Not Started |
 | 9 | Implement correction loop: chat-based revisions with AI re-presentation, and "realign from here" command (per build spec Realign Algorithm) | — | Task 8 | — | Not Started |
-| 9a | Implement `chat_history.json` persistence: append after each chat message, clear on Phase 1→2 and Phase 2→3 confirmation only (NOT on Phase 3→4 automatic transition), resume from last recorded message on crash. Include context window truncation logic per build spec Chat History Truncation Algorithm: Phase 1 retains brain dump messages, Phase 2 retains initial AI proposal, Phase 3–4 truncate from beginning with no anchor. Log a warning when truncation occurs. **Include error handling: halt and notify on unreadable, missing, or invalid `chat_history.json` (same behavior as `status.json` corruption).** Include context window truncation logic per build spec Chat History Truncation Algorithm. | — | Task 3, Task 7 | — | Not Started |
+| 9a | Implement `chat_history.json` persistence: append after each chat message, clear on Phase 1→2 and Phase 2→3 confirmation only (NOT on Phase 3→4 automatic transition), resume from last recorded message on crash. Include context window truncation logic per build spec Chat History Truncation Algorithm: Phase 1 retains brain dump messages, Phase 2 retains initial AI proposal, Phase 3–4 truncate from beginning with no anchor. Log a warning when truncation occurs. **Include error handling: halt and notify on unreadable, missing, or invalid `chat_history.json` (same behavior as `status.json` corruption).** | — | Task 3, Task 7 | — | Not Started |
 | 10 | Implement action buttons: Distill (Phase 1 intake trigger) and Confirm (phase advancement mechanism). Include button debounce: disable on press until operation completes, server-side duplicate request detection (ignore duplicates, return current state). | — | Task 7 | — | Not Started |
 | 11 | Implement intent.md generation and locking, project name derivation (extract from H1 or AI-generate), `deliverable_type` derivation (from Deliverable Type section of confirmed intent.md — `"plan"` or `"code"` in status.json), status.json `project_name` and `deliverable_type` update, and Vibe Kanban card name update (if enabled). Include deliverable type parse failure handling: reject values other than "Plan" or "Code", notify human in chat, do not advance. | — | Task 9, Task 2a, Task 26, Tasks 41–42 | — | Not Started |
 | 12 | Implement Phase 2: spec building per design spec Phase 2 behavior. Includes mode-specific proposal (Plan: OPA structure; Code: architecture with OSS discovery from Task 25), AI challenge of intent decisions, constraint discovery, acceptance criteria extraction, human review/override, Unknown resolution validation gate, and Confirm advancement. Prompt loaded from `/prompts/spec-building.md`. | — | Task 6a, Task 10, Task 11, Task 7a, Task 7f, Task 25, Tasks 41–42 | — | Not Started |
@@ -203,6 +205,15 @@ This chain runs from foundation through agent layer, human interaction, plan plu
 **Secondary critical chain (Code mode):** Task 1 → Task 41 → Task 42 (parallel with Task 26 → Task 27) → Task 6a → Task 21 → Task 30c → Task 52. The agent layer (41–42) and VK adapter (26–27) are parallel branches that both feed into Task 21.
 
 Build schedule and parallelism decisions should optimize for keeping the critical path unblocked.
+
+## Parallelism Opportunities
+
+The following task groups can be executed concurrently:
+- **After Task 1:** Stage 1 foundation (Tasks 2–6a, 3a, 4–5) and Stage 7 agent layer (Tasks 41–44) — no cross-dependencies
+- **After Tasks 41–42:** All prompt drafting tasks (7a, 7f, 6e, 15a, 21a, 30a, 30b) — depend only on Task 7a
+- **After Task 6:** Stage 3 (Tasks 14–18) and Stage 4 (Tasks 20, 22–25) — independent plugin implementations
+- **After Task 26:** Task 27 (VK operations) and Task 29a (VK-disabled fallback) — independent paths
+- **Stage 8 unit tests:** All unit test tasks within a stage are independent and can run in parallel once their source tasks complete
 
 **Parallelism note:** Tasks 41-42 (agent invocation layer) gate every task that calls an AI agent. These should be prioritized immediately after Task 1 completes, as they are the single biggest bottleneck across both critical paths. All Build Stage 1 foundation tasks (2-6a) and Stage 7 tasks (41-44) can run in parallel once Task 1 is done.
 
