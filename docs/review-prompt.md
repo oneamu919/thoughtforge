@@ -20,6 +20,7 @@ Review this plan as a senior dev who will eventually build from it.
 - This is a plan, not a build spec. Do NOT review for implementation details like function signatures, module wiring, file manifests, or code-level data flow. If you find implementation detail that doesn't belong in a plan, flag it for extraction.
 - For every issue you raise: specific replacement text or proposed content to add. No vague observations.
 - If you're below 80% sure something is actually a problem, don't include it.
+- This is a non-interactive run. Output your findings directly. Do not ask questions, request confirmation, or offer to write files. Just output the three lists.
 
 ## Severity Ratings:
 Every finding must be tagged with exactly one severity:
