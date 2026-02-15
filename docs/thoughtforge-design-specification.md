@@ -64,13 +64,15 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 
    Human initiates a new project via the ThoughtForge chat interface (e.g., a "New Project" command or button). **Project initialization** creates the project directory structure, initializes version control, writes the initial project state, registers the project on the Kanban board, and opens the chat interface.
 
-   **Project ID format:** A URL-safe, filesystem-safe string. Format: `{timestamp}-{random}` (e.g., `20260214-a3f2`). The timestamp prefix enables chronological sorting of project directories. The random suffix ensures uniqueness. No spaces, no special characters beyond hyphens.
+   **Project ID format:** A URL-safe, filesystem-safe, unique string identifier. Format defined in build spec.
 
    The project ID is used as the directory name and as `project_id` in notifications — not stored in `status.json` since it is always derivable from the project directory path.
 
    **Project Name Derivation (during Phase 1 distillation):** The project name is derived from the distilled intent document. When `intent.md` is written and locked, the project name is extracted and written to `status.json`. If Vibe Kanban is enabled, the card name is updated at the same time.
 
 **Agent Assignment:** The agent specified in `config.yaml` `agents.default` is assigned to the project at initialization and stored in `status.json` as the `agent` field. This determines which AI agent is used for all pipeline phases. Per-project agent override is deferred — not a current build dependency.
+
+**Interaction model:** Phase 1 uses two explicit actions: a **Distill** button (signals that all inputs are provided and the AI should begin processing) and a **Confirm** button (advances to Phase 2). Both use button presses, not chat commands — see Confirmation Model below.
 
 1. Human brain dumps into chat — one or more messages of freeform text
 2. Human drops files/resources into `/resources/` directory (optional, can happen before or after the brain dump messages)
@@ -83,12 +85,7 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 6. AI distills into structured document: Deliverable Type, Objective, Assumptions, Constraints, Unknowns, Open Questions (max 5)
 7. AI presents distillation to human in chat
 8. Human corrects via chat → AI revises and re-presents
-9. Human can type "realign from here" as a chat message. The behavior is:
-
-   1. **Baseline identification:** The AI identifies the human's most recent substantive correction — defined as the last human message that is not a "realign from here" command. If multiple "realign from here" commands were sent in sequence, all of them are skipped to find the substantive message.
-   2. **Context truncation:** All messages after that correction (both AI and human) are excluded from the working context but remain in `chat_history.json` for audit purposes.
-   3. **Re-distillation:** The AI re-distills from the original brain dump plus all human corrections up to and including that baseline message. It does not restart from the original brain dump alone.
-   4. **No-correction guard:** If no human corrections exist yet (i.e., "realign from here" is sent before any corrections), the command is ignored and the AI responds asking the human to provide a correction first.
+9. Human can type "realign from here" in chat. The AI identifies the most recent substantive correction, discards all AI and human messages after that point from the working context (retaining them in `chat_history.json` for audit), and re-distills from the original brain dump plus all corrections up to that baseline. If no corrections exist yet, the command is ignored with a prompt to provide a correction first. Implementation algorithm in build spec.
 10. Human clicks **Confirm** button → advances to Phase 2
 11. Output: `intent.md` written to `/docs/` and locked — no further modification by AI in subsequent phases. Human may still edit manually outside the pipeline. The `deliverable_type` field in `status.json` is set to `"plan"` or `"code"` at this point, derived from the Deliverable Type section of the confirmed `intent.md`.
 
@@ -128,7 +125,7 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 **Primary Flow:**
 
 1. AI proposes deliverable structure and key decisions based on `intent.md`
-2. AI challenges weak or risky decisions present in `intent.md` — missing dependencies, unrealistic constraints, scope gaps, contradictions — with specific reasoning. Does not rubber-stamp.
+2. AI evaluates `intent.md` for: missing dependencies, unrealistic constraints, scope gaps, internal contradictions, unvalidated assumptions, and ambiguous priorities. Each flagged issue is presented to the human with specific reasoning. The AI does not rubber-stamp — it must surface concerns even if the human's intent seems clear.
 3. AI resolves Unknowns and Open Questions from `intent.md` — either by making a reasoned decision (stated in `spec.md`) or by asking the human during the Phase 2 chat. No unresolved unknowns may carry into `spec.md`.
 4. AI derives 5–10 acceptance criteria from the objective, assumptions, and constraints in `intent.md`
 5. Human confirms or overrides specific decisions
@@ -144,7 +141,7 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 
 **`constraints.md` (hot-reloaded):** The pipeline re-reads `constraints.md` at the start of each Phase 4 iteration, so manual human edits to acceptance criteria or review rules are picked up automatically.
 
-**`spec.md` and `intent.md` (static after creation):** These are read once at Phase 3 start and not re-read during later phases. If the human manually edits these files after their creation phase, the changes are silently ignored for the remainder of the pipeline run. There is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits to any locked file.
+**`spec.md` and `intent.md` (static after creation):** These are read once at Phase 3 start and not re-read during later phases. If the human manually edits these files after their creation phase, the pipeline will not see those changes — it works from its in-memory copy. There is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits to any locked file.
 
 **Phase 2 Error Handling:**
 
@@ -193,6 +190,8 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 4. Template defines OPA skeleton as fixed structure — AI fills content slots but cannot break structure
 5. Fills every section — no placeholders, no "TBD"
 
+**Builder interaction model:** The plan builder may invoke the AI agent multiple times to fill the complete template — for example, one invocation per major section or group of sections. The builder tracks which sections are complete and passes the partially-filled template as context for subsequent invocations. Each invocation returns a `PlanBuilderResponse`. The builder is complete when all template sections are filled with non-placeholder content.
+
 **Template Content Escaping:** AI-generated content must not break template rendering.
 
 6. **NEVER creates source files, runs commands, installs packages, scaffolds projects, or executes anything. Document drafting only. Enforced at orchestrator level via plugin safety rules.**
@@ -215,6 +214,8 @@ Plan mode: Deliverable Structure contains proposed plan sections following OPA F
 |---|---|---|
 | Plan | AI includes a `stuck: boolean` flag in every response (per `PlanBuilderResponse` schema in build spec). When `stuck` is `true`, the `reason` field describes what decision is needed. The orchestrator checks this flag after every builder response. | Notify and wait |
 | Code | Build agent returns non-zero exit after 2 consecutive retries on the same task, OR test suite fails on the same tests for 3 consecutive fix attempts | Notify and wait |
+
+**Code mode stuck tracking:** "Same task" means consecutive agent invocations with the same prompt intent (e.g., "implement feature X" or "fix test Y") — tracked by the code builder's internal task queue. "Identical test failures" means the same set of test names appear in the failed list across consecutive fix-and-retest cycles, compared by exact test name string match.
 
 **Phase 3 Stuck Recovery:**
 
@@ -256,6 +257,8 @@ Recovery follows the same confirmation model as Phase 4: explicit button presses
 | Integration tests | Components working together | Phase 3 + Phase 4 |
 | Acceptance tests | Each acceptance criterion has a corresponding test | Phase 3 + Phase 4 |
 
+**Test framework selection:** The test framework is determined during Phase 2 as part of the proposed architecture (language, tools, dependencies). The `test-runner.js` module executes tests using the framework specified in `spec.md`. It is not prescriptive about which framework — it adapts to whatever was decided during spec building.
+
 #### Phase 4 — Polish Loop (Fully Automated)
 
 **Each Iteration — Two Steps:**
@@ -282,7 +285,7 @@ Plan mode uses the two-step cycle (Review → Fix) with no test execution.
 |---|---|---|
 | Termination (success) | Error counts within configured thresholds (+ all tests pass for code). Thresholds in `config.yaml`. | Done. Notify human. |
 | Hallucination | Error count spikes sharply after a sustained downward trend | Halt. Notify human: "Fix-regress cycle detected. Errors trending down then spiked. Iteration [N]: [X] total (was [Y]). Review needed." |
-| Stagnation | Same total error count for 3+ consecutive iterations AND issue rotation detected — fewer than 70% of current issues match prior iteration issues by description similarity, indicating the loop is replacing old issues with new ones at the same rate. | Done (success). Notify human: "Polish sufficient. Ready for final review." |
+| Stagnation | Same total error count for 3+ consecutive iterations AND issue rotation detected — fewer than 70% of current issues match prior iteration issues (match = issues with substantially similar descriptions, as determined by string similarity). Algorithmic parameters (similarity threshold, window sizes) defined in build spec. | Done (success). Notify human — same notification path as Termination success: status set to `done`, human notified with final error counts and iteration summary. |
 | Fabrication | A severity category spikes significantly above its trailing 3-iteration average, AND the system had previously reached within 2× of convergence thresholds in at least one prior iteration — suggesting the reviewer is manufacturing issues because nothing real remains | Halt. Notify human. |
 | Max iterations | Hard ceiling reached (configurable, default 50) | Halt. Notify human: "Max [N] iterations reached. Avg flaws/iter: [X]. Lowest: [Y] at iter [Z]. Review needed." |
 
@@ -385,7 +388,7 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 
 **Application Entry Point:** The operator starts ThoughtForge by running a Node.js server command (e.g., `thoughtforge start` or `node server.js`). This launches the lightweight web chat interface on a local port. The operator accesses the interface via browser. The entry point initializes the config loader, plugin loader, notification layer, and Vibe Kanban adapter (if enabled).
 
-**Server Restart Behavior:** On startup, the server scans `/projects/` for projects with non-terminal `status.json` states (`brain_dump`, `distilling`, `human_review`, `spec_building`, `building`, `polishing`). Projects in human-interactive states (`brain_dump`, `human_review`, `spec_building`) resume normally — they are waiting for human input and no action is needed. Projects in autonomous states (`distilling`, `building`, `polishing`) are set to `halted` with `halt_reason: "server_restart"` and the human is notified. The human must explicitly resume these projects. The server does not automatically re-enter autonomous pipeline phases after a restart.
+**Server Restart Behavior:** On startup, the server scans `/projects/` for projects with non-terminal `status.json` states (`brain_dump`, `distilling`, `human_review`, `spec_building`, `building`, `polishing`). Projects in human-interactive states (`brain_dump`, `human_review`, `spec_building`) resume normally — they are waiting for human input and no action is needed. Projects in autonomous states (`distilling`, `building`, `polishing`) — where the AI was actively processing without human interaction — are set to `halted` with `halt_reason: "server_restart"` and the human is notified. The human must explicitly resume these projects. The server does not automatically re-enter autonomous pipeline phases after a restart.
 
 **Git Commit Strategy:** Each project's git repo is initialized at project creation. Commits occur at: `intent.md` lock (end of Phase 1), `spec.md` and `constraints.md` lock (end of Phase 2), Phase 3 build completion, and twice per Phase 4 iteration — once after the review step (captures the review JSON) and once after the fix step (captures applied fixes). Two commits per iteration enables rollback of a bad fix while preserving the review that identified the issues. This ensures rollback capability at every major pipeline milestone.
 
@@ -414,6 +417,8 @@ ThoughtForge communicates with Vibe Kanban via its CLI through four operations: 
 | VK disabled, Code mode | Code builder invokes agents directly via agent layer. No Kanban card. |
 
 Both modes function fully with the toggle off. The only losses are the Kanban board view and automated parallel execution (parallel execution management becomes the human's responsibility).
+
+**Vibe Kanban CLI failure handling:** If a VK CLI call fails (non-zero exit, timeout, command not found), the adapter logs the error. For visualization-only calls (card creation, status updates), the failure is logged as a warning and the pipeline continues — VK is not on the critical path. For agent execution calls (`vibekanban task run` in Code mode), the failure is treated as an agent failure and follows the standard agent retry-once-then-halt behavior.
 
 ### Plugin Folder Structure
 
@@ -469,6 +474,8 @@ Each notification is sent as a structured object containing all five fields from
 
 **Concurrency limit enforcement:** When the number of active projects (status not `done` or `halted`) reaches `config.yaml` `concurrency.max_parallel_runs`, new project creation is blocked. The chat interface disables the "New Project" action and displays a message: "Maximum parallel projects reached ({N}/{N}). Complete or halt an existing project to start a new one." Enforcement is at the ThoughtForge orchestrator level, not delegated to Vibe Kanban. Within a single project, the pipeline is single-threaded — only one operation (phase transition, polish iteration, button action) executes at a time. This is enforced by the sequential nature of the pipeline: each phase awaits completion before the next begins, and button presses are ignored while an operation is in progress. No explicit locking is required. Concurrent access to a single project's state files is not supported and does not need locking.
 
+**Halted projects and concurrency:** Projects with `halted` status count toward the active project limit until the human either resumes them (returning to active pipeline state) or terminates them (setting them to terminal state). This prevents the operator from creating unlimited projects while ignoring halted ones.
+
 **Write Atomicity:** All state file writes (`status.json`, `polish_state.json`, `chat_history.json`) use atomic write — write to a temporary file in the same directory, then rename to the target path. This prevents partial writes from corrupting state on crash. The project state module (Task 3) implements this as the default write behavior for all state files.
 
 | File | Written When | Schema |
@@ -486,7 +493,7 @@ Each notification is sent as a structured object containing all five fields from
 
 **WebSocket Disconnection:** If the WebSocket connection drops, the chat client automatically attempts to reconnect. On reconnect, the client fetches the current project state from `status.json` and the latest chat messages from `chat_history.json` to restore the UI to the correct state. In-flight AI responses that were streaming when the connection dropped are not replayed — the human sees the last fully-received message. If the server-side operation completed during the disconnect, the reconnect state sync picks up the updated `status.json` and chat history. If the operation did not complete server-side, the human can re-trigger the action (e.g., click Distill again). Pipeline processing continues server-side regardless of client connection state.
 
-**Reconnection behavior:** The client auto-reconnects with exponential backoff. During disconnection, the chat UI displays a visible "Reconnecting..." indicator. On successful reconnect, the indicator is removed and state is synced from the server. Specific backoff parameters are in the build spec.
+**Reconnection behavior:** The client auto-reconnects on disconnection. During disconnection, the chat UI displays a visible connection status indicator. On successful reconnect, state is synced from the server. Reconnection parameters (backoff strategy, timing) are in the build spec.
 
 **Server-side session:** The server does not maintain persistent WebSocket session state. On reconnect, the client sends the project ID it was viewing. The server responds with the current `status.json` and latest `chat_history.json` for that project. If the project ID is invalid, the server responds with the project list.
 

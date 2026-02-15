@@ -381,6 +381,18 @@ interface PlanBuilderResponse {
 
 ---
 
+## Realign Algorithm
+
+**Used by:** Task 9 (correction loop — "realign from here" command)
+
+**Realign Algorithm (Phase 1, step 9):**
+1. **Baseline identification:** Scan backwards through `chat_history.json` past any sequential "realign from here" commands to find the most recent substantive human correction.
+2. **Context truncation:** Exclude all AI and human messages after the identified baseline from the working context. Retain excluded messages in `chat_history.json` for audit trail.
+3. **Re-distillation scope:** Re-distill from the original brain dump plus all human corrections up to the identified baseline.
+4. **No-correction guard:** If no human corrections exist yet (only the original brain dump), ignore the "realign from here" command and prompt the human to provide a correction first.
+
+---
+
 ## Resource Connector Interface
 
 **Used by:** Tasks 7c–7e (resource connectors)
