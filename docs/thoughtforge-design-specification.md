@@ -77,7 +77,7 @@ Pipeline document outputs (`intent.md`, `spec.md`, `constraints.md`, plan delive
 1. Human brain dumps into chat — one or more messages of freeform text
 2. Human drops files/resources into `/resources/` directory (optional, can happen before or after the brain dump messages)
 3. If external resource connectors are configured (Notion, Google Drive), the human provides page URLs or document links via chat, or the URLs are pre-configured in `config.yaml` (e.g., default Notion pages that should be pulled for every project). ThoughtForge pulls the content and saves it to `/resources/` as local files. Connectors are optional — if none are configured, this step is skipped.
-**Connector URL identification:** The AI identifies connector URLs in chat messages by matching against known URL patterns for each enabled connector (e.g., `notion.so/` or `notion.site/` for Notion, `docs.google.com/` or `drive.google.com/` for Google Drive). URLs matching an enabled connector pattern are pulled automatically. URLs matching a disabled connector pattern are ignored. Unrecognized URLs are treated as regular brain dump text. Pattern definitions are in the build spec.
+   **Step 3 Detail — Connector URL Identification:** The AI identifies connector URLs in chat messages by matching against known URL patterns for each enabled connector (e.g., `notion.so/` or `notion.site/` for Notion, `docs.google.com/` or `drive.google.com/` for Google Drive). URLs matching an enabled connector pattern are pulled automatically. URLs matching a disabled connector pattern are ignored. Unrecognized URLs are treated as regular brain dump text. Pattern definitions are in the build spec.
 
 4. Human clicks **Distill** button — signals that all inputs (brain dump text, files, connector URLs) have been provided and the AI should begin processing. This follows the same confirmation model as phase advancement: explicit button press, not chat-parsed.
 5. AI reads all resources (text, PDF, images via vision, code files) and the brain dump
@@ -117,13 +117,15 @@ Every action button in the chat interface follows these rules: (a) specific `sta
 | Resource file exceeds configurable size limit | Log a warning, skip the file, and notify the human in chat: "File '{filename}' exceeds size limit and was skipped." |
 | Human provides malformed or unparseable connector URL in chat | AI responds in chat: "Could not parse URL: '{url}'. Please provide a valid Notion page URL or Google Drive document link." Does not halt. Does not attempt to pull. |
 
+**Connector failure during distillation:** If a connector fails after the human clicks Distill, the distillation proceeds automatically using all successfully retrieved inputs. The human is notified of the connector failure in chat but does not need to re-click Distill. The failed connector resources are simply absent from the distillation context.
+
 **Phase-to-State Mapping:** Phase-to-state enum mapping and transition triggers are defined in the build spec's `status.json` schema.
 
 Vibe Kanban columns correspond to these `status.json` phase values, except `halted` — which is a card state indicator, not a separate column. See the UI section for full column mapping.
 
 **Project Lifecycle After Completion:** Once a project reaches `done` or `halted`, no further pipeline actions are taken. The project directory, git repo, and all state files remain in place for human reference. Project archival, deletion, and re-opening are deferred. Not a current build dependency.
 
-**Disk management:** Project directories accumulate indefinitely in v1. The operator is responsible for manually deleting completed or halted project directories when no longer needed. ThoughtForge does not track or limit total disk usage. Automated project archival and cleanup are deferred — not a current build dependency.
+**Disk management:** Project directories accumulate indefinitely in v1. The operator is responsible for manually deleting completed or halted project directories when no longer needed. ThoughtForge does not track or limit total disk usage. Automated project archival and cleanup are deferred — not a current build dependency. Operational logs (`thoughtforge.log`) also accumulate without rotation or size limits in v1. The operator is responsible for manual log management. Automated log rotation is deferred — not a current build dependency.
 
 #### Phase 2 — Spec Building & Constraint Discovery
 
@@ -144,7 +146,7 @@ Vibe Kanban columns correspond to these `status.json` phase values, except `halt
 
 **Locked File Behavior:** "Locked" means the AI pipeline will not modify these files after their creation phase. The human may still edit them manually outside the pipeline, with the following consequences:
 
-- **`constraints.md` (hot-reloaded):** The pipeline re-reads `constraints.md` at the start of each Phase 4 iteration, so manual human edits to acceptance criteria or review rules are picked up automatically. If `constraints.md` is unreadable or missing at the start of a Phase 4 iteration (due to manual deletion or file system error), the iteration halts and the human is notified. If the file is readable but has modified structure, ThoughtForge passes it to the AI reviewer without structural validation. The reviewer processes whatever content it receives — no special handling is required for structural variations.
+- **`constraints.md` (hot-reloaded):** The pipeline re-reads `constraints.md` at the start of each Phase 4 iteration, so manual human edits to acceptance criteria or review rules are picked up automatically. If `constraints.md` is unreadable or missing at the start of a Phase 4 iteration (due to manual deletion or file system error), the iteration halts and the human is notified. If the file is readable but has been restructured by the human (missing sections, reordered content, added sections), ThoughtForge passes it to the AI reviewer as-is without validating that it matches the original `constraints.md` schema. The reviewer processes whatever content it receives.
 
 - **`spec.md` and `intent.md` (static after creation):** These are read once at Phase 3 start and not re-read during later phases. If the human manually edits these files after their creation phase, the pipeline will not see those changes — it works from its in-memory copy. There is no "restart from Phase N" capability in v1. The pipeline does not detect or warn about manual edits to any locked file.
 
@@ -296,8 +298,8 @@ Plan mode uses the two-step cycle (Review → Fix) with no test execution.
 |---|---|---|
 | Termination (success) | Error counts within configured thresholds (+ all tests pass for code). Thresholds in `config.yaml`. | Done. Notify human. |
 | Hallucination | Error count increases significantly (threshold defined in build spec) after a consecutive downward trend (minimum trend length defined in build spec) | Halt. Notify human: "Fix-regress cycle detected. Errors trending down then spiked. Iteration [N]: [X] total (was [Y]). Review needed." |
-| Stagnation | Same total error count for 3+ consecutive iterations AND issue rotation detected — fewer than 70% of current issues match issues from the immediately prior iteration by description similarity. Algorithmic parameters (similarity threshold, window sizes) defined in build spec. | Done (success — treated as converged plateau). Notify human with final error counts and iteration summary. |
-| Fabrication | A severity category spikes significantly above its trailing 3-iteration average, AND the system had previously reached within 2× of convergence thresholds in at least one prior iteration — suggesting the reviewer is manufacturing issues because nothing real remains | Halt. Notify human. |
+| Stagnation | Same total error count for consecutive iterations exceeding the configured stagnation limit AND issue replacement detected (rotation threshold and similarity measure defined in build spec). This indicates the reviewer is finding new issues to replace resolved ones, producing a plateau rather than genuine progress. | Done (success — treated as converged plateau). Notify human with final error counts and iteration summary. |
+| Fabrication | A severity category spikes significantly above its trailing average (window size defined in build spec), AND the system had previously reached counts within a multiplier of convergence thresholds (multiplier defined in build spec) in at least one prior iteration — suggesting the reviewer is manufacturing issues because nothing real remains | Halt. Notify human. |
 | Max iterations | Hard ceiling reached (configurable, default 50) | Halt. Notify human: "Max [N] iterations reached. Avg flaws/iter: [X]. Lowest: [Y] at iter [Z]. Review needed." |
 
 Algorithmic parameters for each guard (spike thresholds, similarity measures, window sizes) are defined in the build spec.
@@ -399,9 +401,11 @@ ThoughtForge creates tasks → pushes them to Vibe Kanban → Vibe Kanban execut
 | Operational Logging | Structured JSON logger — per-project operational log for debugging | ThoughtForge logs its own operations — agent invocations, phase transitions, convergence guard evaluations, errors, and halt events — to a per-project `thoughtforge.log` file as structured JSON lines. Separate from `polish_log.md` (which is the human-readable iteration log). Used for debugging, not human review. |
 | MCP (Future) | Model Context Protocol | Core actions as clean standalone functions for future MCP wrapping. Deferred. Not a current build dependency. |
 
+**Access Control:** When bound to localhost (`127.0.0.1`), no authentication is required — only the local operator can access the interface. If the operator changes the bind address to allow network access (`0.0.0.0` or a specific network interface), a warning is logged at startup: "Server bound to network interface. No authentication is configured — any network client can access ThoughtForge." Authentication and access control are deferred — not a current build dependency. The operator assumes responsibility for network security when binding to non-localhost addresses.
+
 **Application Entry Point:** The operator starts ThoughtForge by running a Node.js server command (e.g., `thoughtforge start` or `node server.js`). This launches the lightweight web chat interface on a local port. The operator accesses the interface via browser. The entry point initializes the config loader, plugin loader, notification layer, and Vibe Kanban adapter (if enabled).
 
-**Server Restart Behavior:** On startup, the server scans `/projects/` for projects with non-terminal `status.json` states (`brain_dump`, `distilling`, `human_review`, `spec_building`, `building`, `polishing`). Projects in human-interactive states (`brain_dump`, `human_review`, `spec_building`) resume normally — they are waiting for human input and no action is needed. Projects in autonomous states (`distilling`, `building`, `polishing`) — where the AI was actively processing without human interaction — are set to `halted` with `halt_reason: "server_restart"` and the human is notified. The human must explicitly resume these projects. The server does not automatically re-enter autonomous pipeline phases after a restart.
+**Server Restart Behavior:** On startup, the server scans `/projects/` for projects with non-terminal `status.json` states (`brain_dump`, `distilling`, `human_review`, `spec_building`, `building`, `polishing`). Projects in human-interactive states (`brain_dump`, `human_review`, `spec_building`) resume normally — they are waiting for human input and no action is needed. Projects in autonomous states (`distilling`, `building`, `polishing`) are set to `halted` with `halt_reason: "server_restart"`. These are not auto-resumed because the server cannot safely re-enter a mid-execution agent invocation or polish iteration — the prior subprocess is dead and its partial output is unknown. The human must explicitly resume. The server does not automatically re-enter autonomous pipeline phases after a restart.
 
 **Git Commit Strategy:** Each project's git repo is initialized at project creation. Commits occur at: `intent.md` lock (end of Phase 1), `spec.md` and `constraints.md` lock (end of Phase 2), Phase 3 build completion, and twice per Phase 4 iteration — once after the review step (captures the review JSON) and once after the fix step (captures applied fixes). Two commits per iteration enables rollback of a bad fix while preserving the review that identified the issues. This ensures rollback capability at every major pipeline milestone.
 
@@ -504,6 +508,8 @@ Each notification is sent as a structured object containing all five fields from
 
 **ThoughtForge Chat (Built):** Lightweight web chat interface (terminal-based alternative deferred). Primary use: Phases 1–2 (brain dump intake, spec building). Also used for Phase 3 stuck recovery (provide input, terminate) and Phase 4 halt recovery (resume, override, terminate). Per-project chat thread, file/resource dropping, AI messages labeled by phase, corrections via chat, advancement via Confirm button. During stuck and halt recovery, the chat presents the current state context and the available recovery options — no free-form AI conversation. The chat interface includes a project list sidebar showing all active projects with their current phase. The human clicks a project to open its chat thread. New projects are created from this list via a "New Project" action. The active project's chat thread occupies the main panel.
 
+**Browser Compatibility:** The chat interface targets modern evergreen browsers (Chrome, Firefox, Edge, Safari — current and previous major version). No IE11 or legacy browser support. ES6+ JavaScript features and native WebSocket API are assumed available.
+
 **WebSocket Disconnection:** If the WebSocket connection drops, the chat client automatically attempts to reconnect. On reconnect, the client fetches the current project state from `status.json` and the latest chat messages from `chat_history.json` to restore the UI to the correct state. In-flight AI responses that were streaming when the connection dropped are not replayed — the human sees the last fully-received message. If the server-side operation completed during the disconnect, the reconnect state sync picks up the updated `status.json` and chat history. If the operation did not complete server-side, the human can re-trigger the action (e.g., click Distill again). Pipeline processing continues server-side regardless of client connection state.
 
 **Reconnection behavior:** The client auto-reconnects on disconnection. During disconnection, the chat UI displays a visible connection status indicator. On successful reconnect, state is synced from the server. Reconnection parameters (backoff strategy, timing) are in the build spec.
@@ -513,6 +519,8 @@ Each notification is sent as a structured object containing all five fields from
 **Project Status on Return:** The project list sidebar shows each project's current phase and status (including halted indicator). When the human opens a project's chat thread, the most recent messages and any pending action buttons (e.g., halt recovery options) are displayed. No separate "catch-up" summary is generated — the chat history and project status serve this purpose.
 
 **Prompt Management:** The chat interface includes a Settings button that opens a prompt editor. All pipeline prompts — brain dump intake, review, fix, and any future prompts — are listed, viewable, and editable by the human. Edits apply globally (all future projects use the updated prompts). Per-project prompt overrides are deferred. Not a current build dependency. Prompts are stored as external files in a `/prompts/` directory, not embedded in code. The prompt editor reads from and writes to these files.
+
+**Concurrent edit handling:** The prompt editor uses a last-write-wins model with no conflict detection. Since this is a single-operator tool, concurrent tab edits are the operator's responsibility.
 
 **Vibe Kanban Dashboard (Integrated, Not Built):** Columns map to `status.json` phases: Brain Dump → Distilling → Human Review → Spec Building → Building → Polishing → Done. `Distilling` and `Human Review` are separate Kanban columns representing Phase 1 sub-states — the card moves from Brain Dump → Distilling → Human Review as the phase progresses. "Confirmed" is not a separate column — confirmation advances the card from Human Review to the next phase. Cards with `halted` status remain in their current column with a visual halted indicator; "Halted" is a card state, not a column. Each card = one project. Shows agent, status, parallel execution.
 
@@ -572,16 +580,16 @@ Orchestrator core actions (create project, check status, read polish log, trigge
 
 | Config Area | What's Configurable | Defaults |
 |---|---|---|
-| Polish loop | Convergence thresholds: `critical_max` (0), `medium_max` (3), `minor_max` (5) — maximum allowed counts, inclusive. Max iterations (50). Stagnation limit (3). Malformed output retries (2). | See "What's Configurable" column for per-key defaults |
-| Concurrency | Max parallel runs | 3 |
-| Notifications | Channel selection (ntfy, telegram, etc.), channel-specific settings | ntfy enabled, topic "thoughtforge" |
-| Resource Connectors | Connector selection (Notion, Google Drive, etc.), per-connector credentials and settings | All disabled by default |
-| Agents | Default agent, call timeout, per-agent command and flags | claude, 300s |
-| Templates | Plan mode templates located at `./plugins/plan/templates/` by convention (inside the plan plugin directory). Cross-plugin template directory config deferred — not a current build dependency. | N/A (convention-based, not configurable in v1) |
-| Plugins | Plugin directory path | `./plugins` |
-| Prompts | Prompt directory path, individual prompt files | `./prompts/`, one `.md` file per prompt |
-| Vibe Kanban | Enabled toggle | true |
-| Server | Web chat interface host and port | 127.0.0.1:3000 |
+| Polish loop | Convergence thresholds: `critical_max` (0), `medium_max` (3), `minor_max` (5) — maximum allowed counts, inclusive. Max iterations (50). Stagnation limit (3). Malformed output retries (2). | See `config.yaml` template in build spec |
+| Concurrency | Max parallel runs | See `config.yaml` template in build spec |
+| Notifications | Channel selection (ntfy, telegram, etc.), channel-specific settings | See `config.yaml` template in build spec |
+| Resource Connectors | Connector selection (Notion, Google Drive, etc.), per-connector credentials and settings | See `config.yaml` template in build spec |
+| Agents | Default agent, call timeout, per-agent command and flags | See `config.yaml` template in build spec |
+| Templates | Plan mode templates located at `./plugins/plan/templates/` by convention (inside the plan plugin directory). Cross-plugin template directory config deferred — not a current build dependency. | See `config.yaml` template in build spec |
+| Plugins | Plugin directory path | See `config.yaml` template in build spec |
+| Prompts | Prompt directory path, individual prompt files | See `config.yaml` template in build spec |
+| Vibe Kanban | Enabled toggle | See `config.yaml` template in build spec |
+| Server | Web chat interface host and port | See `config.yaml` template in build spec |
 
 **Connector and Notification URL Validation:**
 
